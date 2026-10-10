@@ -1,8 +1,7 @@
-using System.IO;
 using MistForest.Core.Model;
 using Xunit;
 
-namespace MistForest.Core.Model.Tests
+namespace MistForest.Core.Tests
 {
     public class MapCodeTests
     {

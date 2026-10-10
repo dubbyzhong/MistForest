@@ -32,8 +32,8 @@ namespace MistForest.Core.Model
         public static Map DefaultMap(Mode mode)
         {
             var map = new Map();
-            map.Width = MapInfo.Rows(mode);
-            map.Height = MapInfo.Cols(mode);
+            map.Height = MapInfo.Rows(mode);
+            map.Width = MapInfo.Cols(mode);
             if (mode == Mode.Heroes)
             {
                 (int X, int Y)[] walls = new[] { (1, 1), (1, 5), (3, 3), (5, 1), (5, 5) };
@@ -82,11 +82,11 @@ namespace MistForest.Core.Model
             }
             for (int i = 0; i < 72; ++i)
             {
-                if (i >= (map.Height + 1) * map.Width && map.HorizontalWalls[i])
+                if (i >= (map.Height - 1) * map.Width && map.HorizontalWalls[i])
                 {
                     return false;
                 }
-                if (i >= map.Height * (map.Width + 1) && map.VerticalWalls[i])
+                if (i >= map.Height * (map.Width - 1) && map.VerticalWalls[i])
                 {
                     return false;
                 }
