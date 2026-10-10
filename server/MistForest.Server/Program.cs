@@ -10,10 +10,10 @@ namespace MistForest.Server
             var map = new Map();
             Console.WriteLine("default map: " + map.Width + "x" + map.Height);
             Console.WriteLine(
-                "Scout mode: " + MapInfo.Size(Mode.Scout) + "x" + MapInfo.Rows(Mode.Scout)
+                "Scout mode: " + MapInfo.Rows(Mode.Scout) + "x" + MapInfo.Cols(Mode.Scout)
             );
             Console.WriteLine(
-                "Self-defined mode 47 = " + MapInfo.Size((Mode)47) + "x" + MapInfo.Rows((Mode)47)
+                "Self-defined mode 47 = " + MapInfo.Rows((Mode)47) + "x" + MapInfo.Cols((Mode)47)
             );
         }
     }
