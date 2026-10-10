@@ -1,0 +1,13 @@
+<Solution>
+    <Folder Name="/core/">
+        <Project Path="core/MistForest.Core.csproj" />
+    </Folder>
+    <Folder Name="/server/">
+        <Project Path="server/MistForest.Server/MistForest.Server.csproj" />
+    </Folder>
+    <Folder Name="/MistForest-Unity/">
+        <Project Path="MistForest-Unity/Assembly-CSharp.csproj" />
+        <Project Path="MistForest-Unity/MistForestCore.csproj" />
+        <Project Path="MistForest-Unity/Unity.2D.Welcome.csproj" />
+    </Folder>
+</Solution>
