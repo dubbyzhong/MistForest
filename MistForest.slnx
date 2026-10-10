@@ -10,4 +10,7 @@
         <Project Path="MistForest-Unity/MistForestCore.csproj" />
         <Project Path="MistForest-Unity/Unity.2D.Welcome.csproj" />
     </Folder>
+    <Folder Name="/tests/">
+        <Project Path="tests/MistForest.Core.Tests/MistForest.Core.Tests.csproj" />
+    </Folder>
 </Solution>
