@@ -102,7 +102,7 @@ namespace MistForest.Core.Model
         public bool Teams;
         public bool[] Eliminated = new bool[4];
         public int[] PlayerTurns = new int[4];
-        public int TeamSzie = 2,
+        public int TeamSize = 2,
             Player,
             Turn,
             Turns,
