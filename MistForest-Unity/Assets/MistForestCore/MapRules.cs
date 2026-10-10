@@ -136,7 +136,7 @@ namespace MistForest.Core.Model
             {
                 throw new System.ArgumentException("a or b is out of range.");
             }
-            int n = MapInfo.Rows(mode);
+            int n = MapInfo.Cols(mode); // 跨度 = 每行格数 = 列数(个位)。与几何代码的 map.Width 一致。
             int cellA = a - 1;
             int cellB = b - 1;
             return System.Math.Abs(cellA / n - cellB / n) + System.Math.Abs(cellA % n - cellB % n);

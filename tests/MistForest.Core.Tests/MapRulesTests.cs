@@ -69,5 +69,14 @@ namespace MistForest.Core.Tests
             custom.Width = 7;
             Assert.True(MapRules.ValidMap((Mode)67, custom));
         }
+
+        [Fact]
+        public void Distance_NonSquareMap_StrideIsWidth()
+        {
+            // 模式 43 = 4 行 3 列(Height=4, Width=3):格 4 在格 1 正下方,距离应为 1。
+            // 此测试锁定"跨度 = 每行格数 = Width(个位)"的约定。
+            Assert.Equal(1, MapRules.Distance((Mode)43, 1, 4));
+            Assert.Equal(2, MapRules.Distance((Mode)43, 1, 7)); // (0,0)->(2,0) 竖向两格
+        }
     }
 }
