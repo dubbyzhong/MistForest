@@ -54,7 +54,7 @@ namespace MistForest.Core.Model
             else if (text.Length == 227)
             {
                 next.Width = text[0] - '0';
-                next.Height = text[0] - '0';
+                next.Height = text[1] - '0';
             }
             else
             {
