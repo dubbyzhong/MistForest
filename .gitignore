@@ -1,0 +1,10 @@
+/MistForest-win
+bin
+obj
+docs
+.vscode/
+.marscode
+Temp
+Library
+Logs
+UserSettings

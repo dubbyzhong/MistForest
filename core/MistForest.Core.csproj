@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>netstandard2.1</TargetFramework>
+        <LangVersion>9.0</LangVersion>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="../MistForest-Unity/Assets/MistForestCore/**/*.cs" />
+    </ItemGroup>
+</Project>
