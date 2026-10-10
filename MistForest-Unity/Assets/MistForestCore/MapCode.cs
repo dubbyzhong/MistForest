@@ -15,8 +15,8 @@ namespace MistForest.Core.Model
         public static string Encode(Map map)
         {
             var text = new System.Text.StringBuilder();
-            text.Append(map.Width.ToString());
             text.Append(map.Height.ToString());
+            text.Append(map.Width.ToString());
             foreach (Terrain cell in map.Cells)
             {
                 text.Append((char)('0' + (int)cell));
@@ -53,8 +53,8 @@ namespace MistForest.Core.Model
             }
             else if (text.Length == 227)
             {
-                next.Width = text[0] - '0';
-                next.Height = text[1] - '0';
+                next.Height = text[0] - '0';
+                next.Width = text[1] - '0';
             }
             else
             {

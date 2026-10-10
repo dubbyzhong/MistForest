@@ -1,7 +1,7 @@
 using MistForest.Core.Model;
 using Xunit;
 
-namespace MistForest.Core.Model.Tests
+namespace MistForest.Core.Tests
 {
     public class MapRulesTests
     {
@@ -65,9 +65,9 @@ namespace MistForest.Core.Model.Tests
             Assert.True(MapRules.ValidMap(Mode.Heroes, MapRules.DefaultMap(Mode.Heroes)));
             Assert.True(MapRules.ValidMap(Mode.Scout, MapRules.DefaultMap(Mode.Scout)));
             Map custom = new Map();
-            custom.Width = 7;
             custom.Height = 6;
-            Assert.True(MapRules.ValidMap((Mode)76, custom));
+            custom.Width = 7;
+            Assert.True(MapRules.ValidMap((Mode)67, custom));
         }
     }
 }

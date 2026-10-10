@@ -43,7 +43,7 @@ namespace MistForest.Core.Model
     /// <summary>
     /// the kinds of actions which player can do.
     /// </summary>
-    public enum Kind
+    public enum ActionKind
     {
         Move,
         Attack,
