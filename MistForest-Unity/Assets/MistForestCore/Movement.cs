@@ -205,7 +205,27 @@ namespace MistForest.Core.Model
                 {
                     for (int col = 0; col < width - 1; ++col)
                     {
-                        List<(int, int)> vecs = new List<(int, int)>();
+                        HashSet<(int, int)> vecs = new HashSet<(int, int)>();
+                        if (map.Cells[row * width + col] == Terrain.Wall)
+                        {
+                            vecs.Add((-1, 0));
+                            vecs.Add((0, -1));
+                        }
+                        if (map.Cells[row * width + col + 1] == Terrain.Wall)
+                        {
+                            vecs.Add((-1, 0));
+                            vecs.Add((0, 1));
+                        }
+                        if (map.Cells[(row + 1) * width + col] == Terrain.Wall)
+                        {
+                            vecs.Add((1, 0));
+                            vecs.Add((0, -1));
+                        }
+                        if (map.Cells[(row + 1) * width + col + 1] == Terrain.Wall)
+                        {
+                            vecs.Add((1, 0));
+                            vecs.Add((0, 1));
+                        }
                         if (map.VerticalWalls[row * (width - 1) + col])
                         {
                             vecs.Add((-1, 0));
@@ -238,8 +258,11 @@ namespace MistForest.Core.Model
                         {
                             if (vecs.Count == 2)
                             {
-                                var (x1, y1) = vecs[0];
-                                var (x2, y2) = vecs[1];
+                                var vecsEnumerator = vecs.GetEnumerator();
+                                vecsEnumerator.MoveNext();
+                                var (x1, y1) = vecsEnumerator.Current;
+                                vecsEnumerator.MoveNext();
+                                var (x2, y2) = vecsEnumerator.Current;
                                 if (x1 * x2 + y1 * y2 != 0)
                                 {
                                     return false;
@@ -346,7 +369,5 @@ namespace MistForest.Core.Model
             int mid = midRow * width + midCol + 1;
             return map.Cells[mid - 1] != Terrain.Wall && CanMoveThroughWall(from, mid, map);
         }
-
-
     }
 }

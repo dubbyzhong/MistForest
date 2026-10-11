@@ -119,6 +119,9 @@ namespace MistForest.Core.Model
         public string PreviousReport = string.Empty;
     }
 
+    /// <summary>
+    /// The overall snapshot of the game.
+    /// </summary>
     public sealed class Snapshot
     {
         public double[] RoundDamage = new double[81];
