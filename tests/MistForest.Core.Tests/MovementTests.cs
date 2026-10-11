@@ -57,6 +57,8 @@ namespace MistForest.Core.Tests
             var graze = new Map();
             graze.Cells[1] = Terrain.Wall;
             Assert.True(Movement.ClearShot(Mode.Heroes, 1, 7, graze));
+            graze.Cells[5] = Terrain.Wall;
+            Assert.False(Movement.ClearShot(Mode.Heroes, 1, 7, graze));
 
             var lake = new Map();
             lake.Cells[5] = Terrain.Lake;
@@ -89,6 +91,18 @@ namespace MistForest.Core.Tests
             map.HorizontalWalls[1] = true;
             Assert.True(Movement.ClearShot(Mode.Heroes, 1, 7, map));
             Assert.False(Movement.ClearShot(Mode.Heroes, 2, 6, map));
+        }
+
+        [Fact]
+        public void ClearShot_LShapBoxAndLineWallShot()
+        {
+            var map = new Map();
+            map.Cells[1] = Terrain.Wall;
+            map.HorizontalWalls[0] = true;
+            Assert.False(Movement.ClearShot(Mode.Heroes, 1, 7, map));
+            map.HorizontalWalls[0] = false;
+            map.HorizontalWalls[1] = true;
+            Assert.True(Movement.ClearShot(Mode.Heroes, 1, 7, map));
         }
 
         [Fact]

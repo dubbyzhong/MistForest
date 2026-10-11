@@ -57,6 +57,7 @@
     <Compile Include="Assets/MistForestCore/Movement.cs" />
     <Compile Include="Assets/MistForestCore/model.cs" />
     <Compile Include="Assets/MistForestCore/State.cs" />
+    <Compile Include="Assets/MistForestCore/Referee.cs" />
     <Compile Include="Assets/MistForestCore/View.cs" />
     <Compile Include="Assets/MistForestCore/MapCode.cs" />
     <Compile Include="Assets/MistForestCore/GameRules.cs" />
