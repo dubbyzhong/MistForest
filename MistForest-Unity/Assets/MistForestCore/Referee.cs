@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 
 namespace MistForest.Core.Model
 {
@@ -288,6 +287,17 @@ namespace MistForest.Core.Model
                 event_.PublicText += "Attack " + action.Target;
                 Damage(action.Unit, action.Target, ranged, execute, event_, power);
             }
+            else if (action.Kind == ActionKind.Demolish)
+            {
+                DestroyBuilding(action.Target);
+                event_.PublicText += $"Demolish the building at {action.Target}, leaving rubble. ";
+                end = true;
+            }
+            else if (action.Kind is ActionKind.BuildFort or ActionKind.BuildWall)
+            {
+                Build(action, event_);
+                end = true;
+            }
             CheckVictory();
             if (state.Winner != null)
             {
@@ -304,6 +314,111 @@ namespace MistForest.Core.Model
             }
             Commit(event_);
             return true;
+        }
+
+        /// <summary>
+        /// Destroy a building, leaving rubble for two player turns.
+        /// </summary>
+        /// <param name="cell"></param>
+        private void DestroyBuilding(int cell)
+        {
+            state.Buildings[cell - 1] = new Building();
+            state.Rubble[cell - 1] = state.Turns + state.PlayerCount;
+        }
+
+        /// <summary>
+        /// Build for normal roles: a two-tile wall succeeds or fails as a whole.
+        /// Hidden enemies are only judged here - the failure never says why.
+        /// </summary>
+        /// <param name="action"></param>
+        /// <param name="event_"></param>
+        private void Build(GameAction action, Event event_)
+        {
+            Unit unit = state.Units[action.Unit];
+            var cells = new List<int> { action.Target };
+            if (action.Kind == ActionKind.BuildWall)
+            {
+                cells.Add(action.Extra);
+            }
+            bool allowed = true;
+            foreach (int cell in cells)
+            {
+                if (!World.BuildSite(View(state.Turn), unit.Position, cell))
+                {
+                    allowed = false;
+                }
+                foreach (Unit other in state.Units)
+                {
+                    if (other.Health > 0 && other.Position == cell)
+                    {
+                        allowed = false;
+                    }
+                }
+            }
+            event_.PublicText +=
+                action.Kind == ActionKind.BuildFort ? "Build a fort" : "Build a wall";
+            foreach (int cell in cells)
+            {
+                event_.PublicText += $" {cell}";
+            }
+            if (!allowed)
+            {
+                event_.PublicText += "\nBuild failed, turn ends. ";
+                return;
+            }
+            foreach (int cell in cells)
+            {
+                state.Buildings[cell - 1] = new Building
+                {
+                    Kind = action.Kind == ActionKind.BuildFort ? Structure.Fort : Structure.Wall,
+                    Owner = action.Unit / 2,
+                    Health = 2,
+                };
+            }
+            event_.PublicText += "\nBuild succeeded, turn ends. ";
+            unit.Report = "The building is public to both sides. ";
+        }
+
+        /// <summary>
+        /// check whether a build or demolish chance exists.
+        /// </summary>
+        /// <param name="view"></param>
+        /// <param name="unitInter"></param>
+        /// <returns></returns>
+        private bool HasBuildOrDemolish(View view, int unitInter)
+        {
+            Unit unit = view.Units[unitInter];
+            if (view.Budget.Active != null)
+            {
+                return false; 
+            }
+            if (view.Buildings[unit.Position - 1].Health > 0)
+            {
+                return unit.Role != Role.Wolf; 
+            }
+            int width = view.Map.Width;
+            int[] deltas = { -width, width, -1, 1 };
+            foreach (int delta in deltas)
+            {
+                int cell = unit.Position + delta;
+                if (
+                    cell < 1
+                    || cell > MapInfo.CellCount(view.Mode)
+                    || MapRules.Distance(view.Mode, unit.Position, cell) != 1
+                )
+                {
+                    continue;
+                }
+                if (view.Buildings[cell - 1].Health > 0)
+                {
+                    return unit.Role != Role.Wolf;
+                }
+                if (unit.Role != Role.Wolf && World.BuildSite(view, unit.Position, cell))
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         /// <summary>
@@ -358,11 +473,59 @@ namespace MistForest.Core.Model
             {
                 power = 1e6;
             }
+            state.RoundDamage[target - 1] = Math.Max(state.RoundDamage[target - 1], power);
             bool contact = false;
+            Building building = state.Buildings[target - 1];
+            bool protectedUnits = building.Health > 0 && !execute;
+            if (building.Health > 0)
+            {
+                contact = true;
+                if (
+                    building.Owner != null
+                    && GameRules.Allied(state.Teams, (int)building.Owner, actor / 2)
+                )
+                {
+                    event_.PublicText += "\nYour own building is immune to friendly fire. ";
+                }
+                else if (state.Units[actor].Role == Role.Wolf)
+                {
+                    event_.PublicText += "\nThe wolf can't damage buildings. ";
+                }
+                else if (execute)
+                {
+                    DestroyBuilding(target);
+                    event_.PublicText += "\nSnipper destroyed the building. ";
+                }
+                else
+                {
+                    double strength = state.Units[actor].Role == Role.Ink ? power * 2 : power;
+                    double prior = building.DirectDamage;
+                    double delta = GameRules.DirectAttackDelta(prior, strength);
+                    building.DirectDamage = Math.Max(prior, strength);
+                    if (delta > epsilon)
+                    {
+                        building.Health = Math.Max(0, building.Health - delta);
+                        event_.PublicText += $"\nBuilding damaged remaining {building.Health}";
+                        if (building.Health <= epsilon)
+                        {
+                            DestroyBuilding(target);
+                        }
+                    }
+                    else
+                    {
+                        event_.PublicText +=
+                            "\nThe building already took a equal or stronger direct attack this round; no stacking. ";
+                    }
+                }
+            }
             for (int j = 0; j < 8; ++j)
             {
                 Unit victim = state.Units[j];
-                if (victim.Health <= 0 || GameRules.Allied(state.Teams, j / 2, actor / 2))
+                if (
+                    protectedUnits
+                    || victim.Health <= 0
+                    || GameRules.Allied(state.Teams, j / 2, actor / 2)
+                )
                 {
                     continue;
                 }
@@ -385,8 +548,9 @@ namespace MistForest.Core.Model
                     victim.Health = 0;
                     victim.Armor = 0;
                     victim.Shield = 0;
-                    event_.PublicText += " Kill (Snipper)";
+                    event_.PublicText += "\nKill (Snipper)";
                     KillCleanup(j);
+                    continue;
                 }
                 double amount = delta;
                 if (
@@ -484,6 +648,13 @@ namespace MistForest.Core.Model
                 }
             }
             ++state.Turns;
+            for (int cell = 0; cell < 81; ++cell)
+            {
+                if (state.Rubble[cell] != 0 && state.Rubble[cell] <= state.Turns)
+                {
+                    state.Rubble[cell] = 0;
+                }
+            }
             CheckVictory();
             state.Budget = new Turn();
             state.RoundMask |= 1 << player;
@@ -611,6 +782,10 @@ namespace MistForest.Core.Model
         /// <returns></returns>
         private bool HasAction(View view, int unitInter)
         {
+            if (GameRules.HeroMode(view.Mode) && HasBuildOrDemolish(view, unitInter))
+            {
+                return true;
+            }
             Unit unit = view.Units[unitInter];
             Turn budget = view.Budget;
             switch (unit.Role)
@@ -686,6 +861,102 @@ namespace MistForest.Core.Model
                 //TODO: Complete these actions.
                 why = "Wait to undate. ";
                 return false;
+            }
+            bool fresh = budget.Active == null;
+            if (action.Kind == ActionKind.Demolish)
+            {
+                bool pass =
+                    hero
+                    && unit.Role != Role.Wolf
+                    && fresh
+                    && action.Target >= 1
+                    && action.Target <= MapInfo.CellCount(view.Mode)
+                    && view.Buildings[action.Target - 1].Health > 0
+                    && MapRules.Distance(view.Mode, unit.Position, action.Target) <= 1
+                    && World.BuildReach(view, unit.Position, action.Target)
+                    && GameRules.Allied(
+                        view.Teams,
+                        view.Player,
+                        (int)view.Buildings[action.Target - 1].Owner
+                    );
+                if (pass)
+                {
+                    return true;
+                }
+                why =
+                    "Demolishing costs a full action; the target is a reachable building within distance 1. ";
+                return false;
+            }
+            if (action.Kind is ActionKind.BuildFort or ActionKind.BuildWall)
+            {
+                if (!hero || !fresh || view.Buildings[unit.Position - 1].Health > 0)
+                {
+                    why =
+                        "Building must be the first action, and you can't build while standing in a building. ";
+                    return false;
+                }
+                if (
+                    action.Target < 1
+                    || action.Target > MapInfo.CellCount(view.Mode)
+                    || action.Target == unit.Position
+                )
+                {
+                    why = "You can't build on this tile. ";
+                    return false;
+                }
+                if (action.Kind == ActionKind.BuildFort)
+                {
+                    if (
+                        MapRules.Distance(view.Mode, unit.Position, action.Target) == 1
+                        && World.BuildSite(view, unit.Position, action.Target)
+                    )
+                    {
+                        return true;
+                    }
+                    why = "Please select one of the four adjacent tiles. ";
+                    return false;
+                }
+                int width = view.Map.Width;
+                bool near(int cell) =>
+                    cell >= 1
+                    && cell <= MapInfo.CellCount(view.Mode)
+                    && cell != unit.Position
+                    && Math.Abs((cell - 1) / width - (unit.Position - 1) / width) <= 1
+                    && Math.Abs((cell - 1) % width - (unit.Position - 1) % width) <= 1;
+                if (
+                    near(action.Target)
+                    && near(action.Extra)
+                    && MapRules.Distance(view.Mode, action.Target, action.Extra) == 1
+                    && World.BuildSite(view, unit.Position, action.Target)
+                    && World.BuildSite(view, unit.Position, action.Extra)
+                )
+                {
+                    return true;
+                }
+                why =
+                    "The wall needs two adjacent tiles in the 3x3 area around you, not the covering yourself. ";
+                return false;
+            }
+            bool moving =
+                action.Kind
+                is ActionKind.Move
+                    or ActionKind.Lead
+                    or ActionKind.Dash
+                    or ActionKind.Leap
+                    or ActionKind.Hunt
+                    or ActionKind.Retreat
+                    or ActionKind.Charge
+                    or ActionKind.CleaveRush;
+            for (int cell = 1; cell <= 81; ++cell)
+            {
+                if (
+                    view.Buildings[cell - 1].Health > 0
+                    && cell != unit.Position
+                    && (moving ? !World.CanEnter(view, action.Unit, cell) : cell != action.Target)
+                )
+                {
+                    view.Map.Cells[cell - 1] = Terrain.Wall;
+                }
             }
             if (!hero)
             {
