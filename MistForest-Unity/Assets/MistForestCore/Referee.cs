@@ -115,6 +115,7 @@ namespace MistForest.Core.Model
                     ResetCandidates(p, i);
                 }
             }
+            Whirlpools();
             snapshots.Add(Deep.CloneSnapshot(state));
         }
 
@@ -252,7 +253,7 @@ namespace MistForest.Core.Model
                 CheckVictory();
                 if (state.Winner == null)
                 {
-                    EndTurn();
+                    EndTurn(event_);
                 }
                 Commit(event_);
                 return true;
@@ -287,6 +288,22 @@ namespace MistForest.Core.Model
                 event_.PublicText += "Attack " + action.Target;
                 Damage(action.Unit, action.Target, ranged, execute, event_, power);
             }
+            else if (action.Kind == ActionKind.FireStep)
+            {
+                --unit.Ammo;
+                budget.FireStep = true;
+                MoveUnit(action.Unit, action.Target);
+                event_.PublicText +=
+                    action.Amount > 0 ? $"Fire step and ignite {action.Target}" : "Fire step";
+                event_.PrivateText = $"Fire step to {unit.Position}";
+                if (action.Amount > 0)
+                {
+                    event_.AttackCells[action.Target - 1] = true;
+                    unit.AmmoBlocked = true;
+                    Ignite(action.Unit, action.Target, event_, true);
+                    event_.PrivateText += "; no ammo regenerate this turn. ";
+                }
+            }
             else if (action.Kind == ActionKind.Demolish)
             {
                 DestroyBuilding(action.Target);
@@ -310,7 +327,7 @@ namespace MistForest.Core.Model
             }
             if (end && state.Winner == null)
             {
-                EndTurn();
+                EndTurn(event_);
             }
             Commit(event_);
             return true;
@@ -380,6 +397,115 @@ namespace MistForest.Core.Model
         }
 
         /// <summary>
+        /// Light a cell on fire. The flame lasts until the caster's next turn
+        /// starts; burning resolves at the victim-owner's turn end.
+        /// </summary>
+        /// <param name="actor"></param>
+        /// <param name="cell"></param>
+        /// <param name="event_"></param>
+        /// <param name="immediate"></param>
+        /// <param name="hitSelf"></param>
+        private void Ignite(int actor, int cell, Event event_, bool immediate, bool hitSelf = false)
+        {
+            if (
+                state.Map.Cells[cell - 1] == Terrain.Lake
+                || state.Map.Cells[cell - 1] == Terrain.Wall
+            )
+            {
+                return;
+            }
+            bool onBuilding = state.Buildings[cell - 1].Health > 0;
+            if (onBuilding && immediate)
+            {
+                Damage(actor, cell, true, false, event_, 2, false, null, hitSelf);
+            }
+            state.Fires[cell - 1].Owner = actor / 2;
+            state.Fires[cell - 1].Expires = state.PlayerTurns[actor / 2] + 1;
+            if (immediate && !onBuilding)
+            {
+                Damage(actor, cell, true, false, event_, 2, false, null, hitSelf);
+            }
+        }
+
+        /// <summary>
+        /// Pull every unit toward an adjacent whirlpool at round start.
+        /// </summary>
+        private void Whirlpools()
+        {
+            bool anyWhirlpool = false;
+            foreach (Terrain terrain in state.Map.Cells)
+            {
+                if (terrain == Terrain.Whirlpool)
+                {
+                    anyWhirlpool = true;
+                    break;
+                }
+            }
+            if (!anyWhirlpool)
+            {
+                return;
+            }
+            for (int i = 0; i < 8; ++i)
+            {
+                Unit unit = state.Units[i];
+                if (unit.Health <= 0)
+                {
+                    continue;
+                }
+                if (unit.WhirlImmune)
+                {
+                    unit.WhirlImmune = false;
+                    continue;
+                }
+                int dest = PullDestination(unit.Position);
+                if (dest != unit.Position && World.CanEnter(View(i / 2), i, dest))
+                {
+                    unit.Report = $"Pulled by the whirlpool to {dest}, immune next round.";
+                    unit.Position = dest;
+                    unit.WhirlImmune = true;
+                }
+            }
+            for (int player = 0; player < 4; ++player)
+            {
+                for (int i = 0; i < 8; ++i)
+                {
+                    bool[] next = new bool[81];
+                    for (int cell = 1; cell <= MapInfo.CellCount(state.Mode); ++cell)
+                    {
+                        if (state.Possible[player][i][cell - 1])
+                        {
+                            next[cell - 1] = true;
+                            next[PullDestination(cell) - 1] = true;
+                        }
+                    }
+                    state.Possible[player][i] = next;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Nearest (smallest cell number) adjacent whirlpool reachable by
+        /// a terrain move; no chaining.
+        /// </summary>
+        /// <param name="cell"></param>
+        /// <returns></returns>
+        private int PullDestination(int cell)
+        {
+            for (int cellIter = 1; cellIter <= MapInfo.CellCount(state.Mode); ++cellIter)
+            {
+                if (
+                    state.Map.Cells[cellIter - 1] == Terrain.Whirlpool
+                    && MapRules.Distance(state.Mode, cell, cellIter) == 1
+                    && Movement.CanMove(state.Mode, cell, cellIter, state.Map)
+                )
+                {
+                    return cellIter;
+                }
+            }
+            return cell;
+        }
+
+        /// <summary>
         /// check whether a build or demolish chance exists.
         /// </summary>
         /// <param name="view"></param>
@@ -390,11 +516,11 @@ namespace MistForest.Core.Model
             Unit unit = view.Units[unitInter];
             if (view.Budget.Active != null)
             {
-                return false; 
+                return false;
             }
             if (view.Buildings[unit.Position - 1].Health > 0)
             {
-                return unit.Role != Role.Wolf; 
+                return unit.Role != Role.Wolf;
             }
             int width = view.Map.Width;
             int[] deltas = { -width, width, -1, 1 };
@@ -461,7 +587,10 @@ namespace MistForest.Core.Model
             bool ranged,
             bool execute,
             Event event_,
-            double power
+            double power,
+            bool burning = false,
+            int? burningPlayer = null,
+            bool hitSelf = false
         )
         {
             const double epsilon = 1e-9;
@@ -473,21 +602,28 @@ namespace MistForest.Core.Model
             {
                 power = 1e6;
             }
-            state.RoundDamage[target - 1] = Math.Max(state.RoundDamage[target - 1], power);
+            if (!burning)
+            {
+                state.RoundDamage[target - 1] = Math.Max(state.RoundDamage[target - 1], power);
+            }
             bool contact = false;
             Building building = state.Buildings[target - 1];
             bool protectedUnits = building.Health > 0 && !execute;
-            if (building.Health > 0)
+            bool buildingBurns =
+                building.Health > 0
+                && (!burning || burningPlayer == null || building.Owner == burningPlayer);
+            if (buildingBurns)
             {
                 contact = true;
                 if (
-                    building.Owner != null
+                    !burning
+                    && building.Owner != null
                     && GameRules.Allied(state.Teams, (int)building.Owner, actor / 2)
                 )
                 {
                     event_.PublicText += "\nYour own building is immune to friendly fire. ";
                 }
-                else if (state.Units[actor].Role == Role.Wolf)
+                else if (!burning && state.Units[actor].Role == Role.Wolf)
                 {
                     event_.PublicText += "\nThe wolf can't damage buildings. ";
                 }
@@ -498,7 +634,8 @@ namespace MistForest.Core.Model
                 }
                 else
                 {
-                    double strength = state.Units[actor].Role == Role.Ink ? power * 2 : power;
+                    double strength =
+                        !burning && state.Units[actor].Role == Role.Ink ? power * 2 : power;
                     double prior = building.DirectDamage;
                     double delta = GameRules.DirectAttackDelta(prior, strength);
                     building.DirectDamage = Math.Max(prior, strength);
@@ -524,7 +661,15 @@ namespace MistForest.Core.Model
                 if (
                     protectedUnits
                     || victim.Health <= 0
-                    || GameRules.Allied(state.Teams, j / 2, actor / 2)
+                    || burning
+                        && burningPlayer is int burningPlayerInner
+                        && burningPlayerInner != j / 2
+                    || (
+                        burning
+                            ? victim.Role == Role.Flamer
+                            : GameRules.Allied(state.Teams, j / 2, actor / 2)
+                                && !(hitSelf && j == actor)
+                    )
                 )
                 {
                     continue;
@@ -535,7 +680,10 @@ namespace MistForest.Core.Model
                 }
                 contact = true;
                 double prior = victim.DirectDamage;
-                double delta = execute ? power : GameRules.DirectAttackDelta(prior, power);
+                double delta =
+                    execute ? power
+                    : burning ? power
+                    : GameRules.DirectAttackDelta(prior, power);
                 victim.DirectDamage = Math.Max(prior, power);
                 if (delta <= epsilon)
                 {
@@ -555,6 +703,7 @@ namespace MistForest.Core.Model
                 double amount = delta;
                 if (
                     victim.Role == Role.HiddenWolf
+                    && !burning
                     && (victim.Form == 0 && ranged || victim.Form != 0 && !ranged)
                 )
                 {
@@ -605,7 +754,7 @@ namespace MistForest.Core.Model
         /// Do some job to end the turn.
         /// </summary>
         /// <param name="event_"></param>
-        private void EndTurn()
+        private void EndTurn(Event event_)
         {
             int player = state.Turn;
             ++state.PlayerTurns[player];
@@ -618,7 +767,17 @@ namespace MistForest.Core.Model
                     unit.ArmorLock = Math.Max(0, unit.ArmorLock - 1);
                     if (unit.Role == Role.Flamer && unit.Health > 0)
                     {
-                        unit.Ammo = Math.Min(3, unit.Ammo + 1);
+                        if (unit.AmmoBlocked)
+                        {
+                            event_.PublicText += "\nIgnited this turn: no ammo regenerate. ";
+                        }
+                        else
+                        {
+                            unit.Ammo = Math.Min(
+                                3,
+                                unit.Ammo + (state.Fires[unit.Position - 1].Expires != 0 ? 2 : 1)
+                            );
+                        }
                         unit.AmmoBlocked = false;
                     }
                     if (unit.Role == Role.Sword && unit.Health > 0)
@@ -647,8 +806,25 @@ namespace MistForest.Core.Model
                     unit.Follow = null;
                 }
             }
+            for (int cell = 1; cell <= MapInfo.CellCount(state.Mode); ++cell)
+            {
+                if (state.Fires[cell - 1].Expires != 0)
+                {
+                    event_.PublicText += $"\nBurning resolves at {cell}";
+                    Damage(
+                        (state.Fires[cell - 1].Owner ?? 0) * 2,
+                        cell,
+                        true,
+                        false,
+                        event_,
+                        2,
+                        true,
+                        player
+                    );
+                }
+            }
             ++state.Turns;
-            for (int cell = 0; cell < 81; ++cell)
+            for (int cell = 0; cell < MapInfo.CellCount(state.Mode); ++cell)
             {
                 if (state.Rubble[cell] != 0 && state.Rubble[cell] <= state.Turns)
                 {
@@ -676,12 +852,13 @@ namespace MistForest.Core.Model
                 {
                     state.Turn = (state.Turn + 1) % state.PlayerCount;
                 } while (state.Eliminated[state.Turn]);
-                StartTurn();
+                StartTurn(state.Mode);
                 if ((state.RoundMask & aliveMask) == aliveMask)
                 {
                     state.RoundMask = 0;
                     ResetDirectDamage();
                     ++state.RoundNumber;
+                    Whirlpools();
                 }
             }
         }
@@ -689,8 +866,20 @@ namespace MistForest.Core.Model
         /// <summary>
         /// Clean flame and shield.
         /// </summary>
-        private void StartTurn()
+        private void StartTurn(Mode mode)
         {
+            for (int cell = 0; cell < MapInfo.CellCount(mode); ++cell)
+            {
+                Fire fire = state.Fires[cell];
+                if (
+                    fire.Expires != 0
+                    && fire.Owner == state.Turn
+                    && state.PlayerTurns[state.Turn] >= fire.Expires
+                )
+                {
+                    state.Fires[cell] = new Fire();
+                }
+            }
             for (int i = state.Turn * 2; i < state.Turn * 2 + 2; ++i)
             {
                 state.Units[i].Shield = 0;
@@ -802,6 +991,8 @@ namespace MistForest.Core.Model
                     return unit.Form != 0
                         ? budget.Attacks == 0 || budget.Moves < 2
                         : budget.Used == 0;
+                case Role.Flamer:
+                    return budget.Moves < 1 || (!budget.FireStep && unit.Ammo > 0);
                 default:
                     return false;
             }
@@ -937,6 +1128,22 @@ namespace MistForest.Core.Model
                     "The wall needs two adjacent tiles in the 3x3 area around you, not the covering yourself. ";
                 return false;
             }
+            if (action.Kind == ActionKind.FireStep)
+            {
+                bool pass =
+                    unit.Role == Role.Flamer
+                    && !budget.FireStep
+                    && unit.Ammo > 0
+                    && (action.Amount is 0 or 1)
+                    && MapRules.Distance(view.Mode, unit.Position, action.Target) == 1
+                    && World.WorldMove(view, action.Unit, unit.Position, action.Target);
+                if (pass)
+                {
+                    return true;
+                }
+                why = "Fire step: once per turn, costs 1 ammo, to an adjacent reachable tile. ";
+                return false;
+            }
             bool moving =
                 action.Kind
                 is ActionKind.Move
@@ -1001,6 +1208,7 @@ namespace MistForest.Core.Model
                     Role.Ink => budget.Moves < 1,
                     Role.Heavy => budget.Phase != 2 && budget.Moves < 2,
                     Role.HiddenWolf => unit.Form != 0 ? budget.Moves < 2 : budget.Used == 0,
+                    Role.Flamer => budget.Attacks == 0 && budget.Moves < 1,
                     _ => false,
                 };
                 if (allowed)
