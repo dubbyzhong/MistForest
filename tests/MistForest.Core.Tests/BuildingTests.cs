@@ -43,7 +43,7 @@ namespace MistForest.Core.Tests
         }
 
         [Fact]
-        public void BuildFort_EndToEnd_ConsumesWholeTurn()
+        public static void BuildFort_EndToEnd_ConsumesWholeTurn()
         {
             Game game = NewDuel(Role.Sniper, Role.Wolf, 2, 7);
             Assert.True(game.Act(Do(0, ActionKind.BuildFort, 3)));
@@ -56,7 +56,7 @@ namespace MistForest.Core.Tests
         }
 
         [Fact]
-        public void BuildWall_CreatesTwoSegments()
+        public static void BuildWall_CreatesTwoSegments()
         {
             Game game = NewDuel(Role.Sniper, Role.Wolf, 2, 22);
             Assert.True(game.Act(Do(0, ActionKind.BuildWall, 7, 8)));
@@ -65,7 +65,7 @@ namespace MistForest.Core.Tests
         }
 
         [Fact]
-        public void BuildFails_WhenHiddenEnemyStandsOnTarget()
+        public static void BuildFails_WhenHiddenEnemyStandsOnTarget()
         {
             Game game = new Game(
                 new int[] { 2, 9, 3, 4, 0, 0, 0, 0 },
@@ -99,7 +99,7 @@ namespace MistForest.Core.Tests
         }
 
         [Fact]
-        public void Build_RejectedAfterFirstAction()
+        public static void Build_RejectedAfterFirstAction()
         {
             Game game = NewDuel(Role.Heavy, Role.Wolf, 2, 7);
             game.Act(Do(0, ActionKind.End, 0));
@@ -110,7 +110,7 @@ namespace MistForest.Core.Tests
         }
 
         [Fact]
-        public void Demolish_LeavesRubble_WhichClearsAfterTwoTurns()
+        public static void Demolish_LeavesRubble_WhichClearsAfterTwoTurns()
         {
             Game game = NewDuel(Role.Sniper, Role.Wolf, 2, 7);
             game.Act(Do(0, ActionKind.BuildFort, 3));
@@ -123,7 +123,7 @@ namespace MistForest.Core.Tests
         }
 
         [Fact]
-        public void DemolishOwnFortFromInside_Allowed()
+        public static void DemolishOwnFortFromInside_Allowed()
         {
             Game game = NewDuel(Role.Flamer, Role.Wolf, 2, 7);
             game.State.Buildings[1] = new Building
@@ -131,14 +131,14 @@ namespace MistForest.Core.Tests
                 Kind = Structure.Fort,
                 Owner = 0,
                 Health = 2,
-            }; 
+            };
             Assert.True(game.Act(Do(0, ActionKind.Demolish, 2)));
             Assert.Equal(0, game.State.Buildings[1].Health);
             Assert.True(game.State.Rubble[1] != 0);
         }
 
         [Fact]
-        public void DemolishEnemyFort_Rejected()
+        public static void DemolishEnemyFort_Rejected()
         {
             Game game = NewDuel(Role.Sniper, Role.Wolf, 2, 7);
             game.State.Buildings[2] = new Building
@@ -154,7 +154,7 @@ namespace MistForest.Core.Tests
         }
 
         [Fact]
-        public void EnemyFort_BlocksMove_ButOwnFortIsPassable()
+        public static void EnemyFort_BlocksMove_ButOwnFortIsPassable()
         {
             Game game = NewDuel(Role.Wolf, Role.Sniper, 2, 7);
             game.State.Buildings[2] = new Building
@@ -177,7 +177,7 @@ namespace MistForest.Core.Tests
         }
 
         [Fact]
-        public void Buildings_BlockLineOfFire_ExceptTargetItself()
+        public static void Buildings_BlockLineOfFire_ExceptTargetItself()
         {
             Game game = NewDuel(Role.Sniper, Role.Wolf, 2, 4);
             game.State.Buildings[2] = new Building
@@ -202,7 +202,7 @@ namespace MistForest.Core.Tests
         }
 
         [Fact]
-        public void Building_ProtectsUnitInside_EvenWhenDestroyed()
+        public static void Building_ProtectsUnitInside_EvenWhenDestroyed()
         {
             Game game = NewDuel(Role.HiddenWolf, Role.Wolf, 2, 7);
             game.State.Buildings[6] = new Building
@@ -218,7 +218,7 @@ namespace MistForest.Core.Tests
         }
 
         [Fact]
-        public void BuildingDamage_PerObjectCap_AndInkDouble()
+        public static void BuildingDamage_PerObjectCap_AndInkDouble()
         {
             Game game = NewDuel(Role.Ink, Role.Wolf, 2, 7);
             game.State.Buildings[6] = new Building
@@ -236,7 +236,7 @@ namespace MistForest.Core.Tests
         }
 
         [Fact]
-        public void Wolf_CannotDamageBuildings_FriendlyFireImmune()
+        public static void Wolf_CannotDamageBuildings_FriendlyFireImmune()
         {
             Game game = NewDuel(Role.Wolf, Role.Sniper, 2, 7);
             game.State.Buildings[6] = new Building
@@ -262,7 +262,7 @@ namespace MistForest.Core.Tests
         }
 
         [Fact]
-        public void RoundDamage_PublicLedgerRecordedPerCell()
+        public static void RoundDamage_PublicLedgerRecordedPerCell()
         {
             Game game = NewDuel(Role.Wolf, Role.Heavy, 2, 7);
             game.Act(Do(0, ActionKind.Attack, 7));
@@ -272,7 +272,7 @@ namespace MistForest.Core.Tests
         }
 
         [Fact]
-        public void SniperExecute_PiercesBuildingProtection()
+        public static void SniperExecute_PiercesBuildingProtection()
         {
             Game game = NewDuel(Role.Sniper, Role.Wolf, 2, 7);
             game.State.Buildings[6] = new Building
