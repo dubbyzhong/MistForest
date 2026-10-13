@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace MistForest.Core.Model
 {
@@ -169,6 +170,13 @@ namespace MistForest.Core.Model
                     && Movement.CanMove(view.Mode, mid2, to, map);
         }
 
+        /// <summary>
+        /// Judge whether a structure can build on a cell.
+        /// </summary>
+        /// <param name="view"></param>
+        /// <param name="from"></param>
+        /// <param name="to"></param>
+        /// <returns></returns>
         public static bool BuildSite(View view, int from, int to)
         {
             return MapRules.Valid(view.Mode, to, view.Map)
@@ -176,6 +184,133 @@ namespace MistForest.Core.Model
                 && view.Fires[to - 1].Expires == 0
                 && view.Rubble[to - 1] == 0
                 && BuildReach(view, from, to);
+        }
+
+        /// <summary>
+        /// Judge whether a structure is a guard wall.
+        /// </summary>
+        /// <param name="building"></param>
+        /// <returns></returns>
+        public static bool GuardWall(Building building)
+        {
+            return building.Health > 0 && building.Kind is Structure.Wall or Structure.GreatWall;
+        }
+
+        /// <summary>
+        /// Get the cell of a soldier.
+        /// </summary>
+        /// <param name="unit"></param>
+        /// <param name="piece"></param>
+        /// <returns></returns>
+        public static int SoldierCell(Unit unit, int piece)
+        {
+            return unit.Role == Role.WallGuard && piece >= 0 && piece < 3
+                ? unit.Soldiers[piece]
+                : unit.Position;
+        }
+
+        /// <summary>
+        /// Get the linked guards of a soldier.
+        /// </summary>
+        /// <param name="mode"></param>
+        /// <param name="unit"></param>
+        /// <param name="piece"></param>
+        /// <returns></returns>
+        public static int LinkedGuards(Mode mode, Unit unit, int piece)
+        {
+            if (piece < 0 || piece > 2 || unit.SoldierHealth[piece] <= 0)
+            {
+                return 0;
+            }
+            if (unit.SoldierSilenced[piece])
+            {
+                return 1 << piece;
+            }
+            int mask = 1 << piece;
+            bool changed = true;
+            while (changed)
+            {
+                changed = false;
+                foreach (int i in Enumerable.Range(0, 3))
+                {
+                    if ((mask & (1 << i)) == 0)
+                    {
+                        continue;
+                    }
+                    foreach (int j in Enumerable.Range(0, 3))
+                    {
+                        if (
+                            (mask & (1 << j)) == 0
+                            && unit.SoldierHealth[j] > 0
+                            && !unit.SoldierSilenced[j]
+                            && MapRules.Distance(mode, unit.Soldiers[i], unit.Soldiers[j]) == 1
+                        )
+                        {
+                            mask |= 1 << j;
+                            changed = true;
+                        }
+                    }
+                }
+            }
+            return mask;
+        }
+
+        /// <summary>
+        /// Judge whether a guard formation is valid.
+        /// </summary>
+        /// <param name="mode"></param>
+        /// <param name="map"></param>
+        /// <param name="anchor"></param>
+        /// <param name="cells"></param>
+        /// <returns></returns>
+        public static bool ValidFormation(Mode mode, Map map, int anchor, int[] cells)
+        {
+            if (cells == null || cells.Length != 3 || cells[0] != anchor)
+            {
+                return false;
+            }
+            foreach (int cell in cells)
+            {
+                if (!MapRules.Valid(mode, cell, map))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Get the guard formation of a soldier.
+        /// </summary>
+        /// <param name="mode"></param>
+        /// <param name="anchor"></param>
+        /// <param name="map"></param>
+        /// <returns></returns>
+        public static int[] GuardSpawn(Mode mode, int anchor, Map map)
+        {
+            var result = new int[3];
+            if (!MapRules.Valid(mode, anchor, map))
+            {
+                return result;
+            }
+            result[0] = anchor;
+            int count = 1;
+            for (int i = 0; i < count && count < 3; ++i)
+            {
+                for (int cell = 1; cell <= MapInfo.CellCount(mode) && count < 3; ++cell)
+                {
+                    if (
+                        !result[0..3].Contains(cell)
+                        && MapRules.Distance(mode, result[i], cell) == 1
+                        && Movement.CanMove(mode, result[i], cell, map)
+                    )
+                    {
+                        result[count] = cell;
+                        ++count;
+                    }
+                }
+            }
+            return result;
         }
     }
 }

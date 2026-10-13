@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace MistForest.Core.Model
 {
@@ -50,7 +51,8 @@ namespace MistForest.Core.Model
             Map map,
             int teamSize,
             int playerCount,
-            bool teams
+            bool teams,
+            int[][] formations = null
         )
         {
             map = map ?? MapRules.DefaultMap(mode);
@@ -98,10 +100,19 @@ namespace MistForest.Core.Model
                 {
                     unit.Ammo = 3;
                 }
-                if (unit.Role == Role.WallGuard)
+                if (unit.Role == Role.WallGuard && GameRules.HeroMode(mode))
                 {
-                    //TODO: support WallGuard.
-                    throw new NotSupportedException("WallGuard is not supported");
+                    int[] spawn =
+                        formations != null && formations[i] != null
+                            ? formations[i]
+                            : World.GuardSpawn(mode, positions[i], state.Map);
+                    if (!World.ValidFormation(mode, state.Map, positions[i], spawn))
+                    {
+                        throw new ArgumentException("formation is invalid");
+                    }
+                    unit.Soldiers = (int[])spawn.Clone();
+                    unit.SoldierHealth = Enumerable.Repeat(1.6, 3).ToArray();
+                    unit.Health = unit.SoldierHealth.Sum();
                 }
                 if (i % 2 == 1 && unit.Role == state.Units[i - 1].Role)
                 {
@@ -261,6 +272,10 @@ namespace MistForest.Core.Model
             if (end)
             {
                 event_.PublicText += "Turn Ends. ";
+            }
+            else if (unit.Role == Role.WallGuard && GameRules.HeroMode(state.Mode))
+            {
+                GuardAction(action, event_);
             }
             else if (action.Kind == ActionKind.Move)
             {
@@ -432,6 +447,7 @@ namespace MistForest.Core.Model
         /// </summary>
         private void Whirlpools()
         {
+            const double epsilon = 1e-9;
             bool anyWhirlpool = false;
             foreach (Terrain terrain in state.Map.Cells)
             {
@@ -450,6 +466,40 @@ namespace MistForest.Core.Model
                 Unit unit = state.Units[i];
                 if (unit.Health <= 0)
                 {
+                    continue;
+                }
+                if (unit.Role == Role.WallGuard)
+                {
+                    bool pulled = false;
+                    foreach (int k in Enumerable.Range(0, 3))
+                    {
+                        if (unit.SoldierHealth[k] <= epsilon)
+                        {
+                            continue;
+                        }
+                        if (unit.SoldierWhirl[k])
+                        {
+                            unit.SoldierWhirl[k] = false;
+                            continue;
+                        }
+                        int soldierDest = PullDestination(unit.Soldiers[k]);
+                        if (
+                            soldierDest != unit.Soldiers[k]
+                            && World.CanEnter(View(i / 2), i, soldierDest)
+                        )
+                        {
+                            unit.Soldiers[k] = soldierDest;
+                            unit.SoldierWhirl[k] = true;
+                            pulled = true;
+                        }
+                    }
+                    RefreshSquad(unit);
+                    unit.WhirlImmune = unit.SoldierWhirl[0..3].Any(x => x);
+                    if (pulled)
+                    {
+                        unit.Report =
+                            "Soldiers pulled by the whirlpool; each is immune next round. ";
+                    }
                     continue;
                 }
                 if (unit.WhirlImmune)
@@ -503,6 +553,125 @@ namespace MistForest.Core.Model
                 }
             }
             return cell;
+        }
+
+        private void RefreshSquad(Unit unit)
+        {
+            if (unit.Role != Role.WallGuard)
+            {
+                return;
+            }
+            unit.Health = 0;
+            bool chosen = false;
+            foreach (int k in Enumerable.Range(0, 3))
+            {
+                unit.Health += unit.SoldierHealth[k];
+                if (unit.SoldierHealth[k] > 0 && !chosen)
+                {
+                    unit.Position = unit.Soldiers[k];
+                    chosen = true;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Execute one soldier's action. Each soldier acts at most once per turn.
+        /// </summary>
+        /// <param name="action"></param>
+        /// <param name="event_"></param>
+        private void GuardAction(GameAction action, Event event_)
+        {
+            Unit unit = state.Units[action.Unit];
+            Turn budget = state.Budget;
+            int from = unit.Soldiers[action.Piece];
+
+            budget.SquadMask = 0;
+            foreach (int k in Enumerable.Range(0, 3))
+            {
+                if (unit.SoldierHealth[k] > 0)
+                {
+                    budget.SquadMask |= (1 << k);
+                }
+            }
+            budget.SquadDone |= 1 << action.Piece;
+            ++budget.Used;
+
+            if (action.Kind == ActionKind.Attack)
+            {
+                bool onWall = World.GuardWall(state.Buildings[from - 1]);
+                event_.AttackCells[action.Target - 1] = true;
+                budget.HitCells[action.Target - 1] = true;
+                ++budget.Attacks;
+                event_.PublicText +=
+                    $"Soldier {action.Piece + 1} {(onWall ? "lobs at" : "attacks")} ${action.Target}";
+                Damage(action.Unit, action.Target, onWall, false, event_, 2);
+                return;
+            }
+
+            if (action.Kind == ActionKind.BuildWall)
+            {
+                int cell = action.Target;
+                bool allowed =
+                    World.BuildSite(View(state.Turn), from, cell)
+                    && (
+                        state.Buildings[from - 1].Health <= 0
+                        || state.Buildings[from - 1].Kind == Structure.Wall
+                    );
+                foreach (Unit other in state.Units)
+                {
+                    if (other.Health <= 0)
+                    {
+                        continue;
+                    }
+                    if (other.Role == Role.WallGuard)
+                    {
+                        foreach (int j in Enumerable.Range(0, 3))
+                        {
+                            if (other.SoldierHealth[j] > 0 && other.Soldiers[j] == cell)
+                            {
+                                allowed = false;
+                            }
+                        }
+                    }
+                    else if (other.Position == cell)
+                    {
+                        allowed = false;
+                    }
+                }
+                event_.PublicText +=
+                    $"Soldier {action.Piece + 1} builds a great wall at {cell} ${(allowed ? "successfully" : "and fails")}; this soldier's action ends. ";
+                if (allowed)
+                {
+                    state.Buildings[cell - 1] = new Building
+                    {
+                        Kind = Structure.GreatWall,
+                        Owner = action.Unit / 2,
+                        Health = 2,
+                    };
+                }
+                return;
+            }
+
+            if (action.Kind == ActionKind.Demolish)
+            {
+                DestroyBuilding(action.Target);
+                event_.PublicText +=
+                    $"Soldier {action.Piece + 1} demolishes the building at {action.Target}.";
+                return;
+            }
+
+            if (action.Target != from)
+            {
+                unit.Soldiers[action.Piece] = action.Target;
+            }
+            RefreshSquad(unit);
+            foreach (int player in Enumerable.Range(0, 4))
+            {
+                ResetCandidates(player, action.Unit);
+            }
+            ++budget.Moves;
+            event_.PublicText += $"Soldier {action.Target + 1} moves";
+            event_.PrivateText += $"from {from} to {unit.Soldiers[action.Piece]}";
         }
 
         /// <summary>
@@ -674,54 +843,149 @@ namespace MistForest.Core.Model
                 {
                     continue;
                 }
-                if (victim.Position != target)
+                int pieces = victim.Role == Role.WallGuard ? 3 : 1;
+                bool matched = false;
+                foreach (int k in Enumerable.Range(0, pieces))
                 {
-                    continue;
-                }
-                contact = true;
-                double prior = victim.DirectDamage;
-                double delta =
-                    execute ? power
-                    : burning ? power
-                    : GameRules.DirectAttackDelta(prior, power);
-                victim.DirectDamage = Math.Max(prior, power);
-                if (delta <= epsilon)
-                {
-                    event_.PublicText +=
-                        "\nA direct attack with strength no less than this one has already occurred this round.";
-                    continue;
-                }
-                if (execute)
-                {
-                    victim.Health = 0;
-                    victim.Armor = 0;
-                    victim.Shield = 0;
-                    event_.PublicText += "\nKill (Snipper)";
-                    KillCleanup(j);
-                    continue;
-                }
-                double amount = delta;
-                if (
-                    victim.Role == Role.HiddenWolf
-                    && !burning
-                    && (victim.Form == 0 && ranged || victim.Form != 0 && !ranged)
-                )
-                {
-                    amount /= 2;
-                }
-                double absorbed = Math.Min(amount, victim.Armor * 2);
-                victim.Armor -= absorbed / 2;
-                amount -= absorbed;
-                double shield = Math.Min(amount, victim.Shield);
-                victim.Shield -= shield;
-                amount -= shield;
-                victim.Health = Math.Max(0, victim.Health - amount);
-                event_.PublicText += "\nHit hte target, remaining " + amount;
-                if (victim.Health <= epsilon)
-                {
-                    victim.Health = 0;
-                    event_.PublicText += "\nWasted";
-                    KillCleanup(j);
+                    double hp = pieces == 3 ? victim.SoldierHealth[k] : victim.Health;
+                    if (hp <= epsilon || World.SoldierCell(victim, k) != target)
+                    {
+                        continue;
+                    }
+                    contact = matched = true;
+                    string who = pieces == 3 ? $"Guard soldier {k + 1}" : victim.Role.ToString();
+                    double prior =
+                        pieces == 3 ? victim.SoldierDirectDamage[k] : victim.DirectDamage;
+                    double delta =
+                        execute ? power
+                        : burning ? power
+                        : GameRules.DirectAttackDelta(prior, power);
+                    if (!burning)
+                    {
+                        if (pieces == 3)
+                        {
+                            victim.SoldierDirectDamage[k] = Math.Max(prior, power);
+                        }
+                        else
+                        {
+                            victim.DirectDamage = Math.Max(prior, power);
+                        }
+                    }
+                    if (delta <= epsilon)
+                    {
+                        event_.PublicText +=
+                            $"\n{who}: a direct attack with strength no less than this one has already occurred this round.";
+                        continue;
+                    }
+                    if (execute)
+                    {
+                        if (pieces == 3)
+                        {
+                            victim.SoldierHealth[k] = 0;
+                        }
+                        else
+                        {
+                            victim.Health = 0;
+                        }
+                        victim.Armor = 0;
+                        victim.Shield = 0;
+                        event_.PublicText += $"\nKill {who} (Sniper)";
+                        continue;
+                    }
+                    double amount = delta;
+                    if (
+                        victim.Role == Role.HiddenWolf
+                        && !burning
+                        && (victim.Form == 0 && ranged || victim.Form != 0 && !ranged)
+                    )
+                    {
+                        amount /= 2;
+                    }
+                    double absorbed = Math.Min(amount, victim.Armor * 2);
+                    victim.Armor -= absorbed / 2;
+                    amount -= absorbed;
+                    double shield = Math.Min(amount, victim.Shield);
+                    victim.Shield -= shield;
+                    bool shared = false;
+                    if (!burning && pieces == 3 && amount > 0)
+                    {
+                        int mask = World.LinkedGuards(state.Mode, victim, k);
+                        int count = 0;
+                        int deaths = 0;
+                        foreach (int g in Enumerable.Range(0, 3))
+                        {
+                            if ((mask & (1 << g)) != 0)
+                            {
+                                count++;
+                            }
+                        }
+                        double each = amount / count;
+                        foreach (int g in Enumerable.Range(0, 3))
+                        {
+                            if ((mask & (1 << g)) != 0 && victim.SoldierHealth[g] <= each + epsilon)
+                            {
+                                ++deaths;
+                            }
+                        }
+                        int direct = hp <= amount + epsilon ? 1 : 0;
+                        if (count > 1 && deaths <= direct)
+                        {
+                            shared = true;
+                            foreach (int g in Enumerable.Range(0, 3))
+                            {
+                                if ((mask & (1 << g)) != 0)
+                                {
+                                    victim.SoldierHealth[g] = Math.Max(
+                                        0,
+                                        victim.SoldierHealth[g] - each
+                                    );
+                                }
+                                event_.PublicText += $"\nSquad shares the damage: {each} each. ";
+                            }
+                        }
+                    }
+                    if (shared)
+                    {
+                        hp = pieces == 3 ? victim.SoldierHealth[k] : victim.Health;
+                    }
+                    else
+                    {
+                        hp = Math.Max(0, hp - amount);
+                        if (hp < epsilon)
+                        {
+                            hp = 0;
+                        }
+                        if (pieces == 3)
+                        {
+                            victim.SoldierHealth[k] = hp;
+                        }
+                        else
+                        {
+                            victim.Health = hp;
+                        }
+                        event_.PublicText +=
+                            hp > 0 ? $"\n{who} hit, remaining {hp}" : $"\n{who} dies.";
+                    }
+                    RefreshSquad(victim);
+                    if (!burning && pieces != 3)
+                    {
+                        if (matched)
+                        {
+                            foreach (int cell in Enumerable.Range(0, 81))
+                            {
+                                state.Possible[actor / 2][j][cell] = false;
+                            }
+                            state.Possible[actor / 2][j][target - 1] = victim.Health > 0;
+                        }
+                        else
+                        {
+                            state.Possible[actor / 2][j][target - 1] = false;
+                        }
+                    }
+                    if (victim.Health <= epsilon)
+                    {
+                        KillCleanup(j);
+                    }
                 }
             }
             if (!contact)
@@ -798,6 +1062,18 @@ namespace MistForest.Core.Model
                         else
                         {
                             unit.Guard = false;
+                        }
+                    }
+                    foreach (int k in Enumerable.Range(0, 3))
+                    {
+                        if (unit.SoldierSilenced[k])
+                        {
+                            unit.SoldierSilenced[k] = false;
+                            unit.SoldierGuard[k] = true;
+                        }
+                        else
+                        {
+                            unit.SoldierGuard[k] = false;
                         }
                     }
                 }
@@ -891,6 +1167,9 @@ namespace MistForest.Core.Model
             }
         }
 
+        /// <summary>
+        /// Check if someone gains victory.
+        /// </summary>
         private void CheckVictory()
         {
             int? surviving = null;
@@ -993,6 +1272,15 @@ namespace MistForest.Core.Model
                         : budget.Used == 0;
                 case Role.Flamer:
                     return budget.Moves < 1 || (!budget.FireStep && unit.Ammo > 0);
+                case Role.WallGuard:
+                    foreach (int k in Enumerable.Range(0, 3))
+                    {
+                        if (unit.SoldierHealth[k] > 0 && (budget.SquadDone & (1 << k)) == 0)
+                        {
+                            return true;
+                        }
+                    }
+                    return false;
                 default:
                     return false;
             }
@@ -1008,6 +1296,8 @@ namespace MistForest.Core.Model
                 || action.Unit >= 8
                 || action.Unit / 2 != view.Player
                 || view.Units[action.Unit].Health <= 0
+                || action.Piece < 0
+                || action.Piece > 2
             )
             {
                 why = "Please choose an alive role of yourself. ";
@@ -1051,6 +1341,99 @@ namespace MistForest.Core.Model
                 }
                 //TODO: Complete these actions.
                 why = "Wait to undate. ";
+                return false;
+            }
+            if (unit.Role == Role.WallGuard && hero)
+            {
+                if (unit.SoldierHealth[action.Piece] <= 0)
+                {
+                    why = "Please choose an alive soldier. ";
+                    return false;
+                }
+                int from = World.SoldierCell(unit, action.Piece);
+                bool soldierFresh = (budget.SquadDone & (1 << action.Piece)) == 0;
+                if (!soldierFresh && action.Kind != ActionKind.End)
+                {
+                    why = "This soldier has already acted this turn. ";
+                    return false;
+                }
+                if (action.Kind == ActionKind.Move)
+                {
+                    if (World.WorldMove(view, action.Unit, from, action.Target))
+                    {
+                        return true;
+                    }
+                    why = "This soldier can't move to this tile. ";
+                    return false;
+                }
+                if (action.Kind == ActionKind.Attack)
+                {
+                    if (action.Target < 1 || action.Target > MapInfo.CellCount(view.Mode))
+                    {
+                        why = "Target out of range. ";
+                        return false;
+                    }
+                    int range = 1;
+                    if (World.GuardWall(view.Buildings[from - 1]))
+                    {
+                        range = 2;
+                    }
+                    if (
+                        MapRules.Distance(view.Mode, from, action.Target) <= range
+                        && World.WorldShot(view, from, action.Target)
+                    )
+                    {
+                        return true;
+                    }
+                    why = "This soldier can't attack this tile. ";
+                    return false;
+                }
+                if (action.Kind == ActionKind.Demolish)
+                {
+                    if (action.Target < 1 || action.Target > MapInfo.CellCount(view.Mode))
+                    {
+                        why = "Target out of range. ";
+                        return false;
+                    }
+                    if (
+                        MapRules.Distance(view.Mode, from, action.Target) <= 1
+                        && view.Buildings[action.Target - 1].Health > 0
+                        && GameRules.Allied(
+                            view.Teams,
+                            view.Player,
+                            (int)view.Buildings[action.Target - 1].Owner
+                        )
+                    )
+                    {
+                        return true;
+                    }
+                    why = "This soldier can't demolish this building. ";
+                    return false;
+                }
+                if (action.Kind == ActionKind.BuildFort)
+                {
+                    why = "The guard can only build one-tile great walls. ";
+                    return false;
+                }
+                if (action.Kind == ActionKind.BuildWall)
+                {
+                    bool standingOk =
+                        view.Buildings[from - 1].Health <= 0
+                        || view.Buildings[from - 1].Kind == Structure.Wall;
+                    if (
+                        standingOk
+                        && action.Target >= 1
+                        && action.Target <= MapInfo.CellCount(view.Mode)
+                        && action.Target != from
+                        && World.BuildReach(view, from, action.Target)
+                    )
+                    {
+                        return true;
+                    }
+                    why = "Choose an adjacent empty tile for the great wall. ";
+                    return false;
+                }
+                why = "Choose this soldier's move, attack, build or demolish. ";
                 return false;
             }
             bool fresh = budget.Active == null;

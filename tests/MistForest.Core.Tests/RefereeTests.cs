@@ -91,7 +91,6 @@ namespace MistForest.Core.Tests
                 )
             );
             Assert.Throws<ArgumentException>(() => NewDuel(Role.Sniper, Role.Wolf, 5, 4));
-            Assert.Throws<NotSupportedException>(() => NewDuel(Role.WallGuard, Role.Wolf, 2, 4));
             Assert.Throws<ArgumentException>(() =>
                 new Game(new int[8], new Role[8], Mode.Heroes, 5, null, 2, 2, false)
             );
