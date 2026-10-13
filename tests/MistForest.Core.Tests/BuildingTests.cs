@@ -272,6 +272,22 @@ namespace MistForest.Core.Tests
         }
 
         [Fact]
+        public static void OwnBuilding_ImmuneEvenToSniperExecute()
+        {
+            Game game = NewDuel(Role.Sniper, Role.Wolf, 2, 7);
+            game.State.Buildings[6] = new Building
+            {
+                Kind = Structure.Fort,
+                Owner = 0,
+                Health = 4,
+            };
+            Assert.True(game.Act(Do(0, ActionKind.Attack, 7)));
+            Assert.Equal(4, game.State.Buildings[6].Health);
+            Assert.Equal(0, game.State.Rubble[6]);
+            Assert.Contains("immune", game.Events[0].PublicText);
+        }
+
+        [Fact]
         public static void SniperExecute_PiercesBuildingProtection()
         {
             Game game = NewDuel(Role.Sniper, Role.Wolf, 2, 7);
