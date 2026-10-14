@@ -108,8 +108,8 @@ namespace MistForest.Core.Model
             Attacks,
             Used,
             Phase,
-            Dr,
-            Dc,
+            DRow,
+            DCol,
             LastOption,
             Options,
             Anchor;

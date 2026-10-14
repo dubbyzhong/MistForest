@@ -56,7 +56,7 @@ namespace MistForest.Core.Tests
         [Fact]
         public static void FireStep_PureMove_IsFree_CanStillMove()
         {
-            Game game = NewDuel(Role.Flamer, Role.Wolf, 2, 22);
+            Game game = NewDuel(Role.Firefly, Role.Wolf, 2, 22);
             Assert.True(game.Act(Do(0, ActionKind.FireStep, 7, 0)));
             Assert.Equal(7, game.State.Units[0].Position);
             Assert.Equal(2, game.State.Units[0].Ammo);
@@ -69,7 +69,7 @@ namespace MistForest.Core.Tests
         [Fact]
         public void FireStep_Ignite_DirectFlameAndAmmoBlock()
         {
-            Game game = NewDuel(Role.Flamer, Role.Wolf, 2, 7);
+            Game game = NewDuel(Role.Firefly, Role.Wolf, 2, 7);
             Assert.True(game.Act(Do(0, ActionKind.FireStep, 7, 1)));
             Assert.Equal(1, game.State.Units[2].Health);
             Assert.Equal(0, game.State.Fires[6].Owner);
@@ -83,7 +83,7 @@ namespace MistForest.Core.Tests
         [Fact]
         public void Flamer_NormalMove_RegainsAmmoNextTurn()
         {
-            Game game = NewDuel(Role.Flamer, Role.Wolf, 2, 22);
+            Game game = NewDuel(Role.Firefly, Role.Wolf, 2, 22);
             game.Act(Do(0, ActionKind.FireStep, 7, 0));
             EndCurrent(game);
             Assert.Equal(3, game.State.Units[0].Ammo);
@@ -92,7 +92,7 @@ namespace MistForest.Core.Tests
         [Fact]
         public static void Burning_ResolvesAtVictimOwnerTurnEnd_BypassesObjectCap()
         {
-            Game game = NewDuel(Role.Flamer, Role.Heavy, 2, 7);
+            Game game = NewDuel(Role.Firefly, Role.Heavy, 2, 7);
             Assert.True(game.Act(Do(0, ActionKind.FireStep, 7, 1)));
             Assert.Equal(0, game.State.Units[2].Armor);
             Assert.Equal(4, game.State.Units[2].Health);
@@ -107,7 +107,7 @@ namespace MistForest.Core.Tests
         [Fact]
         public static void Flamer_ImmuneToContinuousBurning_NotDirectFlame()
         {
-            Game game = NewDuel(Role.Flamer, Role.Flamer, 2, 7);
+            Game game = NewDuel(Role.Firefly, Role.Firefly, 2, 7);
             Assert.True(game.Act(Do(0, ActionKind.FireStep, 7, 1)));
             Assert.Equal(1, game.State.Units[2].Health);
             EndCurrent(game);
@@ -118,7 +118,7 @@ namespace MistForest.Core.Tests
         [Fact]
         public static void Fire_ExpiresAtCasterNextTurnStart()
         {
-            Game game = NewDuel(Role.Flamer, Role.Wolf, 2, 22);
+            Game game = NewDuel(Role.Firefly, Role.Wolf, 2, 22);
             game.Act(Do(0, ActionKind.FireStep, 7, 1));
             EndCurrent(game);
             EndCurrent(game);
@@ -141,7 +141,7 @@ namespace MistForest.Core.Tests
                 {
                     Role.Wolf,
                     Role.Sniper,
-                    Role.Flamer,
+                    Role.Firefly,
                     Role.Sniper,
                     Role.Sniper,
                     Role.Sniper,
@@ -170,7 +170,7 @@ namespace MistForest.Core.Tests
         {
             Game game = new Game(
                 new int[] { 2, 9, 3, 22, 0, 0, 0, 0 },
-                new Role[] { Role.Flamer, Role.Sniper, Role.Flamer, Role.Sniper, Role.Sniper, Role.Sniper, Role.Sniper, Role.Sniper },
+                new Role[] { Role.Firefly, Role.Sniper, Role.Firefly, Role.Sniper, Role.Sniper, Role.Sniper, Role.Sniper, Role.Sniper },
                 Mode.Heroes, 0, null, 2, 2, false);
             EndCurrent(game);
             Assert.True(game.Act(Do(2, ActionKind.FireStep, 2, 1)));

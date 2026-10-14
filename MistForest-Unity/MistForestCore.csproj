@@ -53,9 +53,9 @@
     <Analyzer Include="/home/omo/Unity/Hub/Editor/6000.6.5f1/Editor/Data/BCLExtensions/TargetingPacks/netstandard2.1/analyzers/dotnet/roslyn4.0/cs/System.Text.Json.SourceGeneration.dll" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Assets/MistForestCore/Model.cs" />
     <Compile Include="Assets/MistForestCore/MapRules.cs" />
     <Compile Include="Assets/MistForestCore/Movement.cs" />
-    <Compile Include="Assets/MistForestCore/model.cs" />
     <Compile Include="Assets/MistForestCore/State.cs" />
     <Compile Include="Assets/MistForestCore/Referee.cs" />
     <Compile Include="Assets/MistForestCore/View.cs" />

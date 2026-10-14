@@ -96,7 +96,7 @@ namespace MistForest.Core.Model
                 unit.Health = GameRules.InitialHealth(unit.Role, mode);
                 unit.Armor = GameRules.HeroMode(mode) && unit.Role == Role.Heavy ? 1 : 0;
 
-                if (unit.Role == Role.Flamer)
+                if (unit.Role == Role.Firefly)
                 {
                     unit.Ammo = 3;
                 }
@@ -137,12 +137,14 @@ namespace MistForest.Core.Model
         /// <returns></returns>
         public View View(int player)
         {
-            var view = new View();
-            view.RoundDamage = (double[])state.RoundDamage.Clone();
-            view.RoundNumber = state.RoundNumber;
-            view.RoundMask = state.RoundMask;
-            view.Mode = state.Mode;
-            view.Map = Deep.CloneMap(state.Map);
+            var view = new View
+            {
+                RoundDamage = (double[])state.RoundDamage.Clone(),
+                RoundNumber = state.RoundNumber,
+                RoundMask = state.RoundMask,
+                Mode = state.Mode,
+                Map = Deep.CloneMap(state.Map)
+            };
             for (int i = 0; i < 81; ++i)
             {
                 view.Buildings[i] = Deep.CloneBuilding(state.Buildings[i]);
@@ -234,6 +236,7 @@ namespace MistForest.Core.Model
         /// <returns></returns>
         public bool Act(GameAction action)
         {
+            const double epsilon = 1e-9;
             if (!Validate(View(state.Turn), action, out _))
             {
                 return false;
@@ -272,6 +275,106 @@ namespace MistForest.Core.Model
             if (end)
             {
                 event_.PublicText += "Turn Ends. ";
+            }
+            else if (action.Kind == ActionKind.Transform)
+            {
+                unit.Form = action.Target;
+                unit.Cooldown = 0;
+                budget.Transformed = true;
+                if (unit.Form == 0)
+                {
+                    unit.Shield = Math.Max(unit.Shield, 1.0);
+                }
+                event_.PublicText +=
+                    unit.Form != 0 ? "Turn into the wolf" : "Turn into the human, +0.5 shield";
+            }
+            else if (action.Kind == ActionKind.Dash)
+            {
+                var movementMap = Deep.CloneMap(state.Map);
+                View own = View(state.Turn);
+                foreach (int cell in Enumerable.Range(1, MapInfo.CellCount(state.Mode)))
+                {
+                    if (!World.CanEnter(own, action.Unit, cell))
+                    {
+                        movementMap.Cells[cell - 1] = Terrain.Wall;
+                    }
+                }
+                var path = Movement.DashPath(state.Mode, unit.Position, action.Target, movementMap);
+                budget.DashLast = false;
+                budget.Dashed = true;
+                unit.Cooldown = 3;
+                foreach (int cell in path)
+                {
+                    MoveUnit(action.Unit, cell);
+                }
+                ++budget.Used;
+                event_.PublicText += "Dash";
+                event_.PrivateText = $"Dash to {unit.Position}";
+            }
+            else if (action.Kind == ActionKind.Charge)
+            {
+                int from = unit.Position;
+                int stride = state.Map.Width;
+                budget.DRow = (action.Target - 1) / stride - (from - 1) / stride;
+                budget.DCol = (action.Target - 1) % stride - (from - 1) % stride;
+                budget.Phase = 2;
+                ++budget.Used;
+                Building targetBuilding = state.Buildings[action.Target - 1];
+                bool friendlyFort =
+                    targetBuilding.Health > 0
+                    && World.FortLike(targetBuilding)
+                    && targetBuilding.Owner == action.Unit / 2;
+                bool blocked = targetBuilding.Health > 0 && !friendlyFort;
+                if (!blocked)
+                {
+                    MoveUnit(action.Unit, action.Target);
+                }
+                else
+                {
+                    end = true;
+                }
+                event_.PublicText += blocked ? "Charge smashes the building" : "Charge";
+                event_.PrivateText = $"Step {budget.Used}, at {unit.Position}";
+                if (budget.Used >= 2)
+                {
+                    budget.ChargeCells.Add(action.Target);
+                    Damage(action.Unit, action.Target, false, false, event_, 2);
+                    if (blocked && state.Buildings[action.Target - 1].Health <= epsilon)
+                    {
+                        MoveUnit(action.Unit, action.Target);
+                    }
+                }
+                event_.PrivateText = $"Step {budget.Used}, at {unit.Position}";
+                if (budget.Used == 4)
+                {
+                    end = true;
+                }
+            }
+            else if (action.Kind == ActionKind.ArmorUp)
+            {
+                unit.Armor = Math.Min(2, Math.Ceiling(unit.Armor + epsilon));
+                event_.PublicText += $"Armor up to {unit.Armor} layer(s)";
+                end = true;
+            }
+            else if (action.Kind == ActionKind.ArmorDown)
+            {
+                double unloaded = GameRules.ArmorUnload(unit.Armor, action.Amount);
+                unit.Armor -= unloaded;
+                event_.PublicText += $"Unload {unloaded * 2} half-points of armor";
+            }
+            else if (action.Kind == ActionKind.Thrust)
+            {
+                int length = 1 + (int)Math.Ceiling(unit.Armor - epsilon);
+                var cells = World.RayCells(View(state.Turn), unit.Position, action.Target, length);
+                ++budget.Used;
+                ++budget.Attacks;
+                event_.PublicText += "Thrust";
+                foreach (int cell in cells)
+                {
+                    event_.AttackCells[cell - 1] = true;
+                    event_.PublicText += $" hit {cell}";
+                    Damage(action.Unit, cell, false, false, event_, 2);
+                }
             }
             else if (unit.Role == Role.WallGuard && GameRules.HeroMode(state.Mode))
             {
@@ -835,7 +938,7 @@ namespace MistForest.Core.Model
                         && burningPlayerInner != j / 2
                     || (
                         burning
-                            ? victim.Role == Role.Flamer
+                            ? victim.Role == Role.Firefly
                             : GameRules.Allied(state.Teams, j / 2, actor / 2)
                                 && !(hitSelf && j == actor)
                     )
@@ -891,6 +994,18 @@ namespace MistForest.Core.Model
                         victim.Shield = 0;
                         event_.PublicText += $"\nKill {who} (Sniper)";
                         continue;
+                    }
+                    if (victim.Role == Role.Armiger)
+                    {
+                        victim.ArmorLock = state.Turn == j / 2 ? 3 : 2;
+                    }
+                    if (
+                        !burning
+                        && event_.Action.Kind == ActionKind.Attack
+                        && state.Units[actor].Role == Role.Ink
+                    )
+                    {
+                        state.Units[actor].Cooldown = 0;
                     }
                     double amount = delta;
                     if (
@@ -1015,11 +1130,31 @@ namespace MistForest.Core.Model
         }
 
         /// <summary>
+        /// Publish charge cells at turn end: sorted, deduplicated, no direction info.
+        /// </summary>
+        /// <param name="event_"></param>
+        private void RevealCharge(Event event_)
+        {
+            if (state.Budget.ChargeCells.Count == 0)
+            {
+                return;
+            }
+            var cells = new List<int>(state.Budget.ChargeCells);
+            cells.Sort();
+            foreach (int cell in cells.Where(c => c > 0 && c <= MapInfo.CellCount(state.Mode)))
+            {
+                event_.PublicText += $" {cell}";
+                event_.AttackCells[cell - 1] = true;
+            }
+        }
+
+        /// <summary>
         /// Do some job to end the turn.
         /// </summary>
         /// <param name="event_"></param>
         private void EndTurn(Event event_)
         {
+            RevealCharge(event_);
             int player = state.Turn;
             ++state.PlayerTurns[player];
             for (int i = 0; i < 8; ++i)
@@ -1029,7 +1164,7 @@ namespace MistForest.Core.Model
                 {
                     unit.Cooldown = Math.Max(0, unit.Cooldown - 1);
                     unit.ArmorLock = Math.Max(0, unit.ArmorLock - 1);
-                    if (unit.Role == Role.Flamer && unit.Health > 0)
+                    if (unit.Role == Role.Firefly && unit.Health > 0)
                     {
                         if (unit.AmmoBlocked)
                         {
@@ -1263,14 +1398,20 @@ namespace MistForest.Core.Model
                 case Role.Wolf:
                     return budget.Used < 3;
                 case Role.Ink:
-                    return budget.Moves < 1 || budget.Pellets < 3;
+                    return budget.Moves < 1 || budget.Pellets < 3 || unit.Cooldown == 0;
                 case Role.Heavy:
-                    return budget.Phase != 2 && budget.Moves < 2;
+                    return budget.Phase == 2 ? budget.Used < 4 : budget.Moves < 2;
+                case Role.Armiger:
+                    return budget.Attacks == 0;
                 case Role.HiddenWolf:
+                    if (!budget.Transformed)
+                    {
+                        return true;
+                    }
                     return unit.Form != 0
                         ? budget.Attacks == 0 || budget.Moves < 2
                         : budget.Used == 0;
-                case Role.Flamer:
+                case Role.Firefly:
                     return budget.Moves < 1 || (!budget.FireStep && unit.Ammo > 0);
                 case Role.WallGuard:
                     foreach (int k in Enumerable.Range(0, 3))
@@ -1288,6 +1429,7 @@ namespace MistForest.Core.Model
 
         private bool Validate(View view, GameAction action, out string why)
         {
+            const double epsilon = 1e-9;
             why = string.Empty;
             if (
                 view.Winner != null
@@ -1321,11 +1463,8 @@ namespace MistForest.Core.Model
             bool hero = GameRules.HeroMode(view.Mode);
             if (
                 action.Kind
-                is ActionKind.Dash
-                    or ActionKind.Follow
+                is ActionKind.Follow
                     or ActionKind.Lead
-                    or ActionKind.Charge
-                    or ActionKind.Transform
                     or ActionKind.Hunt
                     or ActionKind.Silence
                     or ActionKind.Cleave
@@ -1342,6 +1481,14 @@ namespace MistForest.Core.Model
                 //TODO: Complete these actions.
                 why = "Wait to undate. ";
                 return false;
+            }
+            if (action.Kind is ActionKind.Dash or ActionKind.Charge or ActionKind.Transform)
+            {
+                if (!hero || unit.Silenced)
+                {
+                    why = "Slience blocks this skill. ";
+                    return false;
+                }
             }
             if (unit.Role == Role.WallGuard && hero)
             {
@@ -1514,7 +1661,7 @@ namespace MistForest.Core.Model
             if (action.Kind == ActionKind.FireStep)
             {
                 bool pass =
-                    unit.Role == Role.Flamer
+                    unit.Role == Role.Firefly
                     && !budget.FireStep
                     && unit.Ammo > 0
                     && (action.Amount is 0 or 1)
@@ -1543,10 +1690,138 @@ namespace MistForest.Core.Model
                     view.Buildings[cell - 1].Health > 0
                     && cell != unit.Position
                     && (moving ? !World.CanEnter(view, action.Unit, cell) : cell != action.Target)
+                    && !(
+                        action.Kind == ActionKind.Charge
+                        && budget.Used >= 1
+                        && cell == action.Target
+                    )
                 )
                 {
                     view.Map.Cells[cell - 1] = Terrain.Wall;
                 }
+            }
+            if (action.Kind == ActionKind.Transform)
+            {
+                bool pass =
+                    hero
+                    && unit.Role == Role.HiddenWolf
+                    && budget.Used == 0
+                    && !budget.Transformed
+                    && action.Target == 1 - unit.Form;
+                if (pass)
+                {
+                    return true;
+                }
+                why = "Transform: once per turn, only before acting. ";
+                return false;
+            }
+            if (action.Kind == ActionKind.Dash)
+            {
+                bool pass =
+                    hero
+                    && unit.Role == Role.Ink
+                    && unit.Cooldown == 0
+                    && Movement.DashPath(view.Mode, unit.Position, action.Target, view.Map).Count
+                        > 0;
+                if (pass)
+                {
+                    return true;
+                }
+                why = "Dash needs its cooldown ready and a clear two-step path. ";
+                return false;
+            }
+            if (action.Kind == ActionKind.Charge)
+            {
+                bool pass =
+                    hero
+                    && unit.Role == Role.Heavy
+                    && budget.Phase != 1
+                    && budget.Used < 4
+                    && Movement.CanMove(view.Mode, unit.Position, action.Target, view.Map)
+                    && MapRules.Distance(view.Mode, unit.Position, action.Target) == 1;
+                if (pass)
+                {
+                    int stride = view.Map.Width;
+                    int dRow = (action.Target - 1) / stride - (unit.Position - 1) / stride;
+                    int dCol = (action.Target - 1) % stride - (unit.Position - 1) % stride;
+                    if (
+                        budget.Used > 0
+                        && (
+                            budget.Used > 1 && (dRow != budget.DRow || dCol != budget.DCol)
+                            || budget.Used == 1 && dRow == -budget.DRow && dCol == -budget.DCol
+                        )
+                    )
+                    {
+                        pass = false;
+                    }
+                }
+                if (pass)
+                {
+                    return true;
+                }
+                why = "Charge: up to 4 steps, straight after the first turn, no reversing. ";
+                return false;
+            }
+            if (unit.Role == Role.Armiger && hero)
+            {
+                if (action.Kind == ActionKind.Move)
+                {
+                    int limit = 2 - (int)Math.Ceiling(unit.Armor - epsilon);
+                    bool pass =
+                        budget.Attacks == 0
+                        && budget.Moves < limit
+                        && World.WorldMove(view, action.Unit, unit.Position, action.Target);
+                    if (pass)
+                    {
+                        return true;
+                    }
+                    why = "Armor slows you down; moving is impossible after attacking. ";
+                    return false;
+                }
+                if (action.Kind == ActionKind.ArmorUp)
+                {
+                    bool pass =
+                        budget.Used == 0
+                        && budget.Attacks == 0
+                        && unit.ArmorLock == 0
+                        && unit.Armor < 2 - epsilon;
+                    if (pass)
+                    {
+                        return true;
+                    }
+                    why = "Armor up: needs a free turn, no hit lock, below 2 layers. ";
+                    return false;
+                }
+                if (action.Kind == ActionKind.ArmorDown)
+                {
+                    bool pass =
+                        budget.Attacks == 0
+                        && action.Amount >= 0
+                        && action.Amount <= 2
+                        && GameRules.ArmorUnload(unit.Armor, action.Amount) > 0;
+                    if (pass)
+                    {
+                        return true;
+                    }
+                    why = "Unload some real armor first. ";
+                    return false;
+                }
+                if (action.Kind == ActionKind.Thrust)
+                {
+                    int length = 1 + (int)Math.Ceiling(unit.Armor - epsilon);
+                    bool pass =
+                        budget.Attacks == 0
+                        && MapRules.Distance(view.Mode, unit.Position, action.Target) == 1
+                        && World.RayCells(view, unit.Position, action.Target, length).Count > 0;
+                    if (pass)
+                    {
+                        return true;
+                    }
+                    why = "Thrust: pick an adjacent direction; range grows with armor. ";
+                    return false;
+                }
+                why = "The armiger has no such action. ";
+                return false;
             }
             if (!hero)
             {
@@ -1591,7 +1866,7 @@ namespace MistForest.Core.Model
                     Role.Ink => budget.Moves < 1,
                     Role.Heavy => budget.Phase != 2 && budget.Moves < 2,
                     Role.HiddenWolf => unit.Form != 0 ? budget.Moves < 2 : budget.Used == 0,
-                    Role.Flamer => budget.Attacks == 0 && budget.Moves < 1,
+                    Role.Firefly => budget.Attacks == 0 && budget.Moves < 1,
                     _ => false,
                 };
                 if (allowed)
@@ -1777,8 +2052,8 @@ namespace MistForest.Core.Model
                 Attacks = turn.Attacks,
                 Used = turn.Used,
                 Phase = turn.Phase,
-                Dr = turn.Dr,
-                Dc = turn.Dc,
+                DRow = turn.DRow,
+                DCol = turn.DCol,
                 LastOption = turn.LastOption,
                 Options = turn.Options,
                 Anchor = turn.Anchor,
