@@ -34,7 +34,7 @@ namespace MistForest.Core.Model
         Knight,
         Alpha,
         Armiger,
-        Flamer,
+        Firefly,
         WallGuard,
         Prince,
         Sword,

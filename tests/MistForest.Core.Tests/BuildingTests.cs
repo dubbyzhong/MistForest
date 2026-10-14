@@ -125,7 +125,7 @@ namespace MistForest.Core.Tests
         [Fact]
         public static void DemolishOwnFortFromInside_Allowed()
         {
-            Game game = NewDuel(Role.Flamer, Role.Wolf, 2, 7);
+            Game game = NewDuel(Role.Firefly, Role.Wolf, 2, 7);
             game.State.Buildings[1] = new Building
             {
                 Kind = Structure.Fort,

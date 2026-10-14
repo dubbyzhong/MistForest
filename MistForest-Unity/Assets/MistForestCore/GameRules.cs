@@ -85,5 +85,21 @@ namespace MistForest.Core.Model
                 : unit.Role == Role.HiddenWolf && unit.Form == 0 ? 2
                 : 1;
         }
+
+        public static double ArmorUnload(double armor, double choice)
+        {
+            const double epsilon = 1e-9;
+            double fraction = armor - System.Math.Floor(armor + epsilon);
+            if (fraction < epsilon)
+            {
+                fraction = 0; // 整数甲:小数部分为零,继续按整数层卸载
+            }
+            double amount = fraction + choice;
+            if (fraction > 0 && choice > 1)
+            {
+                return 0;
+            }
+            return amount > 0 && amount <= armor + epsilon ? amount : 0;
+        }
     }
 }
