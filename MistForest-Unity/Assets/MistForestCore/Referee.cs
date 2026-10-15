@@ -143,7 +143,7 @@ namespace MistForest.Core.Model
                 RoundNumber = state.RoundNumber,
                 RoundMask = state.RoundMask,
                 Mode = state.Mode,
-                Map = Deep.CloneMap(state.Map)
+                Map = Deep.CloneMap(state.Map),
             };
             for (int i = 0; i < 81; ++i)
             {
@@ -275,6 +275,208 @@ namespace MistForest.Core.Model
             if (end)
             {
                 event_.PublicText += "Turn Ends. ";
+            }
+            else if (action.Kind is ActionKind.Leap or ActionKind.Hunt or ActionKind.Retreat)
+            {
+                bool hunt = action.Kind == ActionKind.Hunt;
+                MoveUnit(action.Unit, action.Target, hunt);
+                ++budget.Used;
+                event_.PublicText +=
+                    hunt ? $"Hunt lands on {action.Target}"
+                    : action.Kind == ActionKind.Retreat ? "Secret jump"
+                    : "Leap";
+                event_.PrivateText = $"Lands on {action.Target}";
+                if (hunt)
+                {
+                    budget.Phase = 3;
+                    budget.Anchor = action.Target;
+                    event_.AttackCells[action.Target - 1] = true;
+                    Damage(action.Unit, action.Target, false, false, event_, 2);
+                }
+                else if (action.Kind == ActionKind.Retreat)
+                {
+                    budget.LastOption = 3;
+                    ++budget.Options;
+                    unit.OptionCooldown[2] = 2;
+                }
+                else
+                {
+                    end = true;
+                }
+            }
+            else if (action.Kind == ActionKind.Silence)
+            {
+                budget.LastOption = 1;
+                ++budget.Options;
+                unit.OptionCooldown[0] = 2;
+                bool sensed = false;
+                foreach (int j in Enumerable.Range(0, 8))
+                {
+                    Unit target = state.Units[j];
+                    if (GameRules.Allied(state.Teams, j / 2, action.Unit / 2) || target.Health <= 0)
+                    {
+                        continue;
+                    }
+                    if (target.Role == Role.WallGuard)
+                    {
+                        foreach (int k in Enumerable.Range(0, 3))
+                        {
+                            if (
+                                target.SoldierHealth[k] > 0
+                                && !target.SoldierGuard[k]
+                                && MapRules.Distance(state.Mode, budget.Anchor, target.Soldiers[k])
+                                    <= 1
+                            )
+                            {
+                                target.SoldierSilenced[k] = true;
+                                sensed = true;
+                            }
+                        }
+                        continue;
+                    }
+                    if (
+                        target.Guard
+                        || MapRules.Distance(state.Mode, budget.Anchor, target.Position) > 1
+                    )
+                    {
+                        continue;
+                    }
+                    target.Silenced = true;
+                    target.Report = "Silenced: skills blocked until your next turn. ";
+                    if (!GameRules.Immune(target))
+                    {
+                        sensed = true;
+                    }
+                }
+                if (sensed)
+                {
+                    int? sole = null;
+                    int count = 0;
+                    foreach (int j in Enumerable.Range(0, 8))
+                    {
+                        if (
+                            !GameRules.Allied(state.Teams, j / 2, state.Turn)
+                            && state.Units[j].Health > 0
+                            && !GameRules.Immune(state.Units[j])
+                        )
+                        {
+                            sole = j;
+                            ++count;
+                        }
+                    }
+                    if (count == 1 && state.Units[sole.Value].Role != Role.WallGuard)
+                    {
+                        foreach (int cell in Enumerable.Range(1, MapInfo.CellCount(state.Mode)))
+                        {
+                            if (MapRules.Distance(state.Mode, budget.Anchor, cell) > 1)
+                            {
+                                state.Possible[state.Turn][sole.Value][cell - 1] = false;
+                            }
+                        }
+                    }
+                }
+                unit.Report = sensed
+                    ? "Silence: an enemy is controlled. "
+                    : "Silence: no feedback. ";
+                event_.Feedback = $"Hunt · {unit.Report}";
+                event_.PublicText += "Hunt option 1: silence (landing and cross within 1)";
+            }
+            else if (action.Kind is ActionKind.Cleave or ActionKind.CleaveRush)
+            {
+                budget.LastOption = 2;
+                ++budget.Options;
+                unit.OptionCooldown[1] = 2;
+                event_.PublicText += $"Hunt option 2: cleave {action.Target}";
+                event_.AttackCells[action.Target - 1] = true;
+                Damage(action.Unit, action.Target, false, false, event_, 2);
+                if (action.Kind == ActionKind.CleaveRush && state.Winner == null)
+                {
+                    MoveUnit(action.Unit, action.Target, true);
+                }
+            }
+            else if (action.Kind == ActionKind.Blood)
+            {
+                unit.Cooldown = 3;
+                foreach (int player in Enumerable.Range(0, state.PlayerCount))
+                {
+                    if (!GameRules.Allied(state.Teams, player, state.Turn))
+                    {
+                        state.Intel[player][unit.Position - 1] = true;
+                    }
+                }
+                event_.PublicText += $"Blood scent: flash position {unit.Position}";
+                int nearest = 99;
+                int cell = 0;
+                foreach (int j in Enumerable.Range(0, 8))
+                {
+                    if (
+                        !GameRules.Allied(state.Teams, j / 2, action.Unit / 2)
+                        && state.Units[j].Health > 0
+                        && !GameRules.Immune(state.Units[j])
+                    )
+                    {
+                        Unit target = state.Units[j];
+                        foreach (
+                            int k in Enumerable.Range(0, target.Role == Role.WallGuard ? 3 : 1)
+                        )
+                        {
+                            if (target.Role == Role.WallGuard && target.SoldierHealth[k] <= 0)
+                            {
+                                continue;
+                            }
+                            int cellIter = World.SoldierCell(target, k);
+                            int distance = MapRules.Distance(state.Mode, unit.Position, cellIter);
+                            if (distance < nearest || (distance == nearest && cellIter < cell))
+                            {
+                                nearest = distance;
+                                cell = cellIter;
+                            }
+                        }
+                    }
+                }
+                event_.PrivateText =
+                    cell != 0
+                        ? $"Nearest enemy flash position {cell} (role unknown)"
+                        : "No detectable enemy. ";
+                if (cell != 0)
+                {
+                    foreach (int j in Enumerable.Range(0, 8))
+                    {
+                        if (
+                            !GameRules.Allied(state.Teams, j / 2, state.Turn)
+                            && state.Units[j].Health > 0
+                            && !GameRules.Immune(state.Units[j])
+                        )
+                        {
+                            foreach (
+                                int cellIter in Enumerable.Range(1, MapInfo.CellCount(state.Mode))
+                            )
+                            {
+                                if (
+                                    MapRules.Distance(state.Mode, unit.Position, cellIter) < nearest
+                                )
+                                {
+                                    state.Possible[state.Turn][j][cellIter - 1] = false;
+                                }
+                            }
+                        }
+                    }
+                    unit.Report = event_.PrivateText;
+                    event_.Feedback = $"Blood · {unit.Report}";
+                    if (cell != 0)
+                    {
+                        state.Intel[state.Turn][cell - 1] = true;
+                    }
+                }
+            }
+            else if (action.Kind == ActionKind.AttackRush)
+            {
+                ++budget.Attacks;
+                ++budget.Used;
+                MoveUnit(action.Unit, action.Target);
+                event_.AttackCells[action.Target - 1] = true;
+                event_.PublicText += $"Attack rush {action.Target}";
+                Damage(action.Unit, action.Target, false, false, event_, 2);
             }
             else if (action.Kind == ActionKind.Transform)
             {
@@ -835,12 +1037,20 @@ namespace MistForest.Core.Model
         /// </summary>
         /// <param name="id"></param>
         /// <param name="dest"></param>
-        private void MoveUnit(int id, int dest)
+        private void MoveUnit(int id, int dest, bool publicPosition = false)
         {
             state.Units[id].Position = dest;
-            for (int p = 0; p < 4; ++p)
+            for (int player = 0; player < 4; ++player)
             {
-                ResetCandidates(p, id);
+                ResetCandidates(player, id);
+                if (publicPosition)
+                {
+                    foreach (int cell in Enumerable.Range(0, 81))
+                    {
+                        state.Possible[player][id][cell] = false;
+                    }
+                    state.Possible[player][id][dest - 1] = true;
+                }
             }
         }
 
@@ -1422,6 +1632,10 @@ namespace MistForest.Core.Model
                         }
                     }
                     return false;
+                case Role.Knight:
+                    return budget.Used == 0 || budget.Phase == 3;
+                case Role.Alpha:
+                    return budget.Attacks == 0 && budget.Moves < 2;
                 default:
                     return false;
             }
@@ -1461,16 +1675,7 @@ namespace MistForest.Core.Model
                 return true;
             }
             bool hero = GameRules.HeroMode(view.Mode);
-            if (
-                action.Kind
-                is ActionKind.Follow
-                    or ActionKind.Lead
-                    or ActionKind.Hunt
-                    or ActionKind.Silence
-                    or ActionKind.Cleave
-                    or ActionKind.CleaveRush
-                    or ActionKind.Retreat
-            )
+            if (action.Kind is ActionKind.Follow or ActionKind.Lead)
             {
                 if (!hero || unit.Silenced)
                 {
@@ -1760,6 +1965,133 @@ namespace MistForest.Core.Model
                     return true;
                 }
                 why = "Charge: up to 4 steps, straight after the first turn, no reversing. ";
+                return false;
+            }
+            if (unit.Role == Role.Knight && hero)
+            {
+                if (action.Kind == ActionKind.Leap)
+                {
+                    bool pass =
+                        budget.Used == 0
+                        && (
+                            action.Target == unit.Position
+                            || Movement.CanLeap(view.Mode, unit.Position, action.Target, view.Map)
+                        );
+                    if (pass)
+                    {
+                        return true;
+                    }
+                    why = "Leap: knight-jump blocked by the hoof or walls; ";
+                    return false;
+                }
+                if (action.Kind == ActionKind.Hunt)
+                {
+                    bool pass =
+                        budget.Used == 0
+                        && (
+                            action.Target == unit.Position
+                            || Movement.CanLeap(view.Mode, unit.Position, action.Target, view.Map)
+                        );
+                    if (pass)
+                    {
+                        return true;
+                    }
+                    why = "Hunt must be the first action, landing on a legal knight cell. ";
+                    return false;
+                }
+                int option =
+                    action.Kind == ActionKind.Silence ? 1
+                    : action.Kind is ActionKind.Cleave or ActionKind.CleaveRush ? 2
+                    : action.Kind == ActionKind.Retreat ? 3
+                    : 0;
+                if (option != 0)
+                {
+                    bool pass =
+                        budget.Phase == 3
+                        && option > budget.LastOption
+                        && budget.Options < 2
+                        && unit.OptionCooldown[option - 1] == 0;
+                    if (pass && option == 1)
+                    {
+                        return true;
+                    }
+                    if (pass && option == 3)
+                    {
+                        if (Movement.CanLeap(view.Mode, unit.Position, action.Target, view.Map))
+                        {
+                            return true;
+                        }
+                        why = "Secret jump blocked. ";
+                        return false;
+                    }
+                    if (pass && option == 2)
+                    {
+                        if (
+                            MapRules.Distance(view.Mode, unit.Position, action.Target) <= 1
+                            && World.WorldShot(view, unit.Position, action.Target)
+                            && (
+                                action.Kind != ActionKind.CleaveRush
+                                || Movement.CanMove(
+                                    view.Mode,
+                                    unit.Position,
+                                    action.Target,
+                                    view.Map
+                                )
+                            )
+                        )
+                        {
+                            return true;
+                        }
+                        why = "Cleave: distance 1, clear shot; rush can't cross walls or lakes. ";
+                        return false;
+                    }
+                }
+                why = "Knight option run in 1-2-3 order, at most two, each on cooldown. ";
+                return false;
+            }
+            if (unit.Role == Role.Alpha && hero)
+            {
+                if (action.Kind == ActionKind.Move)
+                {
+                    bool pass =
+                        budget.Attacks == 0
+                        && budget.Moves < 2
+                        && World.WorldMove(view, action.Unit, unit.Position, action.Target);
+                    if (pass)
+                    {
+                        return true;
+                    }
+                    why = "Alpha moves 2, but not after attacking. ";
+                    return false;
+                }
+                if (action.Kind is ActionKind.Attack or ActionKind.AttackRush)
+                {
+                    bool pass =
+                        budget.Used == 0
+                        && MapRules.Distance(view.Mode, unit.Position, action.Target) <= 1
+                        && World.WorldShot(view, unit.Position, action.Target)
+                        && (
+                            action.Kind != ActionKind.AttackRush
+                            || World.WorldMove(view, action.Unit, unit.Position, action.Target)
+                        );
+                    if (pass)
+                    {
+                        return true;
+                    }
+                    why = "Attack and move can't share a turn; rush needs an enterable target. ";
+                    return false;
+                }
+                if (action.Kind == ActionKind.Blood)
+                {
+                    bool pass = unit.Cooldown == 0 && budget.Active == null;
+                    if (pass)
+                    {
+                        return true;
+                    }
+                    why = "Blood scent is on cooldown or the turn already started. ";
+                    return false;
+                }
+                why = "The alpha has no such action. ";
                 return false;
             }
             if (unit.Role == Role.Armiger && hero)
