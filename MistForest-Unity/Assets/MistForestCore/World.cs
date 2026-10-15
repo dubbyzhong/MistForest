@@ -239,6 +239,14 @@ namespace MistForest.Core.Model
                     }
                     foreach (int j in Enumerable.Range(0, 3))
                     {
+                        int width = MapInfo.Cols(mode);
+                        bool near =
+                            System.Math.Abs(
+                                (unit.Soldiers[i] - 1) / width - (unit.Soldiers[j] - 1) / width
+                            ) <= 1
+                            && System.Math.Abs(
+                                (unit.Soldiers[i] - 1) % width - (unit.Soldiers[j] - 1) % width
+                            ) <= 1;
                         if (
                             (mask & (1 << j)) == 0
                             && unit.SoldierHealth[j] > 0
@@ -311,6 +319,70 @@ namespace MistForest.Core.Model
                 }
             }
             return result;
+        }
+
+        /// <summary>
+        /// Get the shadow target of a soldier.
+        /// </summary>
+        /// <param name="map"></param>
+        /// <param name="from"></param>
+        /// <param name="dRow"></param>
+        /// <param name="dCol"></param>
+        /// <returns></returns>
+        public static int ShadowTarget(Map map, int from, int dRow, int dCol)
+        {
+            int width = map.Width,
+                height = map.Height;
+            int row = (((from - 1) / width + dRow) % height + height) % height;
+            int col = (((from - 1) % width + dCol) % width + width) % width;
+            return row * width + col + 1;
+        }
+
+        /// <summary>
+        /// Get the shadow distance between two soldiers.
+        /// </summary>
+        /// <param name="mode"></param>
+        /// <param name="from"></param>
+        /// <param name="to"></param>
+        /// <returns></returns>
+        public static int ShadowDistance(Mode mode, int from, int to)
+        {
+            int width = MapInfo.Cols(mode),
+                height = MapInfo.Rows(mode);
+            int dRow = System.Math.Abs((from - 1) / width - (to - 1) / width);
+            int dCol = System.Math.Abs((from - 1) % width - (to - 1) % width);
+            return System.Math.Min(dRow, height - dRow) + System.Math.Min(dCol, width - dCol);
+        }
+
+        public static bool ShadowStep(Mode mode, int from, int to, Map map)
+        {
+            if (
+                !MapRules.Valid(mode, from, map)
+                || !MapRules.Valid(mode, to, map)
+                || ShadowDistance(mode, from, to) > 1
+            )
+            {
+                return false;
+            }
+            if (MapRules.Distance(mode, from, to) <= 1)
+            {
+                return Movement.CanMove(mode, from, to, map);
+            }
+            return true;
+        }
+
+        public static bool ShadowShot(Mode mode, int from, int to, Map map)
+        {
+            if (to < 1 || to > MapInfo.CellCount(mode) || map.Cells[to - 1] == Terrain.Wall)
+            {
+                return false;
+            }
+            var shotMap = Deep.CloneMap(map);
+            if (shotMap.Cells[to - 1] == Terrain.Lake)
+            {
+                shotMap.Cells[to - 1] = Terrain.Ground;
+            }
+            return ShadowStep(mode, from, to, shotMap);
         }
     }
 }

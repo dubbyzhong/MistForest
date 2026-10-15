@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 
 namespace MistForest.Core.Model
 {
@@ -275,6 +276,21 @@ namespace MistForest.Core.Model
             if (end)
             {
                 event_.PublicText += "Turn Ends. ";
+            }
+            else if (action.Kind == ActionKind.ShadowMode)
+            {
+                budget.ShadowMode = action.Amount;
+                event_.PublicText +=
+                    action.Amount == 1
+                        ? "Attachment: lead this turn"
+                        : "Attachment: follow this turn";
+            }
+            else if (action.Kind == ActionKind.Follow)
+            {
+                unit.Follow = action.Subject;
+                unit.FollowPiece = action.Extra;
+                budget.Followed = true;
+                event_.PublicText += $"Attach to unit {action.Subject}";
             }
             else if (action.Kind is ActionKind.Leap or ActionKind.Hunt or ActionKind.Retreat)
             {
@@ -582,17 +598,38 @@ namespace MistForest.Core.Model
             {
                 GuardAction(action, event_);
             }
-            else if (action.Kind == ActionKind.Move)
+            else if (action.Kind is ActionKind.Move or ActionKind.Lead)
             {
-                MoveUnit(action.Unit, action.Target);
-                ++budget.Moves;
-                ++budget.Used;
-                if (unit.Role == Role.Heavy)
+                if (unit.Role == Role.Shadow && GameRules.HeroMode(state.Mode))
                 {
-                    budget.Phase = 1;
+                    if (action.Kind == ActionKind.Lead)
+                    {
+                        budget.Led = true;
+                    }
+                    MoveUnit(
+                        action.Unit,
+                        action.Target,
+                        false,
+                        lead: action.Kind == ActionKind.Lead ? (int)action.Subject : -1,
+                        leadPiece: action.Extra
+                    );
+                    ++budget.Moves;
+                    ++budget.Used;
+                    event_.PublicText += action.Kind == ActionKind.Lead ? "Lead" : "Move";
+                    event_.PrivateText += $"To {unit.Position}";
                 }
-                event_.PublicText += "Move";
-                event_.PrivateText = "Move to " + unit.Position;
+                else
+                {
+                    MoveUnit(action.Unit, action.Target);
+                    ++budget.Moves;
+                    ++budget.Used;
+                    if (unit.Role == Role.Heavy)
+                    {
+                        budget.Phase = 1;
+                    }
+                    event_.PublicText += "Move";
+                    event_.PrivateText = "Move to " + unit.Position;
+                }
             }
             else if (action.Kind == ActionKind.Attack)
             {
@@ -1037,9 +1074,76 @@ namespace MistForest.Core.Model
         /// </summary>
         /// <param name="id"></param>
         /// <param name="dest"></param>
-        private void MoveUnit(int id, int dest, bool publicPosition = false)
+        private void MoveUnit(
+            int id,
+            int dest,
+            bool publicPosition = false,
+            int lead = -1,
+            int leadPiece = 0
+        )
         {
-            state.Units[id].Position = dest;
+            Unit actor = state.Units[id];
+            int width = state.Map.Width;
+            int from = actor.Position;
+            int dRow = (dest - 1) / width - (from - 1) / width;
+            int dCol = (dest - 1) % width - (from - 1) % width;
+            if (actor.Role == Role.Shadow)
+            {
+                int height = state.Map.Height;
+                if (Math.Abs(dRow) > height / 2)
+                {
+                    dRow += dRow > 0 ? -height : height;
+                }
+                if (Math.Abs(dCol) > width / 2)
+                {
+                    dCol += dCol > 0 ? -width : width;
+                }
+            }
+            var pending = new List<(int id, int piece, int to)>();
+            foreach (int j in Enumerable.Range(0, 8))
+            {
+                Unit f = state.Units[j];
+                if (
+                    j == id
+                    || f.Health <= 0
+                    || (f.Role == Role.Shadow && f.Silenced)
+                    || GameRules.Immune(f)
+                    || GameRules.Immune(actor)
+                    || f.Follow != id && j != lead
+                )
+                {
+                    continue;
+                }
+                int piece = f.Role == Role.WallGuard ? leadPiece : 0;
+                if (
+                    piece < 0
+                    || piece > 2
+                    || (f.Role == Role.WallGuard && f.SoldierHealth[piece] <= 0)
+                )
+                {
+                    continue;
+                }
+                int pos = World.SoldierCell(f, piece);
+                int to =
+                    f.Role == Role.Shadow
+                        ? World.ShadowTarget(state.Map, pos, dRow, dCol)
+                        : World.Shifted(state.Map, pos, dRow, dCol);
+                bool allowed = to != 0 && World.WorldMove(View(j / 2), j, pos, to);
+                if (allowed)
+                {
+                    pending.Add((j, piece, to));
+                }
+                f.Report += allowed
+                    ? $"\nAttachment synced to {to}"
+                    : "\nAttachment blocked, skipped this step. ";
+                if (j == lead)
+                {
+                    actor.Report += allowed
+                        ? "\nLead feedback: target moved along. "
+                        : "\nLead feedback: target was blocked. ";
+                }
+            }
+            actor.Position = dest;
             for (int player = 0; player < 4; ++player)
             {
                 ResetCandidates(player, id);
@@ -1050,6 +1154,23 @@ namespace MistForest.Core.Model
                         state.Possible[player][id][cell] = false;
                     }
                     state.Possible[player][id][dest - 1] = true;
+                }
+            }
+            foreach (var item in pending)
+            {
+                Unit u = state.Units[item.id];
+                if (u.Role == Role.WallGuard)
+                {
+                    u.Soldiers[item.piece] = item.to;
+                    RefreshSquad(u);
+                }
+                else
+                {
+                    u.Position = item.to;
+                }
+                foreach (int player in Enumerable.Range(0, 4))
+                {
+                    ResetCandidates(player, item.id);
                 }
             }
         }
@@ -1636,6 +1757,8 @@ namespace MistForest.Core.Model
                     return budget.Used == 0 || budget.Phase == 3;
                 case Role.Alpha:
                     return budget.Attacks == 0 && budget.Moves < 2;
+                case Role.Shadow:
+                    return budget.Active == null || budget.Attacks == 0 && budget.Moves < 2;
                 default:
                     return false;
             }
@@ -1675,18 +1798,6 @@ namespace MistForest.Core.Model
                 return true;
             }
             bool hero = GameRules.HeroMode(view.Mode);
-            if (action.Kind is ActionKind.Follow or ActionKind.Lead)
-            {
-                if (!hero || unit.Silenced)
-                {
-                    why =
-                        "You can't use this action. Silence doesn't stop basic attacking and moving. ";
-                    return false;
-                }
-                //TODO: Complete these actions.
-                why = "Wait to undate. ";
-                return false;
-            }
             if (action.Kind is ActionKind.Dash or ActionKind.Charge or ActionKind.Transform)
             {
                 if (!hero || unit.Silenced)
@@ -1967,6 +2078,108 @@ namespace MistForest.Core.Model
                 why = "Charge: up to 4 steps, straight after the first turn, no reversing. ";
                 return false;
             }
+            if (unit.Role == Role.Shadow && hero)
+            {
+                if (action.Kind == ActionKind.ShadowMode)
+                {
+                    bool pass =
+                        budget.Active == null
+                        && !unit.Silenced
+                        && (action.Amount == 1 || action.Amount == 2);
+                    if (pass)
+                    {
+                        return true;
+                    }
+                    why = "Attachment mode must be chosen as the turn's first action. ";
+                    return false;
+                }
+                if (action.Kind == ActionKind.Follow)
+                {
+                    bool pass =
+                        budget.ShadowMode == 2
+                        && !budget.Followed
+                        && !budget.Led
+                        && budget.Moves <= 2
+                        && action.Subject != null
+                        && action.Subject >= 0
+                        && action.Subject < 8
+                        && action.Subject != action.Unit
+                        && view.Units[action.Subject.Value].Health > 0
+                        && !GameRules.Immune(view.Units[action.Subject.Value]);
+                    if (pass)
+                    {
+                        return true;
+                    }
+                    why = "Follow needs mode-2 chosen first, and a valid active target. ";
+                    return false;
+                }
+                if (action.Kind is ActionKind.Move or ActionKind.Lead)
+                {
+                    if (budget.ShadowMode == 0 && !unit.Silenced)
+                    {
+                        why = "Choose the attachment mode first. ";
+                        return false;
+                    }
+                    if (!World.ShadowStep(view.Mode, unit.Position, action.Target, view.Map))
+                    {
+                        why = "Shadow steps wrap around the map edges. ";
+                        return false;
+                    }
+                    if (action.Kind == ActionKind.Lead)
+                    {
+                        bool leadOk =
+                            budget.ShadowMode == 1
+                            && !budget.Followed
+                            && action.Subject != null
+                            && action.Subject >= 0
+                            && action.Subject < 8
+                            && action.Subject != action.Unit
+                            && view.Units[action.Subject.Value].Health > 0
+                            && !GameRules.Immune(view.Units[action.Subject.Value]);
+                        if (!leadOk)
+                        {
+                            why = "Lead needs mode-1 chosen first, and a valid alive target. ";
+                            return false;
+                        }
+                    }
+                    bool allowed = budget.Attacks == 0 && budget.Moves < 2;
+                    if (allowed)
+                    {
+                        return true;
+                    }
+                    why = "No move budget left, or already attacked. ";
+                    return false;
+                }
+                if (action.Kind == ActionKind.Attack)
+                {
+                    if (budget.ShadowMode == 0 && !unit.Silenced)
+                    {
+                        why = "Choose the attachment mode first. ";
+                        return false;
+                    }
+                    bool inRange =
+                        World.ShadowDistance(view.Mode, unit.Position, action.Target)
+                        <= GameRules.AttackRange(view.Mode, unit);
+                    bool line =
+                        MapRules.Distance(view.Mode, unit.Position, action.Target) > 1
+                            ? World.ShadowShot(view.Mode, unit.Position, action.Target, view.Map)
+                            : Movement.ClearShot(view.Mode, unit.Position, action.Target, view.Map);
+                    if (!inRange || !line)
+                    {
+                        why = "Target beyond wrap-range or blocked. ";
+                        return false;
+                    }
+                    if (budget.Attacks != 0 || budget.Moves != 0)
+                    {
+                        why = "No attack budget left this turn. ";
+                        return false;
+                    }
+                    return true;
+                }
+                why = "The shadow has no such action. ";
+                return false;
+            }
+
             if (unit.Role == Role.Knight && hero)
             {
                 if (action.Kind == ActionKind.Leap)
@@ -2180,12 +2393,6 @@ namespace MistForest.Core.Model
             }
             if (action.Kind == ActionKind.Move)
             {
-                if (unit.Role == Role.Shadow)
-                {
-                    //TODO: Wait to update.
-                    why = "Wait to update. ";
-                    return false;
-                }
                 if (!Movement.CanMove(view.Mode, unit.Position, action.Target, view.Map))
                 {
                     why = "Please select an adjacent walkable tile or your own tile. ";
@@ -2211,18 +2418,6 @@ namespace MistForest.Core.Model
             }
             if (action.Kind == ActionKind.Attack)
             {
-                if (unit.Role == Role.Shadow)
-                {
-                    //TODO: Wait to update.
-                    why = "Wait to update. ";
-                    return false;
-                }
-                if (unit.Role == Role.Heavy)
-                {
-                    //TODO: Wait ot update.
-                    why = "Wait to update. ";
-                    return false;
-                }
                 if (unit.Role == Role.Ink)
                 {
                     int stride = MapInfo.Cols(view.Mode);
