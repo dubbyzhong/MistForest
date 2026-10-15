@@ -594,6 +594,163 @@ namespace MistForest.Core.Model
                     Damage(action.Unit, cell, false, false, event_, 2);
                 }
             }
+            else if (action.Kind == ActionKind.PlantRose)
+            {
+                state.Roses.Add(
+                    new Rose
+                    {
+                        Unit = action.Unit,
+                        Cell = action.Target,
+                        Health = 3,
+                        Id = state.Roses.Count + 1,
+                    }
+                );
+                ++budget.Moves;
+                ++budget.Used;
+                event_.AttackCells[action.Target - 1] = true;
+                event_.PublicText +=
+                    $"Rose kiss {action.Target}, replaces the move and deals 0.5 damage";
+                Damage(action.Unit, action.Target, false, false, event_, 1);
+            }
+            else if (action.Kind == ActionKind.Bloom)
+            {
+                Rose rose = state.Roses.First(x =>
+                    x.Unit == action.Unit && x.Cell == action.Extra && x.Health > 0
+                );
+                budget.RoseUsed.Add(rose.Id);
+                rose.Health = Math.Max(0, rose.Health - 1);
+                event_.PublicText +=
+                    $"Thorn bloom, rose {action.Extra} drops a petal, {rose.Health / 2} left";
+                MoveUnit(action.Unit, action.Landing, blink: true);
+                event_.AttackCells[action.Target - 1] = true;
+                event_.PublicText += $"\nThorn bloom attacks {action.Target}";
+                event_.PrivateText = $"Blink to {action.Landing}";
+                Damage(action.Unit, action.Target, false, false, event_, 2);
+            }
+            else if (action.Kind == ActionKind.ThrowSword)
+            {
+                unit.SwordQi -= action.Amount;
+                state.Swords.Add(
+                    new Sword
+                    {
+                        Unit = action.Unit,
+                        Cell = action.Target,
+                        Spent = action.Amount,
+                    }
+                );
+                unit.SwordQi = Math.Min(unit.SwordQi, World.SwordCap(state.Swords, action.Unit));
+                event_.AttackCells[action.Target - 1] = true;
+                event_.PublicText += $"Sword comes: flying sword {action.Target}";
+                event_.PrivateText = $"Spent {action.Amount} qi";
+                Damage(action.Unit, action.Target, false, false, event_, 2);
+                end = true;
+            }
+            else if (action.Kind == ActionKind.RecallSword)
+            {
+                Sword sword = state.Swords.First(x =>
+                    x.Unit == action.Unit && x.Cell == action.Target
+                );
+                unit.SwordQi -= MapRules.Distance(state.Mode, unit.Position, sword.Cell);
+                state.Swords.Remove(sword);
+                ++budget.ExtraAttacks;
+                event_.PublicText += $"Sword comes: recall {action.Target}";
+            }
+            else if (action.Kind == ActionKind.SwordStab)
+            {
+                var cells = World.SwordLine(
+                    View(state.Turn),
+                    unit.Position,
+                    action.Target,
+                    action.Amount != 0
+                );
+                --unit.SwordQi;
+                if (!budget.SwordBaseUsed && budget.Moves == 0)
+                {
+                    budget.SwordBaseUsed = true;
+                }
+                else
+                {
+                    --budget.ExtraAttacks;
+                }
+                ++budget.Attacks;
+                ++budget.Used;
+                foreach (int cell in Enumerable.Range(0, 81))
+                {
+                    budget.SwordCells[cell] = false;
+                }
+                budget.SwordAdvance = true;
+                foreach (int cell in cells)
+                {
+                    budget.SwordCells[cell - 1] = true;
+                    event_.AttackCells[cell - 1] = true;
+                    event_.PublicText += $"\nSword stab {cell}";
+                    Damage(action.Unit, cell, false, false, event_, 2);
+                }
+            }
+            else if (action.Kind == ActionKind.SwordAdvance)
+            {
+                budget.SwordAdvance = false;
+                if (action.Target == 0)
+                {
+                    event_.PublicText += "Follow-up done";
+                    event_.PrivateText = "Stay where you are. ";
+                }
+                else
+                {
+                    int stride = state.Map.Width;
+                    while (unit.Position != action.Target)
+                    {
+                        int stepFrom = unit.Position;
+                        int dRow = (action.Target - 1) / stride - (stepFrom - 1) / stride;
+                        int dCol = (action.Target - 1) % stride - (stepFrom - 1) % stride;
+                        int next =
+                            dRow != 0
+                                ? stepFrom + (dRow > 0 ? stride : -stride)
+                                : stepFrom + (dCol > 0 ? 1 : -1);
+                        MoveUnit(action.Unit, next);
+                    }
+                    event_.PublicText += "Follow-up done";
+                    event_.PrivateText = $"Enter the attack tile {action.Target}";
+                }
+            }
+            else if (action.Kind == ActionKind.Flame)
+            {
+                var cells = World.RayCells(
+                    View(state.Turn),
+                    unit.Position,
+                    action.Target,
+                    action.Amount
+                );
+                unit.Ammo -= action.Amount;
+                ++budget.Used;
+                ++budget.Attacks;
+                budget.FlameChoice = !budget.Advance;
+                event_.PublicText += $"Fire dance: spray, spent {action.Amount} ammo";
+                foreach (int cell in cells)
+                {
+                    event_.PublicText += $"\nFlame {cell}";
+                    event_.AttackCells[cell - 1] = true;
+                    Ignite(action.Unit, cell, event_, true, true);
+                    if (state.Map.Cells[cell - 1] != Terrain.Lake)
+                    {
+                        budget.FlameCells[cell - 1] = true;
+                    }
+                }
+            }
+            else if (action.Kind == ActionKind.FlameAdvance)
+            {
+                budget.FlameChoice = false;
+                if (action.Target != 0)
+                {
+                    budget.Advance = true;
+                    MoveUnit(action.Unit, action.Target, blink: true);
+                }
+                event_.PublicText += "Follow-up done";
+                event_.PrivateText =
+                    action.Target != 0
+                        ? $"Enter the flame {action.Target}"
+                        : "Stay where you are. ";
+            }
             else if (unit.Role == Role.WallGuard && GameRules.HeroMode(state.Mode))
             {
                 GuardAction(action, event_);
@@ -1079,7 +1236,8 @@ namespace MistForest.Core.Model
             int dest,
             bool publicPosition = false,
             int lead = -1,
-            int leadPiece = 0
+            int leadPiece = 0,
+            bool blink = false
         )
         {
             Unit actor = state.Units[id];
@@ -1128,7 +1286,13 @@ namespace MistForest.Core.Model
                     f.Role == Role.Shadow
                         ? World.ShadowTarget(state.Map, pos, dRow, dCol)
                         : World.Shifted(state.Map, pos, dRow, dCol);
-                bool allowed = to != 0 && World.WorldMove(View(j / 2), j, pos, to);
+                bool allowed =
+                    to != 0
+                    && (
+                        blink
+                            ? World.CanEnter(View(j / 2), j, to)
+                            : World.WorldMove(View(j / 2), j, pos, to)
+                    );
                 if (allowed)
                 {
                     pending.Add((j, piece, to));
@@ -1257,6 +1421,34 @@ namespace MistForest.Core.Model
                             "\nThe building already took a equal or stronger direct attack this round; no stacking. ";
                     }
                 }
+            }
+            foreach (Rose rose in state.Roses)
+            {
+                int roseOwner = (rose.Unit ?? 0) / 2;
+                if (
+                    rose.Cell != target
+                    || rose.Health <= epsilon
+                    || burning && burningPlayer is int burningOwner && roseOwner != burningOwner
+                    || !burning && GameRules.Allied(state.Teams, roseOwner, actor / 2)
+                )
+                {
+                    continue;
+                }
+                contact = true;
+                double prior = rose.DirectDamage;
+                double delta = burning ? power : GameRules.DirectAttackDelta(prior, power);
+                if (!burning)
+                {
+                    rose.DirectDamage = Math.Max(prior, power);
+                }
+                if (delta <= epsilon)
+                {
+                    event_.PublicText +=
+                        "\nThe rose already took a equal or stronger direct attack this round; no stacking. ";
+                    continue;
+                }
+                rose.Health = execute ? 0 : Math.Max(0, rose.Health - delta);
+                event_.PublicText += $"\nRose remaining {rose.Health / 2}";
             }
             for (int j = 0; j < 8; ++j)
             {
@@ -1512,7 +1704,8 @@ namespace MistForest.Core.Model
                     }
                     if (unit.Role == Role.Sword && unit.Health > 0)
                     {
-                        unit.SwordQi = Math.Min(9, unit.SwordQi + 3);
+                        // unit.SwordQi = Math.Min(9, unit.SwordQi + 3);
+                        unit.SwordQi = Math.Min(World.SwordCap(state.Swords, i), unit.SwordQi + 3);
                     }
                     for (int k = 0; k < 3; ++k)
                     {
@@ -1712,15 +1905,19 @@ namespace MistForest.Core.Model
         /// Check if the unit has action.
         /// </summary>
         /// <param name="view"></param>
-        /// <param name="unitInter"></param>
+        /// <param name="unitIter"></param>
         /// <returns></returns>
-        private bool HasAction(View view, int unitInter)
+        private bool HasAction(View view, int unitIter)
         {
-            if (GameRules.HeroMode(view.Mode) && HasBuildOrDemolish(view, unitInter))
+            if (view.Budget.SwordAdvance || view.Budget.FlameChoice)
             {
                 return true;
             }
-            Unit unit = view.Units[unitInter];
+            if (GameRules.HeroMode(view.Mode) && HasBuildOrDemolish(view, unitIter))
+            {
+                return true;
+            }
+            Unit unit = view.Units[unitIter];
             Turn budget = view.Budget;
             switch (unit.Role)
             {
@@ -1729,13 +1926,19 @@ namespace MistForest.Core.Model
                 case Role.Wolf:
                     return budget.Used < 3;
                 case Role.Ink:
-                    return budget.Moves < 1 || budget.Pellets < 3 || unit.Cooldown == 0;
+                    return budget.Moves < 1 || budget.Pellets < 3
+                        || (!unit.Silenced && unit.Cooldown == 0);
                 case Role.Heavy:
                     return budget.Phase == 2 ? budget.Used < 4 : budget.Moves < 2;
                 case Role.Armiger:
+                    if (unit.Silenced)
+                    {
+                        return budget.Attacks == 0
+                            && budget.Moves < 2 - (int)Math.Ceiling(unit.Armor - 1e-9);
+                    }
                     return budget.Attacks == 0;
                 case Role.HiddenWolf:
-                    if (!budget.Transformed)
+                    if (!budget.Transformed && !unit.Silenced)
                     {
                         return true;
                     }
@@ -1743,7 +1946,8 @@ namespace MistForest.Core.Model
                         ? budget.Attacks == 0 || budget.Moves < 2
                         : budget.Used == 0;
                 case Role.Firefly:
-                    return budget.Moves < 1 || (!budget.FireStep && unit.Ammo > 0);
+                    return (budget.Attacks == 0 && budget.Moves < 1)
+                        || (!unit.Silenced && !budget.FireStep && unit.Ammo > 0);
                 case Role.WallGuard:
                     foreach (int k in Enumerable.Range(0, 3))
                     {
@@ -1759,6 +1963,63 @@ namespace MistForest.Core.Model
                     return budget.Attacks == 0 && budget.Moves < 2;
                 case Role.Shadow:
                     return budget.Active == null || budget.Attacks == 0 && budget.Moves < 2;
+                case Role.Prince:
+                    if (budget.Moves < 1)
+                    {
+                        return true;
+                    }
+                    if (unit.Silenced)
+                    {
+                        return false;
+                    }
+                    foreach (Rose rose in view.Roses)
+                    {
+                        if (
+                            rose.Unit == unitIter
+                            && rose.Health > 0
+                            && !budget.RoseUsed.Contains(rose.Id)
+                        )
+                        {
+                            return true;
+                        }
+                    }
+                    return false;
+                case Role.Sword:
+                    if (budget.Attacks == 0 && budget.Moves < 1)
+                    {
+                        return true;
+                    }
+                    if (
+                        unit.SwordQi > 0
+                        && (budget.ExtraAttacks > 0 || !budget.SwordBaseUsed && budget.Moves == 0)
+                    )
+                    {
+                        return true; 
+                    }
+                    if (unit.Silenced)
+                    {
+                        return false;
+                    }
+                    if (
+                        budget.Active == null
+                        && unit.SwordQi > 0
+                        && World.SwordCap(view.Swords, unitIter) > 0
+                    )
+                    {
+                        return true;
+                    }
+                    foreach (Sword sword in view.Swords)
+                    {
+                        if (
+                            sword.Unit == unitIter
+                            && MapRules.Distance(view.Mode, unit.Position, sword.Cell)
+                                <= unit.SwordQi
+                        )
+                        {
+                            return true;
+                        }
+                    }
+                    return false;
                 default:
                     return false;
             }
@@ -1766,6 +2027,16 @@ namespace MistForest.Core.Model
 
         private bool Validate(View view, GameAction action, out string why)
         {
+            bool canEnter(int cell)
+            {
+                if (!MapRules.Valid(view.Mode, cell, state.Map))
+                {
+                    return false;
+                }
+                Building building = view.Buildings[cell - 1];
+                return building.Health <= 0
+                    || World.FortLike(building) && building.Owner == action.Unit / 2;
+            }
             const double epsilon = 1e-9;
             why = string.Empty;
             if (
@@ -1789,11 +2060,20 @@ namespace MistForest.Core.Model
                 why = "Action has been taken. Don't change the role ";
                 return false;
             }
-            if (action.Kind == ActionKind.End)
+            if (action.Kind == ActionKind.Surrender)
             {
                 return true;
             }
-            if (action.Kind == ActionKind.Surrender)
+            if (
+                (budget.SwordAdvance || budget.FlameChoice)
+                && action.Kind
+                    != (budget.SwordAdvance ? ActionKind.SwordAdvance : ActionKind.FlameAdvance)
+            )
+            {
+                why = "Finish the secret follow-up choice first, or choose to stay. ";
+                return false;
+            }
+            if (action.Kind == ActionKind.End)
             {
                 return true;
             }
@@ -1802,7 +2082,7 @@ namespace MistForest.Core.Model
             {
                 if (!hero || unit.Silenced)
                 {
-                    why = "Slience blocks this skill. ";
+                    why = "Silence blocks this skill. ";
                     return false;
                 }
             }
@@ -1978,9 +2258,10 @@ namespace MistForest.Core.Model
             {
                 bool pass =
                     unit.Role == Role.Firefly
+                    && !unit.Silenced
                     && !budget.FireStep
                     && unit.Ammo > 0
-                    && (action.Amount is 0 or 1)
+                    && action.Amount is 0 or 1
                     && MapRules.Distance(view.Mode, unit.Position, action.Target) == 1
                     && World.WorldMove(view, action.Unit, unit.Position, action.Target);
                 if (pass)
@@ -2179,7 +2460,255 @@ namespace MistForest.Core.Model
                 why = "The shadow has no such action. ";
                 return false;
             }
-
+            if (unit.Role == Role.Prince && hero)
+            {
+                if (action.Kind is ActionKind.PlantRose or ActionKind.Bloom && unit.Silenced)
+                {
+                    why = "Silence blocks this skill. ";
+                    return false;
+                }
+                if (action.Kind == ActionKind.PlantRose)
+                {
+                    int count = 0;
+                    bool occupied = false;
+                    foreach (Rose rose in view.Roses)
+                    {
+                        if (rose.Unit == action.Unit && rose.Health > epsilon)
+                        {
+                            ++count;
+                        }
+                        if (rose.Cell == action.Target && rose.Health > epsilon)
+                        {
+                            occupied = true;
+                        }
+                    }
+                    bool pass =
+                        !occupied
+                        && budget.Moves < 1
+                        && count < 3
+                        && MapRules.Valid(view.Mode, action.Target, state.Map)
+                        && MapRules.Distance(view.Mode, unit.Position, action.Target) <= 2
+                        && World.WorldShot(view, unit.Position, action.Target);
+                    if (pass)
+                    {
+                        return true;
+                    }
+                    why = "Planting costs the move: distance 2, three roses at most. ";
+                    return false;
+                }
+                if (action.Kind == ActionKind.Bloom)
+                {
+                    if (
+                        action.Target < 1
+                        || action.Target > MapInfo.CellCount(view.Mode)
+                        || !canEnter(action.Landing)
+                    )
+                    {
+                        why = "Choose a legal blink landing and attack tile. ";
+                        return false;
+                    }
+                    foreach (Rose rose in view.Roses)
+                    {
+                        if (
+                            rose.Unit == action.Unit
+                            && rose.Cell == action.Extra
+                            && rose.Health > epsilon
+                            && !budget.RoseUsed.Contains(rose.Id)
+                            && MapRules.Distance(view.Mode, rose.Cell, action.Landing) <= 1
+                            && MapRules.Distance(view.Mode, action.Landing, action.Target) <= 1
+                            && World.WorldShot(view, action.Landing, action.Target)
+                        )
+                        {
+                            return true;
+                        }
+                    }
+                    why =
+                        "Pick an unused rose, a landing within 1, then a target within 1 of the landing. ";
+                    return false;
+                }
+                if (action.Kind == ActionKind.Move)
+                {
+                    bool pass =
+                        budget.Moves < 1
+                        && World.WorldMove(view, action.Unit, unit.Position, action.Target);
+                    if (pass)
+                    {
+                        return true;
+                    }
+                    why = "Move and planting share one move quota. ";
+                    return false;
+                }
+                why = "The prince has no normal attack. ";
+                return false;
+            }
+            if (unit.Role == Role.Sword && hero)
+            {
+                if (action.Kind is ActionKind.ThrowSword or ActionKind.RecallSword && unit.Silenced)
+                {
+                    why = "Silence blocks this skill. ";
+                    return false;
+                }
+                if (action.Kind == ActionKind.ThrowSword)
+                {
+                    if (action.Target < 1 || action.Target > MapInfo.CellCount(view.Mode))
+                    {
+                        why = "Target out of range. ";
+                        return false;
+                    }
+                    int width = view.Map.Width;
+                    int distance = MapRules.Distance(view.Mode, unit.Position, action.Target);
+                    bool straight =
+                        (unit.Position - 1) / width == (action.Target - 1) / width
+                        || (unit.Position - 1) % width == (action.Target - 1) % width;
+                    bool pass =
+                        budget.Active == null
+                        && distance <= 3
+                        && straight
+                        && World.WorldShot(view, unit.Position, action.Target)
+                        && action.Amount >= Math.Max(1, distance)
+                        && action.Amount <= unit.SwordQi
+                        && World.SwordCap(view.Swords, action.Unit) > 0;
+                    if (pass)
+                    {
+                        return true;
+                    }
+                    why =
+                        "The flying sword takes the whole turn: stay or 1-3 straight, at least 1 qi and no less than the distance. ";
+                }
+                if (action.Kind == ActionKind.RecallSword)
+                {
+                    foreach (Sword sword in view.Swords)
+                    {
+                        if (
+                            sword.Unit == action.Unit
+                            && sword.Cell == action.Target
+                            && MapRules.Distance(view.Mode, unit.Position, sword.Cell)
+                                <= unit.SwordQi
+                        )
+                        {
+                            return true;
+                        }
+                    }
+                    why = "Pick your own sword; the qi must cover the current distance. ";
+                    return false;
+                }
+                if (action.Kind == ActionKind.SwordAdvance)
+                {
+                    bool pass =
+                        budget.SwordAdvance
+                        && (
+                            action.Target == 0
+                            || (
+                                action.Target >= 1
+                                && action.Target <= MapInfo.CellCount(view.Mode)
+                                && budget.SwordCells[action.Target - 1]
+                                && canEnter(action.Target)
+                            )
+                        );
+                    if (pass)
+                    {
+                        return true;
+                    }
+                    why = "After stabbing, step into a stabbed tile or stay. ";
+                    return false;
+                }
+                if (action.Kind == ActionKind.SwordStab)
+                {
+                    bool extra = budget.ExtraAttacks > 0;
+                    bool pass =
+                        unit.SwordQi > 0
+                        && (extra || !budget.SwordBaseUsed && budget.Moves == 0)
+                        && (action.Amount == 0 || action.Amount == 1)
+                        && World
+                            .SwordLine(view, unit.Position, action.Target, action.Amount != 0)
+                            .Count > 0;
+                    if (pass)
+                    {
+                        return true;
+                    }
+                    why =
+                        "Sword stab costs 1 qi and the normal attack quota; point at an adjacent tile. ";
+                    return false;
+                }
+                if (action.Kind == ActionKind.Move)
+                {
+                    bool pass =
+                        budget.Attacks == 0
+                        && budget.Moves < 1
+                        && World.WorldMove(view, action.Unit, unit.Position, action.Target);
+                    if (pass)
+                    {
+                        return true;
+                    }
+                    why = "This role moves 1; a normal move and a stab are mutually exclusive. ";
+                    return false;
+                }
+                why = "The sword has no such action. ";
+                return false;
+            }
+            if (unit.Role == Role.Firefly && hero)
+            {
+                if (action.Kind == ActionKind.Flame)
+                {
+                    bool pass =
+                        !unit.Silenced
+                        && budget.Used == 0
+                        && action.Amount >= 1
+                        && action.Amount <= unit.Ammo
+                        && action.Amount <= 3
+                        && MapRules.Distance(view.Mode, unit.Position, action.Target) == 1
+                        && World.RayCells(view, unit.Position, action.Target, action.Amount).Count
+                            > 0;
+                    if (pass)
+                    {
+                        return true;
+                    }
+                    why =
+                        "No flame after a normal action; enough ammo and an adjacent start tile. ";
+                    return false;
+                }
+                if (action.Kind == ActionKind.FlameAdvance)
+                {
+                    bool pass =
+                        !unit.Silenced
+                        && budget.FlameChoice
+                        && !budget.Advance
+                        && (
+                            action.Target == 0
+                            || action.Target >= 1
+                                && action.Target <= MapInfo.CellCount(view.Mode)
+                                && view.Fires[action.Target - 1].Expires != 0
+                                && canEnter(action.Target)
+                        );
+                    if (pass)
+                    {
+                        return true;
+                    }
+                    why =
+                        "After a flame, step into a burning tile, or choose to stay, once per turn. ";
+                    return false;
+                }
+                if (action.Kind == ActionKind.Move)
+                {
+                    bool pass =
+                        budget.Attacks == 0
+                        && budget.Moves < 1
+                        && World.WorldMove(view, action.Unit, unit.Position, action.Target);
+                    if (pass)
+                    {
+                        return true;
+                    }
+                    why = "The firefly moves 1, but not after attacking. ";
+                    return false;
+                }
+                if (action.Kind is ActionKind.Attack or ActionKind.AttackRush)
+                {
+                    why = "The firefly has no normal attack. ";
+                    return false;
+                }
+                why = "The firefly has no such action. ";
+                return false;
+            }
             if (unit.Role == Role.Knight && hero)
             {
                 if (action.Kind == ActionKind.Leap)
