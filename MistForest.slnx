@@ -6,6 +6,7 @@
         <Project Path="server/MistForest.Server/MistForest.Server.csproj" />
     </Folder>
     <Folder Name="/MistForest-Unity/">
+        <Project Path="MistForest-Unity/Assembly-CSharp-Editor.csproj" />
         <Project Path="MistForest-Unity/Assembly-CSharp.csproj" />
         <Project Path="MistForest-Unity/MistForestCore.csproj" />
         <Project Path="MistForest-Unity/Unity.2D.Welcome.csproj" />
