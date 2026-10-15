@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Xml.XPath;
 
 namespace MistForest.Core.Model
 {
@@ -383,6 +384,72 @@ namespace MistForest.Core.Model
                 shotMap.Cells[to - 1] = Terrain.Ground;
             }
             return ShadowStep(mode, from, to, shotMap);
+        }
+
+        /// <summary>
+        /// The sword qi cap: every sword on the board lowers the cap by one layer.
+        /// </summary>
+        /// <param name="swords"></param>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        public static int SwordCap(List<Sword> swords, int id)
+        {
+            int count = 0;
+            foreach (Sword sword in swords)
+            {
+                if (sword.Unit == id)
+                {
+                    ++count;
+                }
+            }
+            return System.Math.Max(0, 9 - count);
+        }
+
+        /// <summary>
+        /// The cells of a sword stab: two cells forward, or self plus the
+        /// adjacent cell when <c>includeSelf</c> is set.
+        /// </summary>
+        /// <param name="view"></param>
+        /// <param name="from"></param>
+        /// <param name="direction"></param>
+        /// <param name="includeSelf"></param>
+        /// <returns></returns>
+        public static List<int> SwordLine(View view, int from, int direction, bool includeSelf)
+        {
+            var cells = new List<int>();
+            int width = view.Map.Width;
+            int dRow = (direction - 1) / width - (from - 1) / width;
+            int dCol = (direction - 1) % width - (from - 1) % width;
+            if (MapRules.Distance(view.Mode, from, direction) != 1)
+            {
+                return cells;
+            }
+            if (includeSelf)
+            {
+                cells.Add(from);
+            }
+            int previous = from;
+            for (int i = 0; i < (includeSelf ? 1 : 2); ++i)
+            {
+                int row = (previous - 1) / width + dRow;
+                int col = (previous - 1) % width + dCol;
+                if (row < 0 || row >= MapInfo.Rows(view.Mode) || col < 0 || col >= width)
+                {
+                    break;
+                }
+                int to = row * width + col + 1;
+                if (!WorldShot(view, previous, to))
+                {
+                    break;
+                }
+                cells.Add(to);
+                if (view.Buildings[to - 1].Health > 0)
+                {
+                    break;
+                }
+                previous = to;
+            }
+            return cells;
         }
     }
 }
