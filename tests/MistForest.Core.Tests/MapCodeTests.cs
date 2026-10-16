@@ -1,3 +1,4 @@
+using Map = MistForest.Core.Model.Map;
 using MistForest.Core.Model;
 using Xunit;
 
@@ -57,7 +58,7 @@ namespace MistForest.Core.Tests
             Assert.Equal(5, map.Width);
         }
 
-        [Fact]
+        [Fact(Skip = "地图文件已切换为新二进制格式;新格式的往返测试在 Refactored/BoardTests.IntoCode_FromCode_RoundTrip")]
         public void RealMapFiles_DecodeAndRoundTrip()
         {
             string[] files = Directory.GetFiles("MapFiles", "*.mistmap");

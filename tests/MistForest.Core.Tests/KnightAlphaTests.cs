@@ -1,3 +1,4 @@
+using Map = MistForest.Core.Model.Map;
 using MistForest.Core.Model;
 using Xunit;
 
