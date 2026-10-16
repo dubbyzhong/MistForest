@@ -15,7 +15,7 @@
   <PropertyGroup>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <EnableDefaultItems>false</EnableDefaultItems>
-    <LangVersion>9.0</LangVersion>
+    <LangVersion>10</LangVersion>
     <RootNamespace>MistForest.Core</RootNamespace>
     <OutputType>Library</OutputType>
     <AssemblyName>MistForestCore</AssemblyName>
@@ -43,7 +43,6 @@
     <UnityVersion>6000.6.5f1</UnityVersion>
   </PropertyGroup>
   <ItemGroup>
-    <Analyzer Include="/home/omo/.vscode/extensions/visualstudiotoolsforunity.vstuc-1.3.2/Analyzers/Microsoft.Unity.Analyzers.dll" />
     <Analyzer Include="/home/omo/Unity/Hub/Editor/6000.6.5f1/Editor/Data/Tools/BuildPipeline/Unity.SourceGenerators/Unity.SourceGenerators.dll" />
     <Analyzer Include="/home/omo/Unity/Hub/Editor/6000.6.5f1/Editor/Data/Tools/BuildPipeline/Unity.SourceGenerators/Unity.Properties.SourceGenerator.dll" />
     <Analyzer Include="/home/omo/Unity/Hub/Editor/6000.6.5f1/Editor/Data/Tools/BuildPipeline/Unity.SourceGenerators/Unity.UIToolkit.SourceGenerator.dll" />
@@ -53,15 +52,23 @@
     <Analyzer Include="/home/omo/Unity/Hub/Editor/6000.6.5f1/Editor/Data/BCLExtensions/TargetingPacks/netstandard2.1/analyzers/dotnet/roslyn4.0/cs/System.Text.Json.SourceGeneration.dll" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Assets/MistForestCore/Utils/Bitset.cs" />
+    <Compile Include="Assets/MistForestCore/Map/Board.cs" />
+    <Compile Include="Assets/MistForestCore/Map/Mode.cs" />
     <Compile Include="Assets/MistForestCore/Model.cs" />
+    <Compile Include="Assets/MistForestCore/Map/LineWall.cs" />
     <Compile Include="Assets/MistForestCore/MapRules.cs" />
+    <Compile Include="Assets/MistForestCore/Map/Terrain.cs" />
     <Compile Include="Assets/MistForestCore/Movement.cs" />
+    <Compile Include="Assets/MistForestCore/Utils/Node.cs" />
+    <Compile Include="Assets/MistForestCore/Map/Grid.cs" />
     <Compile Include="Assets/MistForestCore/State.cs" />
     <Compile Include="Assets/MistForestCore/Referee.cs" />
     <Compile Include="Assets/MistForestCore/View.cs" />
     <Compile Include="Assets/MistForestCore/World.cs" />
     <Compile Include="Assets/MistForestCore/MapCode.cs" />
     <Compile Include="Assets/MistForestCore/GameRules.cs" />
+    <Compile Include="Assets/MistForestCore/Utils/ByteIo.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Assets/MistForestCore/MistForestCore.asmdef" />
