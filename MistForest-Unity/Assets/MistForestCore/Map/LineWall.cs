@@ -2,26 +2,28 @@ using MistForest.Core.Utils;
 
 namespace MistForest.Core.GameMap
 {
-    public readonly record struct LineWalls
+    public class LineWalls : IClone<LineWalls>
     {
-        private readonly Bitset _inner;
+        private Bitset _inner;
 
-        public readonly int Capacity => _inner.Capacity;
-        public readonly ulong[] Inner => _inner.Words;
+        public int Capacity => _inner.Capacity;
+        public ulong[] Inner => _inner.Words;
 
         public bool this[int index] => _inner[index];
 
-        private LineWalls(Bitset inner)
-        {
-            _inner = inner;
-        }
+        private LineWalls(Bitset inner) => _inner = inner;
 
         public static LineWalls WithCapacity(int capacity)
         {
-            return new LineWalls(Bitset.WithCapacity(capacity));
+            return new(Bitset.WithCapacity(capacity));
         }
 
-        public readonly bool SetInner(int index, ulong value, out string? error)
+        public LineWalls Clone()
+        {
+            return new LineWalls(_inner.Clone());
+        }
+
+        public bool SetInner(int index, ulong value, out string? error)
         {
             error = null;
             return _inner.SetInner(index, value, out error);

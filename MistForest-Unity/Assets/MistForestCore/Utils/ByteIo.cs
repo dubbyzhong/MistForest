@@ -8,15 +8,16 @@ namespace MistForest.Core.Utils
         private readonly byte[] _bytes;
         private int _offset;
 
-        private ByteReader(byte[] bytes)
-        {
-            _bytes = bytes;
-            _offset = 0;
-        }
+        private ByteReader(byte[] bytes) => _bytes = bytes;
 
-        public static ByteReader New(byte[] bytes)
+        public static ByteReader? New(Box<byte[]> bytes)
         {
-            return new ByteReader(bytes);
+            if (bytes.TryTake() is not byte[] bytesInner)
+            {
+                return null;
+            }
+            ByteReader reader = new(bytesInner) { _offset = 0 };
+            return reader;
         }
 
         public int? ReadInt(out string? error)
@@ -63,18 +64,14 @@ namespace MistForest.Core.Utils
 
     public sealed class ByteWriter
     {
-        private byte[] _bytes;
+        private readonly byte[] _bytes;
         private int _offset;
 
-        private ByteWriter(byte[] bytes)
-        {
-            _bytes = bytes;
-            _offset = 0;
-        }
+        private ByteWriter(byte[] bytes) => _bytes = bytes;
 
-        public static ByteWriter New(byte[] bytes)
+        public static ByteWriter New(ref byte[] bytes)
         {
-            return new ByteWriter(bytes);
+            return new(bytes) { _offset = 0 };
         }
 
         public bool WriteInt(int value, out string? error)
