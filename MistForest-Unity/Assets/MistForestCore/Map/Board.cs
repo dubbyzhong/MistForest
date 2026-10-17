@@ -8,22 +8,29 @@ namespace MistForest.Core.GameMap
     /// <summary>
     /// The board of the game.
     /// </summary>
-    public class Board
+    public class Board : IClone<Board>
     {
-        public int Width { get; }
-        public int Height { get; }
+        public int Width { get; private set; }
+        public int Height { get; private set; }
         public LineWalls VerticalWalls;
         public LineWalls HorizontalWalls;
 
-        private readonly Grid[] _grids;
+        public readonly Grid[] Grids;
 
-        private Board(int height, int width)
+        private Board(Grid[] grids, LineWalls verticalWalls, LineWalls horizontalWalls)
         {
-            Height = height;
-            Width = width;
-            _grids = Enumerable.Range(0, height * width).Select(_ => Grid.New()).ToArray();
-            VerticalWalls = LineWalls.WithCapacity(height * (width - 1));
-            HorizontalWalls = LineWalls.WithCapacity((height - 1) * width);
+            Grids = grids;
+            VerticalWalls = verticalWalls;
+            HorizontalWalls = horizontalWalls;
+        }
+
+        public static Board New(int height, int width)
+        {
+            var grids = Enumerable.Range(0, height * width).Select(_ => Grid.New()).ToArray();
+            var verticalWalls = LineWalls.WithCapacity(height * (width - 1));
+            var horizontalWalls = LineWalls.WithCapacity((height - 1) * width);
+
+            return new(grids, verticalWalls, horizontalWalls) { Height = height, Width = width };
         }
 
         public static Board? FromMode(GameMode mode, out string? error)
@@ -43,9 +50,10 @@ namespace MistForest.Core.GameMap
                 return null;
             }
 
-            var (Height, Width) = size.Value;
+            var (height, width) = size.Value;
 
-            Board board = new(Height, Width);
+            Board board = New(height, width);
+
             if (mode is GameMode.Heroes)
             {
                 Node[] walls = ModeConsts
@@ -53,36 +61,38 @@ namespace MistForest.Core.GameMap
                     .ToArray();
                 foreach (Node wall in walls)
                 {
-                    board._grids[wall.pos] = Grid.New().WithOriginalBuilding(Terrain.Wall);
+                    board.Grids[wall.pos] = Grid.New().WithOriginalBuilding(Terrain.Wall);
                 }
             }
             return board;
         }
 
-        public static Board? FromCode(byte[] code, out string? error)
+        public static Board? FromCode(Box<byte[]> code, out string? error)
         {
             error = null;
-            ByteReader reader = ByteReader.New(code);
+            if (ByteReader.New(code) is not ByteReader reader)
+            {
+                error = "invalid code";
+                return null;
+            }
             if (reader.ReadInt(out error) is not int width)
             {
-                error += "\nnot enough bytes to read width.";
+                error = $"Board.FromCode Error: {error}";
                 return null;
             }
             if (reader.ReadInt(out error) is not int height)
             {
-                error += "\nnot enough bytes to read height.";
+                error = $"Board.FromCode Error: {error}";
                 return null;
             }
 
-            Board board = new(height, width);
-            int gridCount = board._grids.Count();
-            int horizontalWallCount = board.HorizontalWalls.Capacity;
-            int verticalWallCount = board.VerticalWalls.Capacity;
+            Board board = New(height, width);
+            int gridCount = board.Grids.Count();
             foreach (int i in Enumerable.Range(0, gridCount))
             {
                 if (reader.ReadByte(out error) is not byte terrain)
                 {
-                    error += "\nnot enough bytes to read terrain grids.";
+                    error = $"Board.FromCode Error: {error}";
                     return null;
                 }
                 if (!Enum.IsDefined(typeof(Terrain), terrain))
@@ -90,29 +100,31 @@ namespace MistForest.Core.GameMap
                     error = $"invalid terrain {terrain}";
                     return null;
                 }
-                board._grids[i] = Grid.New().WithOriginalBuilding((Terrain)terrain);
+                board.Grids[i] = Grid.New().WithOriginalBuilding((Terrain)terrain);
             }
-            foreach (int i in Enumerable.Range(0, (horizontalWallCount - 1) / sizeof(ulong) + 1))
+            foreach (int i in Enumerable.Range(0, board.HorizontalWalls.Inner.Length))
             {
                 if (reader.ReadULong(out error) is not ulong value)
                 {
-                    error += "\nnot enough bytes to read horizontal walls.";
+                    error = $"Board.FromCode Error: {error}";
                     return null;
                 }
-                if (!board.HorizontalWalls.SetInner(i, value, out _))
+                if (!board.HorizontalWalls.SetInner(i, value, out error))
                 {
+                    error = $"Board.FromCode Error: {error}";
                     return null;
                 }
             }
-            foreach (int i in Enumerable.Range(0, (verticalWallCount - 1) / sizeof(ulong) + 1))
+            foreach (int i in Enumerable.Range(0, board.VerticalWalls.Inner.Length))
             {
                 if (reader.ReadULong(out error) is not ulong value)
                 {
-                    error += "\nnot enough bytes to read vertical walls.";
+                    error = $"Board.FromCode Error: {error}";
                     return null;
                 }
-                if (!board.VerticalWalls.SetInner(i, value, out _))
+                if (!board.VerticalWalls.SetInner(i, value, out error))
                 {
+                    error = $"Board.FromCode Error: {error}";
                     return null;
                 }
             }
@@ -121,16 +133,14 @@ namespace MistForest.Core.GameMap
 
         public byte[] IntoCode()
         {
-            int gridCount = _grids.Count();
-            int horizontalWallCount = HorizontalWalls.Capacity;
-            int verticalWallCount = VerticalWalls.Capacity;
+            int gridCount = Grids.Count();
             int codeCount =
                 sizeof(int) * 2
                 + gridCount
-                + ((horizontalWallCount - 1) / sizeof(ulong) + 1) * sizeof(ulong)
-                + ((verticalWallCount - 1) / sizeof(ulong) + 1) * sizeof(ulong);
+                + HorizontalWalls.Inner.Length * sizeof(ulong)
+                + VerticalWalls.Inner.Length * sizeof(ulong);
             byte[] code = new byte[codeCount];
-            ByteWriter writer = ByteWriter.New(code);
+            ByteWriter writer = ByteWriter.New(ref code);
             if (!writer.WriteInt(Width, out _))
             {
                 return Array.Empty<byte>();
@@ -139,7 +149,7 @@ namespace MistForest.Core.GameMap
             {
                 return Array.Empty<byte>();
             }
-            foreach (byte terrain in _grids.Select(grid => (byte)grid.OriginalBuilding))
+            foreach (byte terrain in Grids.Select(grid => (byte)grid.OriginalBuilding))
             {
                 if (!writer.WriteByte(terrain, out _))
                 {
@@ -163,9 +173,26 @@ namespace MistForest.Core.GameMap
             return code;
         }
 
-        public Terrain GetTerrain(Node node)
+        public Board Clone()
         {
-            return _grids[node.pos].OriginalBuilding;
+            return new(
+                grids: Grids.Select(grid => grid.Clone()).ToArray(),
+                verticalWalls: VerticalWalls.Clone(),
+                horizontalWalls: HorizontalWalls.Clone()
+            )
+            {
+                Height = Height,
+                Width = Width,
+            };
+        }
+
+        public Grid? GetGrid(Node node)
+        {
+            if (!IsValid(node))
+            {
+                return null;
+            }
+            return Grids[node.pos];
         }
 
         public bool SetTerrain(Node node, Terrain terrain)
@@ -178,7 +205,7 @@ namespace MistForest.Core.GameMap
             {
                 return false;
             }
-            _grids[node.pos].OriginalBuilding = terrain;
+            Grids[node.pos].OriginalBuilding = terrain;
             return true;
         }
 
@@ -190,14 +217,14 @@ namespace MistForest.Core.GameMap
             /// <summary>
             /// The real id of one position which is converted by map.
             /// </summary>
-            internal readonly int pos;
+            internal int pos;
 
-            internal Node(int Pos) => pos = Pos;
+            internal static Node New(int pos) => new() { pos = pos };
         }
 
         private bool IsValid(Node node)
         {
-            return node.pos >= 0 && node.pos < _grids.Count();
+            return node.pos >= 0 && node.pos < Grids.Count();
         }
 
         public Node? At(int x, int y)
@@ -210,7 +237,7 @@ namespace MistForest.Core.GameMap
             {
                 return null;
             }
-            return new Node((x - 1) * Width + y - 1);
+            return Node.New((x - 1) * Width + y - 1);
         }
 
         public int? RowOf(Node node)

@@ -2,23 +2,26 @@ namespace MistForest.Core.GameMap
 {
     public abstract record GameMode
     {
-        public sealed record Scout : GameMode;
+        public sealed record Scout : GameMode
+        {
+            public static readonly Scout Instance = new();
+        }
 
-        public sealed record Heroes : GameMode;
+        public sealed record Heroes : GameMode
+        {
+            public static readonly Heroes Instance = new();
+        }
 
         public sealed record SelfDefine : GameMode
         {
-            public int Height { get; }
+            public int Height { get; private set; }
 
-            public int Width { get; }
+            public int Width { get; private set; }
 
-            private SelfDefine(int height, int width)
+            public static SelfDefine New(int height, int width)
             {
-                Height = height;
-                Width = width;
+                return new() { Height = height, Width = width };
             }
-
-            public static SelfDefine New(int height, int width) => new(height, width);
         }
     }
 }
