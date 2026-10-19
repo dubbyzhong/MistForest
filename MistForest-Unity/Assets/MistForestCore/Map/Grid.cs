@@ -1,30 +1,45 @@
+using System.Collections.Generic;
+using MistForest.Core.GameRefactored;
 using MistForest.Core.Utils;
 
 namespace MistForest.Core.GameMap
 {
     public class Grid : IClone<Grid>
     {
-        public Terrain OriginalBuilding;
+        public Terrain Terrain;
+        public List<int> Units;
+
+        private Grid(List<int> units) => Units = units;
 
         public static Grid New()
         {
-            return new() { OriginalBuilding = Terrain.Ground };
+            return new(units: new List<int>()) { Terrain = Terrain.Ground };
         }
 
         public Grid WithOriginalBuilding(Terrain building)
         {
-            OriginalBuilding = building;
+            Terrain = building;
             return this;
         }
 
         public Grid Clone()
         {
-            return new Grid { OriginalBuilding = OriginalBuilding };
+            return new(units: new List<int>(Units)) { Terrain = Terrain };
         }
 
         public bool CanInitialStay()
         {
-            return OriginalBuilding is Terrain.Ground or Terrain.Whirlpool;
+            return Terrain is Terrain.Ground or Terrain.Whirlpool;
+        }
+
+        public bool CanStay(int playerId, Game game)
+        {
+            return Terrain is Terrain.Ground or Terrain.Whirlpool;
+        }
+
+        public bool CanShot()
+        {
+            return Terrain is not Terrain.Wall;
         }
     }
 }

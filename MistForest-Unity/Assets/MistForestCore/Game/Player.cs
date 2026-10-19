@@ -10,34 +10,60 @@ namespace MistForest.Core.GameRefactored
 {
     public class Player : IClone<Player>
     {
-        // public int Id { get; internal set; }
+        public int Id { get; internal set; }
         public int? TeamId { get; internal set; }
+        public bool Alive => Roles.Any(role => role.Alive);
 
         public readonly Role[] Roles;
 
         private Player(Role[] Roles) => this.Roles = Roles;
 
-        public static Player New(Role[] Roles)
+        public static Player New(int id, Role[] roles)
         {
-            return new Player(Roles);
+            return new Player(roles) { Id = id };
         }
 
         public Player Clone()
         {
-            return new(Roles.Select(role => role.Clone()).ToArray()) { TeamId = TeamId };
+            return new(Roles.Select(role => role.Clone()).ToArray()) { Id = Id, TeamId = TeamId };
         }
     }
 
     public class PlayerBuilder
     {
-        public int? TeamId { get; set; }
+        public int? Id { get; internal set; }
+        public int? TeamId { get; internal set; }
         public List<RoleBuilder> Roles { get; private set; }
 
         private PlayerBuilder(List<RoleBuilder> roles) => Roles = roles;
 
-        public Player Build()
+        public PlayerBuilder? SetId(int id)
         {
-            return Player.New(Roles.Select(role => role.Build()).ToArray());
+            if (Id is not null)
+            {
+                return null;
+            }
+            Id = id;
+            return this;
+        }
+
+        public PlayerBuilder? SetTeamId(int teamId)
+        {
+            if (TeamId is not null)
+            {
+                return null;
+            }
+            TeamId = teamId;
+            return this;
+        }
+
+        public Player? Build()
+        {
+            if (Id is not int id)
+            {
+                return null;
+            }
+            return Player.New(id, roles: Roles.Select(role => role.Build()!).ToArray());
         }
 
         public static PlayerBuilder? New(List<RoleBuilder> roles)
@@ -55,34 +81,36 @@ namespace MistForest.Core.GameRefactored
 
         public abstract class RoleBuilder
         {
+            public int? Id { get; internal set; }
+            public int? PlayerId { get; internal set; }
+            public UnitBuilder[] UnitBuilder { get; private set; }
+            public Role? Built;
+
+            protected RoleBuilder(UnitBuilder[] unitBuilder) => UnitBuilder = unitBuilder;
+
             public abstract bool CanInitialStay(Board board);
-            public abstract Role Build();
 
-            public class SniperBuilder : RoleBuilder
+            public RoleBuilder? SetId(int id)
             {
-                public Node Position { get; private set; }
-
-                private SniperBuilder(Node position) => Position = position;
-
-                public static SniperBuilder New(Node position)
+                if (Id is not null)
                 {
-                    return new(position);
+                    return null;
                 }
-
-                public override bool CanInitialStay(Board board)
-                {
-                    if (board.GetGrid(Position) is not Grid grid)
-                    {
-                        return false;
-                    }
-                    return grid.CanInitialStay();
-                }
-
-                public override Role Build()
-                {
-                    return Sniper.New(Position);
-                }
+                Id = id;
+                return this;
             }
+
+            public RoleBuilder? SetPlayerId(int id)
+            {
+                if (PlayerId is not null)
+                {
+                    return null;
+                }
+                PlayerId = id;
+                return this;
+            }
+
+            public abstract Role? Build();
         }
 
         public class RoleComparerByType : IEqualityComparer<RoleBuilder>
