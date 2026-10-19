@@ -472,8 +472,10 @@ namespace MistForest.Core.GameMap
                     bool wallH2 = HorizontalWalls[HWallAt(At(edgeX, y)!.Value)!.Value];
                     bool wallV2 = VerticalWalls[VWallAt(At(x + stepX, edgeY)!.Value)!.Value];
 
-                    bool pathClear1 = !wallV1 && !wallH1;
-                    bool pathClear2 = !wallV2 && !wallH2;
+                    bool pathClear1 =
+                        !wallV1 && !wallH1 && GetGrid(At(x, y + stepY)!.Value)!.CanShot();
+                    bool pathClear2 =
+                        !wallV2 && !wallH2 && GetGrid(At(x + stepX, y)!.Value)!.CanShot();
 
                     bool blocked = diagonalBlocked
                         ? !pathClear1 && !pathClear2

@@ -1,17 +1,17 @@
 <Solution>
-    <Folder Name="/core/">
-        <Project Path="core/MistForest.Core.csproj" />
-    </Folder>
-    <Folder Name="/server/">
-        <Project Path="server/MistForest.Server/MistForest.Server.csproj" />
-    </Folder>
-    <Folder Name="/MistForest-Unity/">
-        <Project Path="MistForest-Unity/Assembly-CSharp-Editor.csproj" />
-        <Project Path="MistForest-Unity/Assembly-CSharp.csproj" />
-        <Project Path="MistForest-Unity/MistForestCore.csproj" />
-        <Project Path="MistForest-Unity/Unity.2D.Welcome.csproj" />
-    </Folder>
-    <Folder Name="/tests/">
-        <Project Path="tests/MistForest.Core.Tests/MistForest.Core.Tests.csproj" />
-    </Folder>
+  <Folder Name="/core/">
+    <Project Path="core/MistForest.Core.csproj" />
+  </Folder>
+  <Folder Name="/server/">
+    <Project Path="server/MistForest.Server/MistForest.Server.csproj" />
+  </Folder>
+  <Folder Name="/MistForest-Unity/">
+    <Project Path="MistForest-Unity/Assembly-CSharp-Editor.csproj" />
+    <Project Path="MistForest-Unity/Assembly-CSharp.csproj" />
+    <Project Path="MistForest-Unity/MistForestCore.csproj" />
+    <Project Path="MistForest-Unity/Unity.2D.Welcome.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MistForest.Core.Tests/MistForest.Core.Tests.csproj" />
+  </Folder>
 </Solution>
