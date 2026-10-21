@@ -15,4 +15,11 @@ namespace MistForest.Core.Consts
         public const int SniperAttackRange = 3;
         public const int SniperAttackRangeScout = 1;
     }
+
+    public class WolfConsts
+    {
+        public const int WolfHealth = 3;
+        public const int WolfMoveDistance = 1;
+        public const int WolfAttackRange = 1;
+    }
 }

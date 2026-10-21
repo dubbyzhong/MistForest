@@ -58,11 +58,13 @@ namespace MistForest.Core.GameRefactored
         public Node Position { get; set; }
         protected (Node node, int distance, Node? lastNode)[]? _lastMoveEntries;
         protected int MoveUsed { get; set; }
+        protected int AttackUsed { get; set; }
         protected virtual int MoveDistance { get; set; }
         public bool Alive => Health > 0;
         public int WhirlpoolImmuneExpire { get; protected set; }
         public bool End { get; protected set; }
         public bool Acted { get; protected set; }
+        public int HighestDirectDamage { get; private set; }
 
         protected Unit() { }
 
@@ -75,6 +77,7 @@ namespace MistForest.Core.GameRefactored
             target.Position = position;
             target._lastMoveEntries = null;
             target.MoveUsed = 0;
+            target.AttackUsed = 0;
             target.WhirlpoolImmuneExpire = 0;
             return target;
         }
@@ -403,6 +406,23 @@ namespace MistForest.Core.GameRefactored
             game.Buildings[buildingId].Destroyed(game, game.PlayerIdFromUnitId(Id));
             game.Events.Add(GeneralDemolishEvent.New(unitId: Id, target: demolish.Target));
         }
+        internal void ReceiveDirectDamage(int strength, Game game)
+        {
+            if (!Alive || strength <= HighestDirectDamage)
+            {
+                return;
+            }
+
+            int damage = strength - HighestDirectDamage;
+            HighestDirectDamage = strength;
+
+            Health = System.Math.Max(0, Health - damage);
+
+            if (Health == 0)
+            {
+                Killed(game);
+            }
+        }
 
         private void WhirlpoolAttach(Game game)
         {
@@ -446,6 +466,7 @@ namespace MistForest.Core.GameRefactored
             Acted = false;
             End = false;
             MoveUsed = 0;
+            AttackUsed = 0;
             if (WhirlpoolImmuneExpire == 0)
             {
                 WhirlpoolAttach(game);
