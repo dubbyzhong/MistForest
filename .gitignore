@@ -2,7 +2,7 @@
 bin
 obj
 docs/*
-!docs/prototypes/NativeResourceManagerUnsafePrototype.md
+!docs/rule*
 .vscode/
 .marscode
 Temp
