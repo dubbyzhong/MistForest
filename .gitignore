@@ -1,7 +1,8 @@
 /MistForest-win
 bin
 obj
-docs
+docs/*
+!docs/prototypes/NativeResourceManagerUnsafePrototype.md
 .vscode/
 .marscode
 Temp

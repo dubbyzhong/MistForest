@@ -8,6 +8,7 @@ namespace MistForest.Core.Utils
         private readonly ulong[] _words;
 
         public int Capacity => _capacity;
+        public int Count => (_capacity - 1) / (8 * sizeof(ulong)) + 1;
         public ulong[] Words => _words;
 
         private Bitset(ulong[] words) => _words = words;
@@ -65,7 +66,7 @@ namespace MistForest.Core.Utils
         public bool SetInner(int index, ulong value, out string? error)
         {
             error = null;
-            if (index < 0 || index >= (_capacity - 1) / (8 * sizeof(ulong)) + 1)
+            if (index < 0 || index >= Count)
             {
                 error = "Index out of range";
                 return false;

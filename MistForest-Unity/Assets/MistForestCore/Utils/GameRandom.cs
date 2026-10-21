@@ -1,3 +1,4 @@
+using System;
 using MistForest.Core.Consts;
 
 namespace MistForest.Core.Utils
@@ -31,7 +32,7 @@ namespace MistForest.Core.Utils
         {
             if (min >= max)
                 return null;
-            return ((int)NextULong() % (max - min)) + min;
+            return (int)(NextULong() >> 33) % (max - min) + min;
         }
     }
 }

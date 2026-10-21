@@ -8,12 +8,16 @@ namespace MistForest.Core.GameMap
     {
         public Terrain Terrain;
         public List<int> Units;
+        public int? GridBuilding;
 
-        private Grid(List<int> units) => Units = units;
+        private Grid(List<int> units)
+        {
+            Units = units;
+        }
 
         public static Grid New()
         {
-            return new(units: new List<int>()) { Terrain = Terrain.Ground };
+            return new(units: new List<int>()) { Terrain = Terrain.Ground, GridBuilding = null };
         }
 
         public Grid WithOriginalBuilding(Terrain building)
@@ -24,7 +28,11 @@ namespace MistForest.Core.GameMap
 
         public Grid Clone()
         {
-            return new(units: new List<int>(Units)) { Terrain = Terrain };
+            return new(units: new List<int>(Units))
+            {
+                Terrain = Terrain,
+                GridBuilding = GridBuilding,
+            };
         }
 
         public bool CanInitialStay()
@@ -34,12 +42,30 @@ namespace MistForest.Core.GameMap
 
         public bool CanStay(int playerId, Game game)
         {
-            return Terrain is Terrain.Ground or Terrain.Whirlpool;
+            return Terrain is Terrain.Ground or Terrain.Whirlpool
+                && (
+                    GridBuilding is not int buildingId
+                    || game.Buildings[buildingId] is not Building.Wall
+                        && game.Buildings[buildingId].Owner is int owner
+                        && (
+                            game.Buildings[buildingId] is Building.Rubble
+                            || game.IsPlayerAllied(owner, playerId)
+                        )
+                );
         }
 
-        public bool CanShot()
+        public bool CanBuild()
         {
-            return Terrain is not Terrain.Wall;
+            return Terrain is Terrain.Ground or Terrain.Whirlpool && GridBuilding is null;
+        }
+
+        public bool CanShot(Game game)
+        {
+            return Terrain is not Terrain.Wall
+                && (
+                    GridBuilding is not int buildingId
+                    || game.Buildings[buildingId] is Building.Rubble
+                );
         }
     }
 }

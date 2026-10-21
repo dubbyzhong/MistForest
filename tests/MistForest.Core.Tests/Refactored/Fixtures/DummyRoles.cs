@@ -1,28 +1,68 @@
 using MistForest.Core.GameMap;
 using MistForest.Core.GameRefactored;
+using GameAction = MistForest.Core.GameRefactored.Action;
 using static MistForest.Core.GameRefactored.PlayerBuilder;
 
 namespace MistForest.Core.Tests.Refactored.Fixtures
 {
     public sealed class DummyRoleA : Role
     {
-        public override Role Clone() => new DummyRoleA();
-        public override bool HasActionLeft() => false;
-        public override Unit[] GetUnits() => new Unit[0];
+        public static DummyRoleA New(int id, int playerId)
+        {
+            DummyRoleA target = new();
+            NewBase(target, id, playerId);
+            return target;
+        }
+
+        public override Role Clone() => New(Id, PlayerId);
+
+        public override bool HasActionLeft(Game game) => false;
+
+        public override ReadOnlySpan<Unit> GetUnits() => Array.Empty<Unit>();
+
+        public override void ExecuteAction(GameAction action, Game game) { }
+
+        public override bool JudgeAction(GameAction action, Game game) => false;
     }
 
     public sealed class DummyRoleB : Role
     {
-        public override Role Clone() => new DummyRoleB();
-        public override bool HasActionLeft() => false;
-        public override Unit[] GetUnits() => new Unit[0];
+        public static DummyRoleB New(int id, int playerId)
+        {
+            DummyRoleB target = new();
+            NewBase(target, id, playerId);
+            return target;
+        }
+
+        public override Role Clone() => New(Id, PlayerId);
+
+        public override bool HasActionLeft(Game game) => false;
+
+        public override ReadOnlySpan<Unit> GetUnits() => Array.Empty<Unit>();
+
+        public override void ExecuteAction(GameAction action, Game game) { }
+
+        public override bool JudgeAction(GameAction action, Game game) => false;
     }
 
     public sealed class DummyRoleC : Role
     {
-        public override Role Clone() => new DummyRoleC();
-        public override bool HasActionLeft() => false;
-        public override Unit[] GetUnits() => new Unit[0];
+        public static DummyRoleC New(int id, int playerId)
+        {
+            DummyRoleC target = new();
+            NewBase(target, id, playerId);
+            return target;
+        }
+
+        public override Role Clone() => New(Id, PlayerId);
+
+        public override bool HasActionLeft(Game game) => false;
+
+        public override ReadOnlySpan<Unit> GetUnits() => Array.Empty<Unit>();
+
+        public override void ExecuteAction(GameAction action, Game game) { }
+
+        public override bool JudgeAction(GameAction action, Game game) => false;
     }
 
     public sealed class DummyRoleBuilderA : RoleBuilder
@@ -32,7 +72,18 @@ namespace MistForest.Core.Tests.Refactored.Fixtures
 
         public override bool CanInitialStay(Board board) => true;
 
-        public override Role Build() => new DummyRoleA();
+        public override Role? Build()
+        {
+            if (Built is not null)
+            {
+                return Built;
+            }
+            if (Id is not int id || PlayerId is not int playerId)
+            {
+                return null;
+            }
+            return Built = DummyRoleA.New(id, playerId);
+        }
     }
 
     public sealed class DummyRoleBuilderB : RoleBuilder
@@ -42,6 +93,17 @@ namespace MistForest.Core.Tests.Refactored.Fixtures
 
         public override bool CanInitialStay(Board board) => true;
 
-        public override Role Build() => new DummyRoleB();
+        public override Role? Build()
+        {
+            if (Built is not null)
+            {
+                return Built;
+            }
+            if (Id is not int id || PlayerId is not int playerId)
+            {
+                return null;
+            }
+            return Built = DummyRoleB.New(id, playerId);
+        }
     }
 }

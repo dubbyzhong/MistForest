@@ -49,7 +49,8 @@ namespace MistForest.Core.Tests.Refactored.Utils
             Assert.True(bitset.SetInner(0, 0xFF, out _));
             Assert.Equal((ulong)0xFF, bitset.Words[0]);
 
-            Assert.False(bitset.SetInner(1, 0, out _));
+            Assert.False(bitset.SetInner(1, 0, out string? error));
+            Assert.Equal("Index out of range", error);
 
             Bitset bigger = Bitset.WithCapacity(65);
             Assert.True(bigger.SetInner(1, ulong.MaxValue, out _));

@@ -1,3 +1,4 @@
+using MistForest.Core.Consts;
 using MistForest.Core.GameMap;
 using MistForest.Core.GameRefactored;
 using MistForest.Core.GameRefactored.Roles;
@@ -12,9 +13,10 @@ namespace MistForest.Core.Tests.Refactored.Mapping
         private static Game CreateGame(Board board)
         {
             GameMode mode = GameMode.SelfDefine.New(board.Height, board.Width);
-            Board.Node[] positions = Enumerable
-                .Range(1, board.Height)
-                .SelectMany(x => Enumerable.Range(1, board.Width).Select(y => board.At(x, y)!.Value))
+            Board.Node[] positions = Enumerable.Range(1, board.Height)
+                .SelectMany(x =>
+                    Enumerable.Range(1, board.Width).Select(y => board.At(x, y)!.Value)
+                )
                 .Where(node => board.GetGrid(node)!.CanInitialStay())
                 .Take(2)
                 .ToArray();
@@ -40,12 +42,27 @@ namespace MistForest.Core.Tests.Refactored.Mapping
             return builder.Build()!;
         }
 
+        private static (Board.Node node, int distance, Board.Node? lastNode)[] Find(
+            Board board,
+            Board.Node from,
+            int maxDistance
+        )
+        {
+            Game game = CreateGame(board);
+            return board.GetNodesWithinDistance(
+                from,
+                maxDistance,
+                MapConsts.MoveManhattan,
+                node => board.GetGrid(node)!.CanStay(game.CurrentPlayerId, game)
+            );
+        }
+
         [Fact]
         public static void GetNodesWithinDistance_ZeroDistance_OnlySelf()
         {
             Board board = Board.FromMode(GameMode.SelfDefine.New(5, 5), out _)!;
             Board.Node from = board.At(3, 3)!.Value;
-            var nodes = board.GetNodesWithinDistance(from, 0, 0, CreateGame(board));
+            var nodes = Find(board, from, 0);
             var entry = Assert.Single(nodes);
             Assert.Equal(from, entry.node);
             Assert.Equal(0, entry.distance);
@@ -57,7 +74,7 @@ namespace MistForest.Core.Tests.Refactored.Mapping
         {
             Board board = Board.FromMode(GameMode.SelfDefine.New(5, 5), out _)!;
             Board.Node from = board.At(3, 3)!.Value;
-            var nodes = board.GetNodesWithinDistance(from, 2, 0, CreateGame(board));
+            var nodes = Find(board, from, 2);
             Assert.Equal(13, nodes.Length);
             foreach (var (node, distance, lastNode) in nodes)
             {
@@ -80,8 +97,7 @@ namespace MistForest.Core.Tests.Refactored.Mapping
             Board board = Board.FromMode(GameMode.SelfDefine.New(3, 3), out _)!;
             board.VerticalWalls.SetInner(0, 1ul << 2, out _);
             Board.Node from = board.At(2, 1)!.Value;
-            var reached = board
-                .GetNodesWithinDistance(from, maxDistance: 2, playerId: 0, CreateGame(board))
+            var reached = Find(board, from, maxDistance: 2)
                 .Select(entry => entry.node)
                 .ToHashSet();
             Assert.Equal(5, reached.Count);
@@ -99,8 +115,7 @@ namespace MistForest.Core.Tests.Refactored.Mapping
             Board board = Board.FromMode(GameMode.SelfDefine.New(3, 3), out _)!;
             board.HorizontalWalls.SetInner(0, 1ul << 0, out _);
             Board.Node from = board.At(1, 1)!.Value;
-            var reached = board
-                .GetNodesWithinDistance(from, maxDistance: 2, playerId: 0, CreateGame(board))
+            var reached = Find(board, from, maxDistance: 2)
                 .Select(entry => entry.node)
                 .ToHashSet();
             Assert.DoesNotContain(board.At(2, 1)!.Value, reached);
@@ -114,8 +129,7 @@ namespace MistForest.Core.Tests.Refactored.Mapping
             Board board = Board.FromMode(GameMode.SelfDefine.New(3, 3), out _)!;
             board.SetTerrain(board.At(2, 2)!.Value, Terrain.Lake);
             Board.Node from = board.At(1, 2)!.Value;
-            var reached = board
-                .GetNodesWithinDistance(from, 2, 0, CreateGame(board))
+            var reached = Find(board, from, maxDistance: 2)
                 .Select(entry => entry.node)
                 .ToHashSet();
             Assert.Equal(5, reached.Count);
@@ -128,8 +142,7 @@ namespace MistForest.Core.Tests.Refactored.Mapping
         {
             Board board = Board.FromMode(GameMode.Heroes.Instance, out _)!;
             Board.Node from = board.At(1, 1)!.Value;
-            var reached = board
-                .GetNodesWithinDistance(from, 8, 0, CreateGame(board))
+            var reached = Find(board, from, maxDistance: 8)
                 .Select(entry => entry.node)
                 .ToHashSet();
             Assert.Contains(board.At(5, 4)!.Value, reached);

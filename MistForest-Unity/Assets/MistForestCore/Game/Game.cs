@@ -5,6 +5,7 @@ using MistForest.Core.Consts;
 using MistForest.Core.GameMap;
 using MistForest.Core.GameRefactored.Roles;
 using MistForest.Core.Utils;
+using ZLinq;
 using static MistForest.Core.GameRefactored.Game;
 using static MistForest.Core.GameRefactored.PlayerBuilder;
 
@@ -14,10 +15,10 @@ namespace MistForest.Core.GameRefactored
     {
         private readonly GameMode _mode;
         public Board Board { get; private set; }
-        private readonly List<Snapshot> _snapshots;
-        private readonly Role[] _roles;
+        public Role[] Roles { get; private set; }
         private readonly Unit[] _units;
-        private readonly Player[] _players;
+        public readonly Player[] Players;
+        public List<Building> Buildings;
         public List<Event> Events;
         private readonly GameCount _gameCount;
         public int CurrentPlayerId { get; private set; }
@@ -26,6 +27,7 @@ namespace MistForest.Core.GameRefactored
         private int _roundCount;
         private GameState _gameState;
         private bool _isGameOver => _gameState is GameState.Win or GameState.Draw;
+        public bool IsTeam => _gameCount is GameCount.TeamGameCount;
 
         public abstract class GameCount
         {
@@ -65,10 +67,10 @@ namespace MistForest.Core.GameRefactored
         private Game(
             GameMode mode,
             Board board,
-            List<Snapshot> snapshots,
             Role[] roles,
             Unit[] units,
             Player[] players,
+            List<Building> buildings,
             GameCount gameCount,
             List<Event> events,
             Bitset roundActed,
@@ -77,10 +79,10 @@ namespace MistForest.Core.GameRefactored
         {
             _mode = mode;
             Board = board;
-            _snapshots = snapshots;
-            _roles = roles;
+            Roles = roles;
             _units = units;
-            _players = players;
+            Players = players;
+            Buildings = buildings;
             _gameCount = gameCount;
             Events = events;
             _roundActed = roundActed;
@@ -100,13 +102,20 @@ namespace MistForest.Core.GameRefactored
             return new(
                 mode,
                 board,
-                snapshots: new List<Snapshot>(),
                 roles,
                 units,
                 players,
+                buildings: new List<Building>(),
                 gameCount,
                 events: new List<Event>(),
-                roundActed: Bitset.WithCapacity(gameCount.PlayerCount),
+                roundActed: Bitset.WithCapacity(
+                    gameCount switch
+                    {
+                        GameCount.SingleGameCount singleCountInner => singleCountInner.PlayerCount,
+                        GameCount.TeamGameCount teamCountInner => teamCountInner.PlayerCount,
+                        _ => throw new NotImplementedException(),
+                    }
+                ),
                 gameState: GameState.Playing.Instance
             )
             {
@@ -114,9 +123,18 @@ namespace MistForest.Core.GameRefactored
             };
         }
 
-        public void SaveSnapshot()
+        public int PlayerIdFromUnitId(int unitId)
         {
-            _snapshots.Add(Snapshot.New(Board, _players.ToArray()));
+            return Roles[_units[unitId].RoleId].PlayerId;
+        }
+
+        public bool IsPlayerAllied(int playerA, int playerB)
+        {
+            return IsTeam switch
+            {
+                true => Players[playerA].TeamId == Players[playerB].TeamId,
+                false => playerA == playerB,
+            };
         }
 
         public int NextPlayerId(int playerId)
@@ -144,22 +162,55 @@ namespace MistForest.Core.GameRefactored
             throw new NotImplementedException();
         }
 
+        public void AddBuilding(BuildingBuilder buildingBuilder)
+        {
+            Building building = buildingBuilder.SetId(Buildings.Count)!.Build()!;
+            Board.GetGrid(building.Pos)!.GridBuilding = building.Id;
+            Buildings.Add(building);
+        }
+
         public bool ExecuteAction(Action action)
         {
-            if (action is ISniperAction and Action sniperAction)
+            if (_isGameOver)
             {
-                if (
-                    _players[CurrentPlayerId].Roles.FirstOrDefault(role => role is Sniper)
-                        is Sniper sniper
-                    && sniper.JudgeAction(sniperAction, this)
-                )
+                return false;
+            }
+            if (action.CallerUnitId < 0 || action.CallerUnitId >= _units.Length)
+            {
+                return false;
+            }
+            Unit caller = _units[action.CallerUnitId];
+            int playerId = PlayerIdFromUnitId(action.CallerUnitId);
+            if (playerId != CurrentPlayerId)
+            {
+                return false;
+            }
+            if (
+                caller.Alive is false
+                || caller.HasAction(action) is false
+                || _mode is GameMode.Scout && action is not IScoutAction
+            )
+            {
+                return false;
+            }
+            if (
+                Players[playerId]
+                    .Roles.AsValueEnumerable()
+                    .Where(role => role.Id != caller.RoleId)
+                    .Any(role => role.Acted)
+            )
+            {
+                return false;
+            }
+            Role role = Roles[caller.RoleId];
+            if (role.JudgeAction(action, this))
+            {
+                role.ExecuteAction(action, this);
+                if (role.HasActionLeft(this) is false)
                 {
-                    sniper.ExecuteAction(sniperAction, this);
-                    if (sniper.HasActionLeft() is false)
-                    {
-                        EndTurn();
-                    }
+                    EndTurn();
                 }
+                return true;
             }
             return false;
         }
@@ -168,26 +219,57 @@ namespace MistForest.Core.GameRefactored
         {
             ++_turnCount;
             _roundActed[CurrentPlayerId] = true;
-            _gameState = CheckVictory();
-            if (_isGameOver)
-            {
-                return;
-            }
-            bool nextRound = _players
+
+            bool nextRound = Players
+                .AsValueEnumerable()
                 .Where(player => player.Alive)
                 .All(player => _roundActed[player.Id]);
             if (nextRound)
             {
+                foreach (
+                    (_, int index) in Players
+                        .AsValueEnumerable()
+                        .WithIndex()
+                        .Where(entry => entry.item.Alive)
+                )
+                {
+                    _roundActed[index] = false;
+                }
                 ++_roundCount;
                 foreach (Unit unit in _units.Where(unit => unit.Alive))
                 {
                     unit.EndRound(this);
                 }
             }
+            _gameState = CheckVictory();
+            if (_isGameOver)
+            {
+                return;
+            }
             do
             {
                 CurrentPlayerId = NextPlayerId(CurrentPlayerId);
-            } while (!_players[CurrentPlayerId].Alive);
+                PrepareTurn();
+            } while (!Players[CurrentPlayerId].Alive);
+        }
+
+        public void PrepareTurn()
+        {
+            for (int i = 1; i <= Board.Height; ++i)
+            {
+                for (int j = 1; j <= Board.Width; ++j)
+                {
+                    Grid grid = Board.GetGrid(Board.At(i, j)!.Value)!;
+                    if (
+                        grid.GridBuilding is int buildingId
+                        && Buildings[buildingId] is Building.Rubble rubble
+                        && rubble.Owner == CurrentPlayerId
+                    )
+                    {
+                        rubble.PrepareTurn(this);
+                    }
+                }
+            }
         }
 
         public abstract record GameState
@@ -219,19 +301,28 @@ namespace MistForest.Core.GameRefactored
 
         private GameState CheckVictory()
         {
-            if (_roundCount >= GameConsts.MaxRoundCount)
-            {
-                return GameState.Draw.New();
-            }
             if (_gameCount is GameCount.SingleGameCount singleCountInner)
             {
-                int? firstAlive = _players.FirstOrDefault(player => player.Alive)?.Id;
+                int? firstAlive = Players
+                    .AsSpan()
+                    .AsValueEnumerable()
+                    .FirstOrDefault(player => player.Alive)
+                    ?.Id;
                 if (firstAlive is null)
                 {
                     return GameState.Draw.Instance;
                 }
-                if (_players[firstAlive!.Value..].Any(player => player.Alive))
+                if (
+                    Players
+                        .AsSpan((firstAlive!.Value + 1)..)
+                        .AsValueEnumerable()
+                        .Any(player => player.Alive)
+                )
                 {
+                    if (_roundCount >= GameConsts.MaxRoundCount)
+                    {
+                        return GameState.Draw.New();
+                    }
                     return GameState.Playing.Instance;
                 }
                 else
@@ -241,36 +332,46 @@ namespace MistForest.Core.GameRefactored
             }
             else if (_gameCount is GameCount.TeamGameCount teamCountInner)
             {
-                int? firstAlive = Enumerable
-                    .Range(0, teamCountInner.TeamCount)
-                    .FirstOrDefault(teamId => GetTeamPlayers(teamId).Any(player => player.Alive));
-                if (firstAlive is null)
+                int firstAliveId = (0..teamCountInner.TeamCount)
+                    .AsValueEnumerable()
+                    .FirstOrDefault(
+                        teamId =>
+                            GetTeamPlayers(teamId).AsValueEnumerable().Any(player => player.Alive),
+                        defaultValue: -1
+                    );
+                if (firstAliveId == -1)
                 {
                     return GameState.Draw.Instance;
                 }
                 if (
-                    Enumerable
-                        .Range(firstAlive!.Value + 1, teamCountInner.TeamCount)
-                        .Any(teamId => GetTeamPlayers(teamId).Any(player => player.Alive))
+                    ((firstAliveId + 1)..teamCountInner.TeamCount)
+                        .AsValueEnumerable()
+                        .Any(teamId =>
+                            GetTeamPlayers(teamId).AsValueEnumerable().Any(player => player.Alive)
+                        )
                 )
                 {
+                    if (_roundCount >= GameConsts.MaxRoundCount)
+                    {
+                        return GameState.Draw.New();
+                    }
                     return GameState.Playing.Instance;
                 }
                 else
                 {
-                    return GameState.Win.New(firstAlive.Value);
+                    return GameState.Win.New(firstAliveId);
                 }
             }
             throw new NotImplementedException();
         }
 
-        private Player[] GetTeamPlayers(int teamId)
+        private ReadOnlySpan<Player> GetTeamPlayers(int teamId)
         {
-            return _players[
+            return Players.AsSpan(
                 (teamId * PlayerConsts.MaxPlayersPerTeam)..(
                     (teamId + 1) * PlayerConsts.MaxPlayersPerTeam
                 )
-            ];
+            );
         }
 
         public Unit? GetUnit(int unitId)
@@ -350,30 +451,38 @@ namespace MistForest.Core.GameRefactored
                 return null;
             }
             if (
-                playersInner.Any(player =>
-                    player.TeamId is not null
-                    || player.Id is not null
-                    || player.Roles.Count() != rolesPerPlayer
-                    || _mode is GameMode.Scout && player.Roles[0] is not SniperBuilder
-                    || player.Roles.Any(role => !role.CanInitialStay(_board!))
-                )
+                playersInner
+                    .AsValueEnumerable()
+                    .Any(player =>
+                        player.TeamId is not null
+                        || player.Id is not null
+                        || player.Roles.Count() != rolesPerPlayer
+                        || _mode is GameMode.Scout && player.Roles[0] is not SniperBuilder
+                        || player.Roles.Any(role => !role.CanInitialStay(_board!))
+                    )
             )
             {
                 return null;
             }
 
             var playerBuilders = playersInner
+                .AsValueEnumerable()
                 .Select((player, index) => player.SetId(index)!)
                 .ToList();
             var roleBuilders = playerBuilders
+                .AsValueEnumerable()
                 .SelectMany(player =>
-                    player.Roles.Select(role => role.SetPlayerId(player.Id!.Value)!)
+                    player
+                        .Roles.AsValueEnumerable()
+                        .Select(role => role.SetPlayerId(player.Id!.Value)!)
                 )
                 .Select((role, index) => role.SetId(index)!)
                 .ToList();
             var unitBuilders = roleBuilders
+                .AsValueEnumerable()
                 .SelectMany(role =>
-                    role.UnitBuilder.Select(unit => unit.SetRoleId(role.Id!.Value)!)
+                    role.UnitBuilder.AsValueEnumerable()
+                        .Select(unit => unit.SetRoleId(role.Id!.Value)!)
                 )
                 .Select((unit, index) => unit.SetId(index)!)
                 .Select(unit =>
@@ -384,13 +493,16 @@ namespace MistForest.Core.GameRefactored
                 .ToList();
             _rolesPerPlayer = rolesPerPlayer;
             _playerCount = playersInner.Count;
-            _roles = roleBuilders.Select(role => role.Build()!).ToArray();
-            _units = unitBuilders.Select(unit => unit.Build()!).ToArray();
+            _roles = roleBuilders.AsValueEnumerable().Select(role => role.Build()!).ToArray();
+            _units = unitBuilders.AsValueEnumerable().Select(unit => unit.Build()!).ToArray();
             foreach (Unit unit in _units)
             {
                 _board!.GetGrid(unit.Position)!.Units.Add(unit.Id);
             }
-            _players = playerBuilders.Select(player => player.Build()!).ToArray();
+            _players = playerBuilders
+                .AsValueEnumerable()
+                .Select(player => player.Build()!)
+                .ToArray();
             _isTeamGame = false;
             return this;
         }
@@ -431,35 +543,53 @@ namespace MistForest.Core.GameRefactored
             {
                 return null;
             }
-            foreach (var (team, teamId) in teamsInner.Select((team, index) => (team, index)))
+            foreach (
+                var (team, teamId) in teamsInner
+                    .AsValueEnumerable()
+                    .Select((team, index) => (team, index))
+            )
             {
                 team.Players.ForEach(player => player.SetTeamId(teamId));
             }
             var playerBuilders = playersInner
+                .AsValueEnumerable()
                 .Select((player, index) => player.SetId(index)!)
                 .ToList();
             var roleBuilders = playerBuilders
+                .AsValueEnumerable()
                 .SelectMany(player =>
-                    player.Roles.Select(role => role.SetPlayerId(player.Id!.Value)!)
+                    player
+                        .Roles.AsValueEnumerable()
+                        .Select(role => role.SetPlayerId(player.Id!.Value)!)
                 )
                 .Select((role, index) => role.SetId(index)!)
                 .ToList();
             var unitBuilders = roleBuilders
+                .AsValueEnumerable()
                 .SelectMany(role =>
-                    role.UnitBuilder.Select(unit => unit.SetRoleId(role.Id!.Value)!)
+                    role.UnitBuilder.AsValueEnumerable()
+                        .Select(unit => unit.SetRoleId(role.Id!.Value)!)
+                        .Select(unit =>
+                            unit is SniperUnitBuilder sniperUnit
+                                ? sniperUnit.SetAttackRange(SniperConsts.SniperAttackRange)
+                                : unit
+                        )
                 )
                 .Select((unit, index) => unit.SetId(index)!)
                 .ToList();
             _rolesPerPlayer = rolesPerPlayer;
             _teamCount = teamsInner.Count;
             _playersPerTeam = playersPerTeam;
-            _roles = roleBuilders.Select(role => role.Build()!).ToArray();
-            _units = unitBuilders.Select(unit => unit.Build()!).ToArray();
+            _roles = roleBuilders.AsValueEnumerable().Select(role => role.Build()!).ToArray();
+            _units = unitBuilders.AsValueEnumerable().Select(unit => unit.Build()!).ToArray();
             foreach (Unit unit in _units)
             {
                 _board!.GetGrid(unit.Position)!.Units.Add(unit.Id);
             }
-            _players = playersInner.Select(player => player.Build()!).ToArray();
+            _players = playerBuilders
+                .AsValueEnumerable()
+                .Select(player => player.Build()!)
+                .ToArray();
             _isTeamGame = true;
             return this;
         }

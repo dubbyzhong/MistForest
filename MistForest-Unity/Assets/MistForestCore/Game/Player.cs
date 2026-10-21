@@ -2,9 +2,8 @@ using System.Collections.Generic;
 using System.Linq;
 using MistForest.Core.Consts;
 using MistForest.Core.GameMap;
-using MistForest.Core.GameRefactored.Roles;
 using MistForest.Core.Utils;
-using static MistForest.Core.GameMap.Board;
+using ZLinq;
 
 namespace MistForest.Core.GameRefactored
 {
@@ -18,14 +17,18 @@ namespace MistForest.Core.GameRefactored
 
         private Player(Role[] Roles) => this.Roles = Roles;
 
-        public static Player New(int id, Role[] roles)
+        public static Player New(int id, int? teamId, Role[] roles)
         {
-            return new Player(roles) { Id = id };
+            return new Player(roles) { Id = id, TeamId = teamId };
         }
 
         public Player Clone()
         {
-            return new(Roles.Select(role => role.Clone()).ToArray()) { Id = Id, TeamId = TeamId };
+            return new(Roles.AsValueEnumerable().Select(role => role.Clone()).ToArray())
+            {
+                Id = Id,
+                TeamId = TeamId,
+            };
         }
     }
 
@@ -63,12 +66,16 @@ namespace MistForest.Core.GameRefactored
             {
                 return null;
             }
-            return Player.New(id, roles: Roles.Select(role => role.Build()!).ToArray());
+            return Player.New(
+                id,
+                teamId: TeamId,
+                roles: Roles.AsValueEnumerable().Select(role => role.Build()!).ToArray()
+            );
         }
 
         public static PlayerBuilder? New(List<RoleBuilder> roles)
         {
-            if (roles.Count() > PlayerConsts.MaxRolesPerPlayer)
+            if (roles.Count() > PlayerConsts.MaxRolesPerPlayer || roles.Count() < 1)
             {
                 return null;
             }

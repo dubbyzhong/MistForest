@@ -1,6 +1,11 @@
+using System;
 using System.Linq;
+using System.Runtime;
+using System.Runtime.CompilerServices;
 using MistForest.Core.Consts;
 using MistForest.Core.GameMap;
+using MistForest.Core.Utils;
+using ZLinq;
 using static MistForest.Core.GameMap.Board;
 using static MistForest.Core.GameRefactored.PlayerBuilder;
 
@@ -8,13 +13,19 @@ namespace MistForest.Core.GameRefactored.Roles
 {
     public class Sniper : Role
     {
-        public SniperUnit Unit { get; private set; }
+        private readonly Unit[] _units;
+        public SniperUnit Unit
+        {
+            get => (SniperUnit)_units[0];
+        }
 
-        private Sniper(SniperUnit unit) => Unit = unit;
+        private Sniper(SniperUnit unit) => _units = new Unit[] { unit };
 
         internal static Sniper New(int id, int playerId, SniperUnit unit)
         {
-            return new Sniper(unit) { Id = id, PlayerId = playerId };
+            Sniper target = new Sniper(unit);
+            NewBase(target, id, playerId);
+            return target;
         }
 
         public override Role Clone()
@@ -22,31 +33,43 @@ namespace MistForest.Core.GameRefactored.Roles
             return new Sniper(unit: (SniperUnit)Unit.Clone()) { Id = Id, PlayerId = PlayerId };
         }
 
-        public bool JudgeAction(Action action, Game game)
+        public override bool JudgeAction(Action action, Game game)
         {
             return action switch
             {
                 GeneralMove move => Unit.CanMove(move, game),
                 GeneralEnd _ => Unit.CanEnd(),
                 GeneralSurrender _ => Unit.CanSurrender(),
+                GeneralBuildFort buildFort => Unit.CanBuildFort(buildFort, game),
+                GeneralBuildWall buildWall => Unit.CanBuildWall(buildWall, game),
                 SniperExecute execute => Unit.CanExecute(execute, game),
+                GeneralDemolish demolish => Unit.CanDemolish(demolish, game),
                 _ => false,
             };
         }
 
-        public void ExecuteAction<T>(T action, Game game)
-            where T : Action
+        public override void ExecuteAction(Action action, Game game)
         {
+            Unit.StartExecuteAction();
             switch (action)
             {
                 case GeneralMove move:
                     Unit.GeneralMove(move, game);
                     break;
-                case GeneralEnd _:
-                    GeneralEnd(game);
+                case GeneralEnd end:
+                    Unit.GeneralEnd(end, game);
                     break;
                 case GeneralSurrender _:
                     GeneralSurrender(game);
+                    break;
+                case GeneralBuildFort buildFort:
+                    Unit.GeneralBuildFort(buildFort, game);
+                    break;
+                case GeneralBuildWall buildWall:
+                    Unit.GeneralBuildWall(buildWall, game);
+                    break;
+                case GeneralDemolish demolish:
+                    Unit.GeneralDemolish(demolish, game);
                     break;
                 case SniperExecute execute:
                     Unit.SniperExecute(execute, game);
@@ -54,19 +77,14 @@ namespace MistForest.Core.GameRefactored.Roles
             }
         }
 
-        public override bool HasActionLeft()
+        public override bool HasActionLeft(Game game)
         {
-            if (End)
-            {
-                return false;
-            }
-            End = !Unit.HasActionLeft();
-            return !End;
+            return !End(game);
         }
 
-        public override Unit[] GetUnits()
+        public override ReadOnlySpan<Unit> GetUnits()
         {
-            return new[] { Unit };
+            return _units;
         }
     }
 
@@ -96,7 +114,19 @@ namespace MistForest.Core.GameRefactored.Roles
 
         public override Unit Clone()
         {
-            return CloneBase(new SniperUnit());
+            SniperUnit target = new()
+            {
+                Health = Health,
+                AttackRange = AttackRange,
+                ExecuteUsed = ExecuteUsed,
+            };
+            CloneBase(target);
+            return target;
+        }
+
+        public override bool HasAction(Action action)
+        {
+            return action is ISniperAction;
         }
 
         internal override bool CanMove(GeneralMove move, Game game)
@@ -104,9 +134,34 @@ namespace MistForest.Core.GameRefactored.Roles
             return base.CanMove(move, game) && !ExecuteUsed;
         }
 
+        internal Node[] ExecuteNodes(Game game)
+        {
+            return game
+                .Board.GetNodesWithinDistance(
+                    Position,
+                    AttackRange,
+                    moveDirs: MapConsts.MoveManhattan,
+                    predicate: _ => true
+                )
+                .AsValueEnumerable()
+                .Where(entry =>
+                    game.Board.CanLineShot(
+                        Position,
+                        entry.node,
+                        MapConsts.DiagonalBlocked,
+                        predicate: node => game.Board.GetGrid(node)!.CanShot(game)
+                    )
+                    && game.Board.GetGrid(entry.node)!.Terrain
+                        is Terrain.Ground
+                            or Terrain.Whirlpool
+                )
+                .Select(entry => entry.node)
+                .ToArray();
+        }
+
         internal bool CanExecute(SniperExecute execute, Game game)
         {
-            if (MoveUsed > 0)
+            if (MoveUsed > 0 || ExecuteUsed)
             {
                 return false;
             }
@@ -114,40 +169,126 @@ namespace MistForest.Core.GameRefactored.Roles
             {
                 return false;
             }
-            return game.Board.CanLineShot(Position, execute.Target, MapConsts.DiagonalBlocked);
+            return game.Board.CanLineShot(
+                    Position,
+                    execute.Target,
+                    MapConsts.DiagonalBlocked,
+                    predicate: node => game.Board.GetGrid(node)!.CanShot(game)
+                )
+                && game.Board.GetGrid(execute.Target)!.Terrain
+                    is Terrain.Ground
+                        or Terrain.Whirlpool;
         }
 
-        public override bool HasActionLeft()
+        public override bool HasActionLeft(Game game)
         {
-            return MoveUsed < MoveDistance && !ExecuteUsed;
+            return base.HasActionLeft(game)
+                && MoveUsed < MoveDistance
+                && !ExecuteUsed
+                && GetView(game) is SniperUnitView view
+                && view.CanExecuteGirds.Count() > 0
+                && view.CanMoveGrids.Count() > 1;
         }
 
-        public override void EndRound(Game game)
+        public override UnitView GetView(Game game)
         {
-            EndRoundBase(game);
+            return SniperUnitView.New(
+                canMoveGrids: Box.New(MoveEntries(game)),
+                canExecuteGrids: Box.New(ExecuteNodes(game)),
+                canBuildFortGrids: Box.New(BuildFortNodes(game)),
+                canBuildWallGrids: Box.New(BuildWallNodes(game))
+            )!;
         }
 
         public void SniperExecute(SniperExecute execute, Game game)
         {
             ExecuteUsed = true;
             Grid grid = game.Board.GetGrid(execute.Target)!;
-            foreach (Unit unit in grid.Units.Select(unitId => game.GetUnit(unitId)!).ToArray())
+            foreach (
+                Unit unit in grid
+                    .Units.AsValueEnumerable()
+                    .Where(unitId =>
+                        game.IsPlayerAllied(
+                            game.PlayerIdFromUnitId(Id),
+                            game.PlayerIdFromUnitId(unitId)
+                        )
+                            is false
+                    )
+                    .Select(unitId => game.GetUnit(unitId)!)
+                    .ToArray()
+            )
             {
                 unit.Killed(game);
                 game.Events.Add(ExecuteEvent.New(unitId: unit.Id, executorId: Id));
             }
+            if (
+                grid.GridBuilding is int buildingId
+                && game.Buildings[buildingId] is not Building.Rubble
+                && game.IsPlayerAllied(
+                    game.Buildings[buildingId].Owner,
+                    game.PlayerIdFromUnitId(Id)
+                )
+                    is false
+            )
+            {
+                game.Buildings[buildingId].Destroyed(game, game.PlayerIdFromUnitId(Id));
+            }
+        }
+
+        public override void EndRound(Game game)
+        {
+            ExecuteUsed = false;
+            base.EndRound(game);
+        }
+    }
+
+    public class SniperUnitView : UnitView
+    {
+        public Node[] CanExecuteGirds { get; private set; }
+
+        private SniperUnitView(Node[] canExecuteGrids)
+            : base(null!, null!, null!)
+        {
+            CanExecuteGirds = canExecuteGrids;
+        }
+
+        public static SniperUnitView? New(
+            Box<(Node node, int distance, Node? lastNode)[]> canMoveGrids,
+            Box<Node[]> canExecuteGrids,
+            Box<Node[]> canBuildFortGrids,
+            Box<Node[]> canBuildWallGrids
+        )
+        {
+            if (canExecuteGrids.TryTake() is not Node[] canExecuteGridsArray)
+            {
+                return null;
+            }
+
+            SniperUnitView target = new(canExecuteGridsArray);
+            return NewBase(target, canMoveGrids, canBuildFortGrids, canBuildWallGrids) switch
+            {
+                false => null,
+                true => target,
+            };
+        }
+
+        public override UnitView Clone()
+        {
+            SniperUnitView target = new(CanExecuteGirds);
+            CloneBase(target);
+            return target;
         }
     }
 
     public interface ISniperAction { }
 
-    public class SniperExecute : Action, ISniperAction
+    public class SniperExecute : Action, IScoutAction, ISniperAction
     {
         public Node Target { get; private set; }
 
-        public static SniperExecute New(Node target)
+        public static SniperExecute New(int callerUnitId, Node target)
         {
-            return new() { Target = target };
+            return new() { CallerUnitId = callerUnitId, Target = target };
         }
     }
 

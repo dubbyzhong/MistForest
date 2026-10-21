@@ -80,8 +80,7 @@ namespace MistForest.Core.Tests.Refactored.GameSetup
             );
 
             List<PlayerBuilder> six = MakePlayers(6);
-            List<Team> threeTeams = Enumerable
-                .Range(0, 3)
+            List<Team> threeTeams = Enumerable.Range(0, 3)
                 .Select(i => Team.New(new List<PlayerBuilder> { six[i * 2], six[i * 2 + 1] })!)
                 .ToList();
             GameBuilder second = new();

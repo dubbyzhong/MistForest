@@ -53,6 +53,10 @@ namespace MistForest.Core.Tests.Refactored.Players
                 new List<RoleBuilder> { new DummyRoleBuilderA(), new DummyRoleBuilderB() }
             )!;
             builder.SetId(0);
+            builder.Roles[0].SetId(0);
+            builder.Roles[0].SetPlayerId(0);
+            builder.Roles[1].SetId(1);
+            builder.Roles[1].SetPlayerId(0);
             Player player = builder.Build()!;
             Assert.IsType<DummyRoleA>(player.Roles[0]);
             Assert.IsType<DummyRoleB>(player.Roles[1]);
@@ -61,7 +65,11 @@ namespace MistForest.Core.Tests.Refactored.Players
         [Fact]
         public static void Player_Clone_DeepCopiesRolesAndId()
         {
-            Player player = Player.New(3, new Role[] { new DummyRoleA(), new DummyRoleB() });
+            Player player = Player.New(
+                id: 3,
+                teamId: null,
+                roles: new Role[] { DummyRoleA.New(0, 3), DummyRoleB.New(1, 3) }
+            );
             Player clone = player.Clone();
             Assert.NotSame(player, clone);
             Assert.Equal(3, clone.Id);

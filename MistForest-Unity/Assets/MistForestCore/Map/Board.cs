@@ -4,6 +4,7 @@ using System.Linq;
 using MistForest.Core.Consts;
 using MistForest.Core.GameRefactored;
 using MistForest.Core.Utils;
+using ZLinq;
 
 namespace MistForest.Core.GameMap
 {
@@ -18,6 +19,9 @@ namespace MistForest.Core.GameMap
         public LineWalls HorizontalWalls;
         public readonly Grid[] Grids;
         public GameRandom Random;
+        private Queue<(Node node, int distance, Node? lastNode)> _queue = new();
+        private List<(Node node, int distance, Node? lastNode)> _result = new();
+        private Bitset _visited;
 
         private static readonly (int, int)[] _moveDirs = { (1, 0), (-1, 0), (0, 1), (0, -1) };
 
@@ -25,18 +29,20 @@ namespace MistForest.Core.GameMap
             Grid[] grids,
             LineWalls verticalWalls,
             LineWalls horizontalWalls,
-            GameRandom random
+            GameRandom random,
+            Bitset visited
         )
         {
             Grids = grids;
             VerticalWalls = verticalWalls;
             HorizontalWalls = horizontalWalls;
             Random = random;
+            _visited = visited;
         }
 
         public static Board New(int height, int width)
         {
-            var grids = Enumerable.Range(0, height * width).Select(_ => Grid.New()).ToArray();
+            var grids = (0..(height * width)).AsValueEnumerable().Select(_ => Grid.New()).ToArray();
             var verticalWalls = LineWalls.WithCapacity(height * (width - 1));
             var horizontalWalls = LineWalls.WithCapacity((height - 1) * width);
 
@@ -47,7 +53,8 @@ namespace MistForest.Core.GameMap
                 grids,
                 verticalWalls,
                 horizontalWalls,
-                random: GameRandom.New(reader.ReadULong(out _) ?? (ulong)guid.GetHashCode())!.Value
+                random: GameRandom.New(reader.ReadULong(out _) ?? (ulong)guid.GetHashCode())!.Value,
+                visited: Bitset.WithCapacity(height * width)
             )
             {
                 Height = height,
@@ -79,11 +86,12 @@ namespace MistForest.Core.GameMap
             if (mode is GameMode.Heroes)
             {
                 Node[] walls = ModeConsts
-                    .HeroesWallPos.Select(pos => board.At(pos.X, pos.Y)!.Value)
+                    .HeroesWallPos.AsValueEnumerable()
+                    .Select(pos => board.At(pos.X, pos.Y)!.Value)
                     .ToArray();
                 foreach (Node wall in walls)
                 {
-                    board.Grids[wall.pos] = Grid.New().WithOriginalBuilding(Terrain.Wall);
+                    board.Grids[wall.Pos] = Grid.New().WithOriginalBuilding(Terrain.Wall);
                 }
             }
             return board;
@@ -110,7 +118,7 @@ namespace MistForest.Core.GameMap
 
             Board board = New(height, width);
             int gridCount = board.Grids.Count();
-            foreach (int i in Enumerable.Range(0, gridCount))
+            for (int i = 0; i < gridCount; ++i)
             {
                 if (reader.ReadByte(out error) is not byte terrain)
                 {
@@ -124,7 +132,7 @@ namespace MistForest.Core.GameMap
                 }
                 board.Grids[i] = Grid.New().WithOriginalBuilding((Terrain)terrain);
             }
-            foreach (int i in Enumerable.Range(0, board.HorizontalWalls.Inner.Length))
+            for (int i = 0; i < board.HorizontalWalls.Inner.Length; ++i)
             {
                 if (reader.ReadULong(out error) is not ulong value)
                 {
@@ -137,7 +145,7 @@ namespace MistForest.Core.GameMap
                     return null;
                 }
             }
-            foreach (int i in Enumerable.Range(0, board.VerticalWalls.Inner.Length))
+            for (int i = 0; i < board.VerticalWalls.Inner.Length; ++i)
             {
                 if (reader.ReadULong(out error) is not ulong value)
                 {
@@ -171,7 +179,7 @@ namespace MistForest.Core.GameMap
             {
                 return Array.Empty<byte>();
             }
-            foreach (byte terrain in Grids.Select(grid => (byte)grid.Terrain))
+            foreach (byte terrain in Grids.AsValueEnumerable().Select(grid => (byte)grid.Terrain))
             {
                 if (!writer.WriteByte(terrain, out _))
                 {
@@ -201,7 +209,8 @@ namespace MistForest.Core.GameMap
                 grids: Grids.Select(grid => grid.Clone()).ToArray(),
                 verticalWalls: VerticalWalls.Clone(),
                 horizontalWalls: HorizontalWalls.Clone(),
-                random: Random
+                random: Random,
+                visited: _visited.Clone()
             )
             {
                 Height = Height,
@@ -215,7 +224,7 @@ namespace MistForest.Core.GameMap
             {
                 return null;
             }
-            return Grids[node.pos];
+            return Grids[node.Pos];
         }
 
         public bool SetTerrain(Node node, Terrain terrain)
@@ -228,7 +237,7 @@ namespace MistForest.Core.GameMap
             {
                 return false;
             }
-            Grids[node.pos].Terrain = terrain;
+            Grids[node.Pos].Terrain = terrain;
             return true;
         }
 
@@ -240,14 +249,14 @@ namespace MistForest.Core.GameMap
             /// <summary>
             /// The real id of one position which is converted by map.
             /// </summary>
-            internal int pos;
+            internal int Pos;
 
-            internal static Node New(int pos) => new() { pos = pos };
+            internal static Node New(int pos) => new() { Pos = pos };
         }
 
         private bool IsValid(Node node)
         {
-            return node.pos >= 0 && node.pos < Grids.Count();
+            return node.Pos >= 0 && node.Pos < Grids.Count();
         }
 
         public Node? At(int x, int y)
@@ -318,7 +327,7 @@ namespace MistForest.Core.GameMap
             {
                 return null;
             }
-            return node.pos / Width + 1;
+            return node.Pos / Width + 1;
         }
 
         public int? ColOf(Node node)
@@ -327,7 +336,7 @@ namespace MistForest.Core.GameMap
             {
                 return null;
             }
-            return node.pos % Width + 1;
+            return node.Pos % Width + 1;
         }
 
         public int? Distance(Node from, Node to)
@@ -346,53 +355,56 @@ namespace MistForest.Core.GameMap
         public (Node node, int distance, Node? lastNode)[] GetNodesWithinDistance(
             Node from,
             int maxDistance,
-            int playerId,
-            Game game
+            (int dx, int dy)[] moveDirs,
+            Func<Node, bool> predicate
         )
         {
-            Queue<(Node node, int distance, Node? lastNode)> queue = new();
-            List<(Node node, int distance, Node? lastNode)> result = new();
-            HashSet<Node> visited = new();
-            queue.Enqueue((from, 0, null));
-            visited.Add(from);
-            while (queue.Count > 0)
+            _queue.Clear();
+            _result.Clear();
+            for (int i = 0; i < _visited.Count; ++i)
             {
-                var (node, distance, lastNode) = queue.Dequeue();
-                result.Add((node, distance, lastNode));
+                _visited.SetInner(i, 0, out _);
+            }
+            _queue.Enqueue((from, 0, null));
+            _visited[from.Pos] = true;
+            while (_queue.Count > 0)
+            {
+                var (node, distance, lastNode) = _queue.Dequeue();
+                _result.Add((node, distance, lastNode));
                 if (distance >= maxDistance)
                 {
                     continue;
                 }
-                foreach ((int dx, int dy) in _moveDirs)
+                foreach ((int dx, int dy) in moveDirs)
                 {
                     if (Move(node, dx, dy) is not Node to)
                     {
                         continue;
                     }
-                    if (visited.Contains(to))
+                    if (_visited[to.Pos])
                     {
                         continue;
                     }
-                    if (dx == 0 && VerticalWalls[VWallAt(dy == 1 ? node : to)!.Value])
+                    if (
+                        CanLineShot(node, to, MapConsts.DiagonalBlocked, predicate) is false
+                        || predicate(to) is false
+                    )
                     {
                         continue;
                     }
-                    if (dy == 0 && HorizontalWalls[HWallAt(dx == 1 ? node : to)!.Value])
-                    {
-                        continue;
-                    }
-                    if (!GetGrid(to)!.CanStay(playerId, game))
-                    {
-                        continue;
-                    }
-                    queue.Enqueue((to, distance + 1, node));
-                    visited.Add(to);
+                    _queue.Enqueue((to, distance + 1, node));
+                    _visited[to.Pos] = true;
                 }
             }
-            return result.ToArray();
+            return _result.ToArray();
         }
 
-        public bool CanLineShot(Node from, Node to, bool diagonalBlocked)
+        public bool CanLineShot(
+            Node from,
+            Node to,
+            bool diagonalBlocked,
+            Func<Node, bool> predicate
+        )
         {
             if (from == to)
             {
@@ -426,7 +438,7 @@ namespace MistForest.Core.GameMap
             }
 
             const double Epsilon = 1e-9;
-            int maxSteps = dx + dy + 2;
+            int maxSteps = Math.Abs(dx) + Math.Abs(dy) + 2;
             int x = fromRow;
             int y = fromCol;
 
@@ -434,14 +446,14 @@ namespace MistForest.Core.GameMap
             {
                 if (tx < ty - Epsilon)
                 {
-                    int edgeX = stepX > 0 ? fromRow : fromRow - 1;
+                    int edgeX = stepX > 0 ? x : x - 1;
                     if (HorizontalWalls[HWallAt(At(edgeX, y)!.Value)!.Value])
                     {
                         return false;
                     }
                     x += stepX;
                     Node node = At(x, y)!.Value;
-                    if (node != to && !GetGrid(node)!.CanShot())
+                    if (node != to && predicate(node) is false)
                     {
                         return false;
                     }
@@ -449,14 +461,14 @@ namespace MistForest.Core.GameMap
                 }
                 else if (ty < tx - Epsilon)
                 {
-                    int edgeY = stepY > 0 ? fromCol : fromCol - 1;
+                    int edgeY = stepY > 0 ? y : y - 1;
                     if (VerticalWalls[VWallAt(At(x, edgeY)!.Value)!.Value])
                     {
                         return false;
                     }
                     y += stepY;
                     Node node = At(x, y)!.Value;
-                    if (node != to && !GetGrid(node)!.CanShot())
+                    if (node != to && predicate(node) is false)
                     {
                         return false;
                     }
@@ -464,18 +476,16 @@ namespace MistForest.Core.GameMap
                 }
                 else
                 {
-                    int edgeX = stepX > 0 ? fromRow : fromRow - 1;
-                    int edgeY = stepY > 0 ? fromCol : fromCol - 1;
+                    int edgeX = stepX > 0 ? x : x - 1;
+                    int edgeY = stepY > 0 ? y : y - 1;
 
                     bool wallV1 = VerticalWalls[VWallAt(At(x, edgeY)!.Value)!.Value];
                     bool wallH1 = HorizontalWalls[HWallAt(At(edgeX, y + stepY)!.Value)!.Value];
                     bool wallH2 = HorizontalWalls[HWallAt(At(edgeX, y)!.Value)!.Value];
                     bool wallV2 = VerticalWalls[VWallAt(At(x + stepX, edgeY)!.Value)!.Value];
 
-                    bool pathClear1 =
-                        !wallV1 && !wallH1 && GetGrid(At(x, y + stepY)!.Value)!.CanShot();
-                    bool pathClear2 =
-                        !wallV2 && !wallH2 && GetGrid(At(x + stepX, y)!.Value)!.CanShot();
+                    bool pathClear1 = !wallV1 && !wallH1 && predicate(At(x, y + stepY)!.Value);
+                    bool pathClear2 = !wallV2 && !wallH2 && predicate(At(x + stepX, y)!.Value);
 
                     bool blocked = diagonalBlocked
                         ? !pathClear1 && !pathClear2
@@ -488,7 +498,7 @@ namespace MistForest.Core.GameMap
                     x += stepX;
                     y += stepY;
                     Node node = At(x, y)!.Value;
-                    if (node != to && !GetGrid(node)!.CanShot())
+                    if (node != to && predicate(node) is false)
                     {
                         return false;
                     }

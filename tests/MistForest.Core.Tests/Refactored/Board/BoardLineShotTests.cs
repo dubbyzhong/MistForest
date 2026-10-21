@@ -11,19 +11,23 @@ namespace MistForest.Core.Tests.Refactored.Mapping
             Board board = Board.New(5, 5);
             Board.Node same = board.At(2, 2)!.Value;
 
-            Assert.True(board.CanLineShot(same, same, diagonalBlocked: true));
+            Assert.True(
+                board.CanLineShot(same, same, diagonalBlocked: true, predicate: _ => true)
+            );
             Assert.True(
                 board.CanLineShot(
                     board.At(2, 1)!.Value,
                     board.At(2, 5)!.Value,
-                    diagonalBlocked: true
+                    diagonalBlocked: true,
+                    predicate: _ => true
                 )
             );
             Assert.True(
                 board.CanLineShot(
                     board.At(1, 3)!.Value,
                     board.At(5, 3)!.Value,
-                    diagonalBlocked: true
+                    diagonalBlocked: true,
+                    predicate: _ => true
                 )
             );
         }
@@ -37,7 +41,8 @@ namespace MistForest.Core.Tests.Refactored.Mapping
                 verticalWallBoard.CanLineShot(
                     verticalWallBoard.At(2, 1)!.Value,
                     verticalWallBoard.At(2, 5)!.Value,
-                    diagonalBlocked: true
+                    diagonalBlocked: true,
+                    predicate: _ => true
                 )
             );
 
@@ -47,7 +52,8 @@ namespace MistForest.Core.Tests.Refactored.Mapping
                 horizontalWallBoard.CanLineShot(
                     horizontalWallBoard.At(1, 2)!.Value,
                     horizontalWallBoard.At(5, 2)!.Value,
-                    diagonalBlocked: true
+                    diagonalBlocked: true,
+                    predicate: _ => true
                 )
             );
         }
@@ -64,13 +70,21 @@ namespace MistForest.Core.Tests.Refactored.Mapping
                 board.CanLineShot(
                     board.At(2, 1)!.Value,
                     target,
-                    diagonalBlocked: true
+                    diagonalBlocked: true,
+                    predicate: node => board.GetGrid(node)!.Terrain is not Terrain.Wall
                 )
             );
 
             Assert.True(board.SetTerrain(intermediate, Terrain.Ground));
             Assert.True(board.SetTerrain(target, Terrain.Wall));
-            Assert.True(board.CanLineShot(board.At(2, 1)!.Value, target, diagonalBlocked: true));
+            Assert.True(
+                board.CanLineShot(
+                    board.At(2, 1)!.Value,
+                    target,
+                    diagonalBlocked: true,
+                    predicate: node => board.GetGrid(node)!.Terrain is not Terrain.Wall
+                )
+            );
         }
 
         [Fact]
@@ -80,15 +94,25 @@ namespace MistForest.Core.Tests.Refactored.Mapping
             Board.Node from = board.At(1, 1)!.Value;
             Board.Node to = board.At(2, 2)!.Value;
 
-            Assert.True(board.CanLineShot(from, to, diagonalBlocked: true));
-            Assert.True(board.CanLineShot(from, to, diagonalBlocked: false));
+            Assert.True(
+                board.CanLineShot(from, to, diagonalBlocked: true, predicate: _ => true)
+            );
+            Assert.True(
+                board.CanLineShot(from, to, diagonalBlocked: false, predicate: _ => true)
+            );
 
             Assert.True(board.VerticalWalls.SetInner(0, 1ul, out _));
-            Assert.True(board.CanLineShot(from, to, diagonalBlocked: true));
-            Assert.False(board.CanLineShot(from, to, diagonalBlocked: false));
+            Assert.True(
+                board.CanLineShot(from, to, diagonalBlocked: true, predicate: _ => true)
+            );
+            Assert.False(
+                board.CanLineShot(from, to, diagonalBlocked: false, predicate: _ => true)
+            );
 
             Assert.True(board.HorizontalWalls.SetInner(0, 1ul, out _));
-            Assert.False(board.CanLineShot(from, to, diagonalBlocked: true));
+            Assert.False(
+                board.CanLineShot(from, to, diagonalBlocked: true, predicate: _ => true)
+            );
         }
     }
 }

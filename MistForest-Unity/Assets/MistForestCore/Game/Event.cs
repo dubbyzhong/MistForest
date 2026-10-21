@@ -54,4 +54,59 @@ namespace MistForest.Core.GameRefactored
             return new(path) { UnitId = unitId };
         }
     }
+
+    public class GeneralBuildFortEvent : Event
+    {
+        public int UnitId;
+        public Node Target;
+        public bool Success;
+
+        private GeneralBuildFortEvent(int unitId, Node target, bool success)
+        {
+            UnitId = unitId;
+            Target = target;
+            Success = success;
+        }
+
+        public static GeneralBuildFortEvent New(int unitId, Node target, bool success)
+        {
+            return new(unitId, target, success);
+        }
+    }
+
+    public class GeneralBuildWallEvent : Event
+    {
+        public int UnitId;
+        public Node[] Targets;
+        public bool Success;
+
+        private GeneralBuildWallEvent(int unitId, Node[] targets, bool success)
+        {
+            UnitId = unitId;
+            Targets = targets;
+            Success = success;
+        }
+
+        public static GeneralBuildWallEvent New(int unitId, Node[] targets, bool success)
+        {
+            return new(unitId, targets, success);
+        }
+    }
+
+    public class GeneralDemolishEvent : Event
+    {
+        public int UnitId;
+        public Node Target;
+
+        private GeneralDemolishEvent(int unitId, Node target)
+        {
+            UnitId = unitId;
+            Target = target;
+        }
+
+        public static GeneralDemolishEvent New(int unitId, Node target)
+        {
+            return new(unitId, target);
+        }
+    }
 }
