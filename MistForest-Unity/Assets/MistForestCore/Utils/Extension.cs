@@ -1,5 +1,7 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using ZLinq;
 
 namespace MistForest.Core.Utils
@@ -72,6 +74,42 @@ namespace MistForest.Core.Utils
                     }
                 }
                 return true;
+            }
+
+            public readonly T[] ToArray()
+            {
+                T[] buffer = ArrayPool<T>.Shared.Rent(16);
+                int count = 0;
+
+                try
+                {
+                    var enumerator = GetEnumerator();
+                    while (enumerator.MoveNext())
+                    {
+                        if (count == buffer.Length)
+                        {
+                            T[] newBuffer = ArrayPool<T>.Shared.Rent(buffer.Length * 2);
+                            Array.Copy(buffer, newBuffer, count);
+                            bool needClear = RuntimeHelpers.IsReferenceOrContainsReferences<T>();
+                            ArrayPool<T>.Shared.Return(buffer, needClear);
+                            buffer = newBuffer;
+                        }
+                        buffer[count] = enumerator.Current;
+                        ++count;
+                    }
+                    if (count == 0)
+                    {
+                        return Array.Empty<T>();
+                    }
+                    T[] result = new T[count];
+                    Array.Copy(buffer, result, count);
+                    return result;
+                }
+                finally
+                {
+                    bool needClear = RuntimeHelpers.IsReferenceOrContainsReferences<T>();
+                    ArrayPool<T>.Shared.Return(buffer, needClear);
+                }
             }
 
             public readonly Enumerator GetEnumerator()

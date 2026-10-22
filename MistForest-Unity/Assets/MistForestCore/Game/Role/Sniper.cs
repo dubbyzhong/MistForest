@@ -96,7 +96,7 @@ namespace MistForest.Core.GameRefactored.Roles
     {
         public override int Health { get; protected set; }
         protected override int MoveDistance => SniperConsts.SniperMoveDistance;
-        public int AttackRange { get; internal set; }
+        public override int AttackRange { get; protected set; }
         private bool HasUnusedAction => MoveUsed == 0 && AttackUsed == 0;
 
         private SniperUnit()
@@ -118,11 +118,7 @@ namespace MistForest.Core.GameRefactored.Roles
 
         public override Unit Clone()
         {
-            SniperUnit target = new()
-            {
-                Health = Health,
-                AttackRange = AttackRange,
-            };
+            SniperUnit target = new() { Health = Health, AttackRange = AttackRange };
             CloneBase(target);
             return target;
         }
@@ -139,27 +135,7 @@ namespace MistForest.Core.GameRefactored.Roles
 
         internal Node[] ExecuteNodes(Game game)
         {
-            return game
-                .Board.GetNodesWithinDistance(
-                    Position,
-                    AttackRange,
-                    moveDirs: MapConsts.MoveManhattan,
-                    predicate: _ => true
-                )
-                .AsValueEnumerable()
-                .Where(entry =>
-                    game.Board.CanLineShot(
-                        Position,
-                        entry.node,
-                        MapConsts.DiagonalBlocked,
-                        predicate: node => game.Board.GetGrid(node)!.CanShot(game)
-                    )
-                    && game.Board.GetGrid(entry.node)!.Terrain
-                        is Terrain.Ground
-                            or Terrain.Whirlpool
-                )
-                .Select(entry => entry.node)
-                .ToArray();
+            return FarAttackNodes(game);
         }
 
         internal bool CanExecute(SniperExecute execute, Game game)
@@ -169,14 +145,12 @@ namespace MistForest.Core.GameRefactored.Roles
                 return false;
             }
 
-            return ExecuteNodes(game)
-                .AsValueEnumerable()
-                .Any(node => node == execute.Target);
+            return ExecuteNodes(game).AsValueEnumerable().Any(node => node == execute.Target);
         }
 
         internal bool CanScout(SniperScout scout, Game game)
         {
-            if (Acted)
+            if (IsFirstAction is false)
             {
                 return false;
             }
@@ -192,9 +166,12 @@ namespace MistForest.Core.GameRefactored.Roles
         {
             return base.HasActionLeft(game)
                 && HasUnusedAction
+                && GetView(game) is SniperUnitView view
                 && (
-                    ExecuteNodes(game).Length > 0
-                    || MoveEntries(game).AsValueEnumerable().Any(entry => entry.distance > 0)
+                    view.CanBuildFortGrids.Length > 0
+                    || view.CanBuildWallGrids.Length > 0
+                    || view.CanMoveGrids.Length > 0
+                    || view.CanExecuteGirds.Length > 0
                 );
         }
 
@@ -245,7 +222,6 @@ namespace MistForest.Core.GameRefactored.Roles
 
         public void SniperScout(SniperScout scout, Game game)
         {
-            Acted = true;
             End = true;
             if (scout is SniperScoutRow scoutRow)
             {
@@ -299,7 +275,6 @@ namespace MistForest.Core.GameRefactored.Roles
 
         public override void EndRound(Game game)
         {
-            ExecuteUsed = false;
             base.EndRound(game);
         }
     }

@@ -1,28 +1,31 @@
+using System;
 using System.Diagnostics.Tracing;
+using System.Dynamic;
 using System.Xml;
 using MistForest.Core.Consts;
-using MistForest.Core.Utils;
-using static MistForest.Core.GameMap.Board;
 using MistForest.Core.GameMap;
+using MistForest.Core.Utils;
 using ZLinq;
-using System.Dynamic;
-using System;
+using static MistForest.Core.GameMap.Board;
 using static MistForest.Core.GameRefactored.PlayerBuilder;
 
 namespace MistForest.Core.GameRefactored.Roles
 {
     public interface IWolfAction { }
+
     /// <summary>
     /// wolf's attack class
     /// </summary>
     public class WolfBite : Action, IWolfAction
     {
         public Node Target { get; private set; }
+
         public static WolfBite New(int callerUnitId, Node target)
         {
             return new() { CallerUnitId = callerUnitId, Target = target };
         }
     }
+
     public class Wolf : Role
     {
         private readonly Unit[] _units;
@@ -30,17 +33,21 @@ namespace MistForest.Core.GameRefactored.Roles
         {
             get => (WolfUnit)_units[0];
         }
+
         private Wolf(WolfUnit unit) => _units = new Unit[] { unit };
+
         internal static Wolf New(int id, int playerId, WolfUnit unit)
         {
             Wolf target = new Wolf(unit);
             NewBase(target, id, playerId);
             return target;
         }
+
         public override Role Clone()
         {
             return new Wolf(unit: (WolfUnit)Unit.Clone()) { Id = Id, PlayerId = PlayerId };
         }
+
         public override bool JudgeAction(Action action, Game game)
         {
             return action switch
@@ -84,40 +91,42 @@ namespace MistForest.Core.GameRefactored.Roles
                     break;
             }
         }
+
         public override bool HasActionLeft(Game game)
         {
             return !End(game);
         }
+
         public override ReadOnlySpan<Unit> GetUnits()
         {
             return _units;
         }
     }
+
     public class WolfUnit : Unit
     {
         public override int Health { get; protected set; }
         protected override int MoveDistance => MaxAction - AttackUsed;
-        public int AttackRange => WolfConsts.WolfAttackRange;
+        public override int AttackRange => WolfConsts.WolfAttackRange;
         public int MaxAction => WolfConsts.WolfMaxAction;
         public int BiteDamage => WolfConsts.WolfBiteDamage;
-        private WolfUnit() : base() { }
-        private WolfUnit(Node position) : base(position) { }
+
+        private WolfUnit()
+            : base() { }
+
+        private WolfUnit(Node position)
+            : base(position) { }
+
         public static WolfUnit New(int id, int roleId, Node position)
         {
-            var target = new WolfUnit(position)
-            {
-                Health = WolfConsts.WolfHealth,
-            };
+            var target = new WolfUnit(position) { Health = WolfConsts.WolfHealth };
             NewBase(target, id, roleId, position);
             return target;
         }
 
         public override Unit Clone()
         {
-            WolfUnit target = new()
-            {
-                Health = Health,
-            };
+            WolfUnit target = new() { Health = Health };
             CloneBase(target);
             return target;
         }
@@ -131,33 +140,16 @@ namespace MistForest.Core.GameRefactored.Roles
         {
             return base.CanMove(move, game) && (MoveUsed + AttackUsed < MaxAction);
         }
+
         internal Node[] BiteNodes(Game game)
         {
-
-            return game.Board
-                .GetNodesWithinDistance(
-                    Position,
-                    AttackRange,
-                    moveDirs: MapConsts.MoveManhattan,
-                    predicate: _ => true
-                )
+            return FarAttackNodes(game)
+                .AsSpan()
                 .AsValueEnumerable()
-                .Where(entry =>
-                {
-                    Grid grid = game.Board.GetGrid(entry.node)!;
-
-                    return (grid.Terrain is Terrain.Ground or Terrain.Whirlpool)
-                        && !grid.HasBlockingBuilding(game)
-                        && game.Board.CanLineShot(
-                            Position,
-                            entry.node,
-                            MapConsts.DiagonalBlocked,
-                            predicate: node => game.Board.GetGrid(node)!.CanShot(game)
-                        );
-                })
-                .Select(entry => entry.node)
+                .Where(node => game.Board.GetGrid(node)!.HasBlockingBuilding(game) is false)
                 .ToArray();
         }
+
         internal bool CanBite(WolfBite bite, Game game)
         {
             if (AttackUsed + MoveUsed >= MaxAction)
@@ -165,19 +157,22 @@ namespace MistForest.Core.GameRefactored.Roles
                 return false;
             }
 
-            return BiteNodes(game)
-                .AsValueEnumerable()
-                .Any(node => node == bite.Target);
+            return BiteNodes(game).AsValueEnumerable().Any(node => node == bite.Target);
         }
+
         public override bool HasActionLeft(Game game)
         {
             return base.HasActionLeft(game)
-            &&
-            AttackUsed + MoveUsed < MaxAction
-            && GetView(game) is WolfUnitView view
-            && (view.CanBiteGrids.Length > 0
-                || view.CanMoveGrids.Length > 1);
+                && AttackUsed + MoveUsed < MaxAction
+                && GetView(game) is WolfUnitView view
+                && (
+                    view.CanBiteGrids.Length > 0
+                    || view.CanMoveGrids.Length > 0
+                    || view.CanBuildFortGrids.Length > 0
+                    || view.CanBuildWallGrids.Length > 0
+                );
         }
+
         public override UnitView GetView(Game game)
         {
             return WolfUnitView.New(
@@ -187,6 +182,7 @@ namespace MistForest.Core.GameRefactored.Roles
                 canBuildWallGrids: Box.New(BuildWallNodes(game))
             )!;
         }
+
         public void WolfBite(WolfBite bite, Game game)
         {
             AttackUsed++;
@@ -194,12 +190,11 @@ namespace MistForest.Core.GameRefactored.Roles
 
             int attackerPlayerId = game.PlayerIdFromUnitId(Id);
 
-            Unit[] enemies = grid.Units
-                .AsValueEnumerable()
-                .Where(unitId => !game.IsPlayerAllied(
-                    attackerPlayerId,
-                    game.PlayerIdFromUnitId(unitId)
-                ))
+            Unit[] enemies = grid
+                .Units.AsValueEnumerable()
+                .Where(unitId =>
+                    !game.IsPlayerAllied(attackerPlayerId, game.PlayerIdFromUnitId(unitId))
+                )
                 .Select(unitId => game.GetUnit(unitId)!)
                 .ToArray();
 
@@ -207,28 +202,31 @@ namespace MistForest.Core.GameRefactored.Roles
             {
                 enemy.ReceiveDirectDamage(BiteDamage, game);
 
-                game.Events.Add(WolfBiteEvent.New(
-                    unitId: enemy.Id,
-                    biterId: Id
-                ));
+                game.Events.Add(WolfBiteEvent.New(unitId: enemy.Id, biterId: Id));
             }
         }
+
         public override void EndRound(Game game)
         {
             base.EndRound(game);
         }
     }
+
     public class WolfUnitView : UnitView
     {
         public Node[] CanBiteGrids { get; private set; }
-        private WolfUnitView(Node[] canBiteGrids) : base(null!, null!, null!)
+
+        private WolfUnitView(Node[] canBiteGrids)
+            : base(null!, null!, null!)
         {
             CanBiteGrids = canBiteGrids;
         }
-        public static WolfUnitView? New(Box<(Node node, int distance, Node? lastNode)[]> canMoveGrids,
-        Box<Node[]> canBiteGrids,
-        Box<Node[]> canBuildFortGrids,
-        Box<Node[]> canBuildWallGrids
+
+        public static WolfUnitView? New(
+            Box<(Node node, int distance, Node? lastNode)[]> canMoveGrids,
+            Box<Node[]> canBiteGrids,
+            Box<Node[]> canBuildFortGrids,
+            Box<Node[]> canBuildWallGrids
         )
         {
             if (canBiteGrids.TryTake() is not Node[] canBiteGridsArray)
@@ -242,6 +240,7 @@ namespace MistForest.Core.GameRefactored.Roles
                 true => target,
             };
         }
+
         public override UnitView Clone()
         {
             WolfUnitView target = new((Node[])CanBiteGrids.Clone());
@@ -249,18 +248,20 @@ namespace MistForest.Core.GameRefactored.Roles
             return target;
         }
     }
+
     public class WolfBiteEvent : Event
     {
         public int UnitId { get; private set; }
         public int BiterId { get; private set; }
+
         public static WolfBiteEvent New(int unitId, int biterId)
         {
             return new() { UnitId = unitId, BiterId = biterId };
         }
     }
+
     public class WolfUnitBuilder : UnitBuilder
     {
-        private int _attackRange;
         public override Unit? Build()
         {
             if (Built is not null)
@@ -275,10 +276,14 @@ namespace MistForest.Core.GameRefactored.Roles
             return Built;
         }
     }
+
     public class WolfBuilder : RoleBuilder
     {
         public Node Position { get; private set; }
-        private WolfBuilder(UnitBuilder[] unitBuilder) : base(unitBuilder) { }
+
+        private WolfBuilder(UnitBuilder[] unitBuilder)
+            : base(unitBuilder) { }
+
         public static WolfBuilder? New(UnitBuilder[] unitBuilder, Node position)
         {
             if (unitBuilder.Length != 1 || unitBuilder[0] is not WolfUnitBuilder)
@@ -287,6 +292,7 @@ namespace MistForest.Core.GameRefactored.Roles
             }
             return new(unitBuilder) { Position = position };
         }
+
         public override bool CanInitialStay(Board board)
         {
             if (board.GetGrid(Position) is not Grid grid)
@@ -295,6 +301,7 @@ namespace MistForest.Core.GameRefactored.Roles
             }
             return grid.CanInitialStay();
         }
+
         public override Role? Build()
         {
             if (Built is not null)

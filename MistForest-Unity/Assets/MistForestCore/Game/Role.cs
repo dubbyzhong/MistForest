@@ -15,7 +15,10 @@ namespace MistForest.Core.GameRefactored
         public int PlayerId { get; internal set; }
         public bool Alive => GetUnits().AsValueEnumerable().Any(unit => unit.Alive);
         public bool IsFirstAction =>
-            GetUnits().AsValueEnumerable().Where(unit => unit.Alive).All(unit => unit.IsFirstAction);
+            GetUnits()
+                .AsValueEnumerable()
+                .Where(unit => unit.Alive)
+                .All(unit => unit.IsFirstAction);
 
         protected static void NewBase(Role target, int Id, int playerId)
         {
@@ -58,6 +61,7 @@ namespace MistForest.Core.GameRefactored
         public Node Position { get; set; }
         protected (Node node, int distance, Node? lastNode)[]? _lastMoveEntries;
         protected int MoveUsed { get; set; }
+        public virtual int AttackRange {get; protected set;}
         protected int AttackUsed { get; set; }
         protected virtual int MoveDistance { get; set; }
         public bool Alive => Health > 0;
@@ -108,12 +112,15 @@ namespace MistForest.Core.GameRefactored
 
         protected virtual (Node node, int distance, Node? lastNode)[] MoveEntries(Game game)
         {
-            return game.Board.GetNodesWithinDistance(
-                Position,
-                MoveDistance - MoveUsed,
-                moveDirs: MapConsts.MoveManhattan,
-                predicate: MovePredicate(game)
-            );
+            return game
+                .Board.GetNodesWithinDistance(
+                    Position,
+                    MoveDistance - MoveUsed,
+                    moveDirs: MapConsts.MoveManhattan,
+                    predicate: MovePredicate(game)
+                )
+                .AsSpan(1..)
+                .ToArray();
         }
 
         internal virtual bool CanMove(GeneralMove move, Game game)
@@ -126,12 +133,11 @@ namespace MistForest.Core.GameRefactored
             _lastMoveEntries = MoveEntries(game);
 
             return _lastMoveEntries
+                .AsSpan()
                 .AsValueEnumerable()
-                .Any(entry =>
-                    entry.node == move.Target
-                    && entry.distance > 0
-                );
+                .Any(entry => entry.node == move.Target);
         }
+
         internal virtual bool CanEnd()
         {
             return true;
@@ -140,6 +146,31 @@ namespace MistForest.Core.GameRefactored
         internal virtual bool CanSurrender()
         {
             return true;
+        }
+
+        protected Node[] FarAttackNodes(Game game)
+        {
+            return game
+                .Board.GetNodesWithinDistance(
+                    Position,
+                    AttackRange,
+                    moveDirs: MapConsts.MoveManhattan,
+                    predicate: _ => true
+                )
+                .AsValueEnumerable()
+                .Where(entry =>
+                    game.Board.CanLineShot(
+                        Position,
+                        entry.node,
+                        MapConsts.DiagonalBlocked,
+                        predicate: node => game.Board.GetGrid(node)!.CanShot(game)
+                    )
+                    && game.Board.GetGrid(entry.node)!.Terrain
+                        is Terrain.Ground
+                            or Terrain.Whirlpool
+                )
+                .Select(entry => entry.node)
+                .ToArray();
         }
 
         protected Node[] BuildFortNodes(Game game)
@@ -173,9 +204,7 @@ namespace MistForest.Core.GameRefactored
                 return false;
             }
 
-            if (
-                game.Board.GetGrid(Position)!.HasBlockingBuilding(game)
-            )
+            if (game.Board.GetGrid(Position)!.HasBlockingBuilding(game))
             {
                 return false;
             }
@@ -410,7 +439,8 @@ namespace MistForest.Core.GameRefactored
             game.Buildings[buildingId].Destroyed(game, game.PlayerIdFromUnitId(Id));
             game.Events.Add(GeneralDemolishEvent.New(unitId: Id, target: demolish.Target));
         }
-        virtual internal void ReceiveDirectDamage(int strength, Game game)
+
+        internal virtual void ReceiveDirectDamage(int strength, Game game)
         {
             if (!Alive || strength <= HighestDirectDamage)
             {
@@ -430,12 +460,15 @@ namespace MistForest.Core.GameRefactored
 
         private void WhirlpoolAttach(Game game)
         {
-            _lastMoveEntries = game.Board.GetNodesWithinDistance(
-                Position,
-                MapConsts.WhirlAttachDistance,
-                moveDirs: MapConsts.MoveManhattan,
-                predicate: MovePredicate(game)
-            );
+            _lastMoveEntries = game
+                .Board.GetNodesWithinDistance(
+                    Position,
+                    MapConsts.WhirlAttachDistance,
+                    moveDirs: MapConsts.MoveManhattan,
+                    predicate: MovePredicate(game)
+                )
+                .AsSpan(1..)
+                .ToArray();
             int lastNodeId = 0;
             for (int distance = 0; distance <= MapConsts.WhirlAttachDistance; ++distance)
             {
@@ -495,7 +528,7 @@ namespace MistForest.Core.GameRefactored
         {
             var path = new List<Node>();
             Node? current = target;
-            while (current != null)
+            while (current != Position)
             {
                 path.Add(current!.Value);
                 current = _lastMoveEntries!
@@ -504,6 +537,7 @@ namespace MistForest.Core.GameRefactored
                     .First(item => item.node == current)
                     .lastNode;
             }
+            path.Add(current!.Value);
             path.Reverse();
             return path.ToArray();
         }
