@@ -101,7 +101,7 @@ namespace MistForest.Core.GameRefactored.Roles
         private SniperUnit(Node position)
             : base(position) { }
 
-        public static SniperUnit New(int Id, int roleId, Node position, int attackRange)
+        public static SniperUnit New(int id, int roleId, Node position, int attackRange)
         {
             var target = new SniperUnit(position)
             {
@@ -109,7 +109,8 @@ namespace MistForest.Core.GameRefactored.Roles
                 Health = SniperConsts.SniperHealth,
                 AttackRange = attackRange,
             };
-            return (SniperUnit)NewBase(target, Id, roleId, position);
+            NewBase(target, id, roleId, position);
+            return target;
         }
 
         public override Unit Clone()

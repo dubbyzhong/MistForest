@@ -70,15 +70,16 @@ namespace MistForest.Core.GameRefactored
 
         protected Unit(Node position) => Position = position;
 
-        protected static Unit NewBase(Unit target, int Id, int roleId, Node position)
+        protected static Unit NewBase(Unit target, int id, int roleId, Node position)
         {
-            target.Id = Id;
+            target.Id = id;
             target.RoleId = roleId;
             target.Position = position;
             target._lastMoveEntries = null;
             target.MoveUsed = 0;
             target.AttackUsed = 0;
             target.WhirlpoolImmuneExpire = 0;
+            target.HighestDirectDamage = 0;
             return target;
         }
 
@@ -406,7 +407,7 @@ namespace MistForest.Core.GameRefactored
             game.Buildings[buildingId].Destroyed(game, game.PlayerIdFromUnitId(Id));
             game.Events.Add(GeneralDemolishEvent.New(unitId: Id, target: demolish.Target));
         }
-        internal void ReceiveDirectDamage(int strength, Game game)
+        virtual internal void ReceiveDirectDamage(int strength, Game game)
         {
             if (!Alive || strength <= HighestDirectDamage)
             {

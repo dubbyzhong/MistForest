@@ -95,19 +95,19 @@ namespace MistForest.Core.GameRefactored.Roles
     {
         public override int Health { get; protected set; }
         protected override int MoveDistance => WolfConsts.WolfMoveDistance;
-        public int AttackRange { get; internal set; }
-        public int MaxAction { get; internal set; }
+        public int AttackRange => WolfConsts.WolfAttackRange;
+        public int MaxAction => WolfConsts.WolfMaxAction;
+        public int BiteDamage => WolfConsts.WolfBiteDamage;
         private WolfUnit() : base() { }
         private WolfUnit(Node position) : base(position) { }
-        public static WolfUnit New(int Id, int roleId, Node position, int attackRange, int maxAction)
+        public static WolfUnit New(int id, int roleId, Node position)
         {
             var target = new WolfUnit(position)
             {
                 Health = WolfConsts.WolfHealth,
-                AttackRange = attackRange,
-                MaxAction = maxAction
             };
-            return (WolfUnit)NewBase(target, Id, roleId, position);
+            NewBase(target, id, roleId, position);
+            return target;
         }
 
         public override Unit Clone()
@@ -115,7 +115,6 @@ namespace MistForest.Core.GameRefactored.Roles
             WolfUnit target = new()
             {
                 Health = Health,
-                AttackRange = AttackRange,
             };
             CloneBase(target);
             return target;
@@ -132,6 +131,7 @@ namespace MistForest.Core.GameRefactored.Roles
         }
         internal Node[] BiteNodes(Game game)
         {
+
             return game.Board
                 .GetNodesWithinDistance(
                     Position,
@@ -141,15 +141,18 @@ namespace MistForest.Core.GameRefactored.Roles
                 )
                 .AsValueEnumerable()
                 .Where(entry =>
-                    game.Board.CanLineShot(
-                        Position,
-                        entry.node,
-                        MapConsts.DiagonalBlocked,
-                        predicate: node => game.Board.GetGrid(node)!.CanShot(game)
-                    )
-                    && game.Board.GetGrid(entry.node)!.Terrain
-                        is Terrain.Ground or Terrain.Whirlpool
-                )
+                {
+                    Grid grid = game.Board.GetGrid(entry.node)!;
+
+                    return (grid.Terrain is Terrain.Ground or Terrain.Whirlpool)
+                        && grid.CanShot(game)
+                        && game.Board.CanLineShot(
+                            Position,
+                            entry.node,
+                            MapConsts.DiagonalBlocked,
+                            predicate: node => game.Board.GetGrid(node)!.CanShot(game)
+                        );
+                })
                 .Select(entry => entry.node)
                 .ToArray();
         }
@@ -159,19 +162,10 @@ namespace MistForest.Core.GameRefactored.Roles
             {
                 return false;
             }
-            if (game.Board.Distance(Position, bite.Target) > AttackRange)
-            {
-                return false;
-            }
-            return game.Board.CanLineShot(
-                    Position,
-                    bite.Target,
-                    MapConsts.DiagonalBlocked,
-                    predicate: node => game.Board.GetGrid(node)!.CanShot(game)
-                )
-                && game.Board.GetGrid(bite.Target)!.Terrain
-                    is Terrain.Ground
-                        or Terrain.Whirlpool;
+
+            return BiteNodes(game)
+                .AsValueEnumerable()
+                .Any(node => node == bite.Target);
         }
         public override bool HasActionLeft(Game game)
         {
@@ -184,9 +178,9 @@ namespace MistForest.Core.GameRefactored.Roles
         }
         public override UnitView GetView(Game game)
         {
-            return SniperUnitView.New(
+            return WolfUnitView.New(
                 canMoveGrids: Box.New(MoveEntries(game)),
-                canExecuteGrids: Box.New(BiteNodes(game)),
+                canBiteGrids: Box.New(BiteNodes(game)),
                 canBuildFortGrids: Box.New(BuildFortNodes(game)),
                 canBuildWallGrids: Box.New(BuildWallNodes(game))
             )!;
@@ -218,7 +212,7 @@ namespace MistForest.Core.GameRefactored.Roles
 
             foreach (Unit enemy in enemies)
             {
-                enemy.ReceiveDirectDamage(2, game);
+                enemy.ReceiveDirectDamage(BiteDamage, game);
             }
         }
         public override void EndRound(Game game)

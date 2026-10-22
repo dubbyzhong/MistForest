@@ -21,5 +21,7 @@ namespace MistForest.Core.Consts
         public const int WolfHealth = 3;
         public const int WolfMoveDistance = 1;
         public const int WolfAttackRange = 1;
+        public const int WolfMaxAction = 2;
+        public const int WolfBiteDamage = 2;
     }
 }
