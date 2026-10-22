@@ -13,9 +13,6 @@ namespace MistForest.Core.GameRefactored.Roles
 {
     public interface IWolfAction { }
 
-    /// <summary>
-    /// wolf's attack class
-    /// </summary>
     public class WolfBite : Action, IWolfAction
     {
         public Node Target { get; private set; }
@@ -29,10 +26,7 @@ namespace MistForest.Core.GameRefactored.Roles
     public class Wolf : Role
     {
         private readonly Unit[] _units;
-        public WolfUnit Unit
-        {
-            get => (WolfUnit)_units[0];
-        }
+        public WolfUnit Unit => (WolfUnit)_units[0];
 
         private Wolf(WolfUnit unit) => _units = new Unit[] { unit };
 
@@ -50,6 +44,11 @@ namespace MistForest.Core.GameRefactored.Roles
 
         public override bool JudgeAction(Action action, Game game)
         {
+            if (!Unit.Alive || Unit.End)
+            {
+                return false;
+            }
+
             return action switch
             {
                 GeneralMove move => Unit.CanMove(move, game),
@@ -92,15 +91,11 @@ namespace MistForest.Core.GameRefactored.Roles
             }
         }
 
-        public override bool HasActionLeft(Game game)
-        {
-            return !End(game);
-        }
+        public override bool HasActionLeft(Game game) => !End(game);
 
-        public override ReadOnlySpan<Unit> GetUnits()
-        {
-            return _units;
-        }
+
+        public override ReadOnlySpan<Unit> GetUnits() => _units;
+
     }
 
     public class WolfUnit : Unit
@@ -131,10 +126,8 @@ namespace MistForest.Core.GameRefactored.Roles
             return target;
         }
 
-        public override bool HasAction(Action action)
-        {
-            return action is IWolfAction;
-        }
+        public override bool HasAction(Action action) => action is IWolfAction;
+
 
         internal override bool CanMove(GeneralMove move, Game game)
         {
@@ -162,6 +155,11 @@ namespace MistForest.Core.GameRefactored.Roles
 
         public override bool HasActionLeft(Game game)
         {
+            if (!Alive || !base.HasActionLeft(game))
+            {
+                return false;
+            }
+
             return base.HasActionLeft(game)
                 && AttackUsed + MoveUsed < MaxAction
                 && GetView(game) is WolfUnitView view
