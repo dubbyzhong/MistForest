@@ -18,7 +18,7 @@ namespace MistForest.Core.GameRefactored
 
     public interface IScoutOnlyAction: IScoutAction { }
 
-    public class GeneralMove : Action, IScoutAction, ISniperAction
+    public class GeneralMove : Action, IScoutAction, ISniperAction, IWolfAction
     {
         public Node Target { get; private set; }
 
@@ -30,7 +30,7 @@ namespace MistForest.Core.GameRefactored
         }
     }
 
-    public class GeneralEnd : Action, IScoutAction, ISniperAction
+    public class GeneralEnd : Action, IScoutAction, ISniperAction, IWolfAction
     {
         public static GeneralEnd New(int callerUnitId)
         {
@@ -40,7 +40,7 @@ namespace MistForest.Core.GameRefactored
         }
     }
 
-    public class GeneralSurrender : Action, IScoutAction, ISniperAction
+    public class GeneralSurrender : Action, IScoutAction, ISniperAction, IWolfAction
     {
         public static GeneralSurrender New(int callerUnitId)
         {
@@ -50,7 +50,7 @@ namespace MistForest.Core.GameRefactored
         }
     }
 
-    public class GeneralBuildFort : Action, ISniperAction
+    public class GeneralBuildFort : Action, ISniperAction, IWolfAction
     {
         public Node Target { get; private set; }
 
@@ -62,7 +62,7 @@ namespace MistForest.Core.GameRefactored
         }
     }
 
-    public class GeneralBuildWall : Action, ISniperAction
+    public class GeneralBuildWall : Action, ISniperAction, IWolfAction
     {
         public Node[] Targets { get; private set; }
 

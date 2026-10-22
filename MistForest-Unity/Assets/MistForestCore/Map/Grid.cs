@@ -62,10 +62,12 @@ namespace MistForest.Core.GameMap
         public bool CanShot(Game game)
         {
             return Terrain is not Terrain.Wall
-                && (
-                    GridBuilding is not int buildingId
-                    || game.Buildings[buildingId] is Building.Rubble
-                );
+                && !HasBlockingBuilding(game);
+        }
+        public bool HasBlockingBuilding(Game game)
+        {
+            return GridBuilding is int buildingId
+                && game.Buildings[buildingId] is not Building.Rubble;
         }
     }
 }
