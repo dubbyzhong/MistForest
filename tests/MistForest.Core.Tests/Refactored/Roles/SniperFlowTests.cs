@@ -73,6 +73,11 @@ namespace MistForest.Core.Tests.Refactored.Roles
 
             Assert.Equal(new[] { 0 }, board.GetGrid(from)!.Units);
 
+            SniperUnit sniper = (SniperUnit)game.GetUnit(0)!;
+            SniperUnitView view = Assert.IsType<SniperUnitView>(sniper.GetView(game));
+            Assert.DoesNotContain(view.CanMoveGrids, entry => entry.node == from);
+            Assert.Contains(view.CanMoveGrids, entry => entry.node == to);
+
             game.ExecuteAction(GeneralMove.New(callerUnitId: 0, target: to));
 
             Assert.Empty(board.GetGrid(from)!.Units);
@@ -81,6 +86,24 @@ namespace MistForest.Core.Tests.Refactored.Roles
             GeneralMoveEvent moveEvent = Assert.IsType<GeneralMoveEvent>(game.Events.Single());
             Assert.Equal(0, moveEvent.UnitId);
             Assert.Equal(new List<Board.Node> { from, to }, moveEvent.Path);
+        }
+
+        [Fact]
+        public static void UnitEndRound_WhirlpoolAttachPathIncludesStartingSquare()
+        {
+            Game game = MakeSniperGame(2, 2, opponentX: 5, opponentY: 5);
+            Board board = game.Board;
+            Board.Node start = board.At(2, 2)!.Value;
+            Board.Node whirlpool = board.At(2, 3)!.Value;
+            Assert.True(board.SetTerrain(whirlpool, Terrain.Whirlpool));
+
+            Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
+            Assert.True(game.ExecuteAction(GeneralEnd.New(1)));
+
+            Assert.Equal(whirlpool, game.GetUnit(0)!.Position);
+            WhirlpoolAttachEvent attachEvent = Assert.IsType<WhirlpoolAttachEvent>(game.Events.Last());
+            Assert.Equal(0, attachEvent.UnitId);
+            Assert.Equal(new[] { start, whirlpool }, attachEvent.Path);
         }
 
         [Fact]
@@ -373,7 +396,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             }
             SniperUnit sniper = (SniperUnit)game.GetUnit(0)!;
             SniperUnitView view = (SniperUnitView)sniper.GetView(game);
-            Assert.Single(view.CanMoveGrids);
+            Assert.Empty(view.CanMoveGrids);
             Assert.Contains(board.At(4, 2)!.Value, view.CanExecuteGirds);
 
             Assert.True(sniper.HasActionLeft(game));

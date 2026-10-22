@@ -43,6 +43,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Equal(0, scoutEvent.UnitId);
             Assert.Equal(3, scoutEvent.Row);
             Assert.True(scoutEvent.Success);
+            Assert.False(game.GetUnit(0)!.IsFirstAction);
             Assert.Equal(1, game.CurrentPlayerId);
         }
 
@@ -98,6 +99,33 @@ namespace MistForest.Core.Tests.Refactored.Roles
 
             Assert.Empty(game.Events);
             Assert.Equal(0, game.CurrentPlayerId);
+        }
+
+        [Fact]
+        public static void Scout_IsRejectedAfterAnotherActionHasStartedThisRound()
+        {
+            Game game = MakeGame(GameMode.Scout.Instance, (1, 1), (3, 3));
+            Sniper role = Assert.IsType<Sniper>(game.Roles[0]);
+
+            role.ExecuteAction(GeneralEnd.New(callerUnitId: 0), game);
+
+            Assert.False(role.IsFirstAction);
+            Assert.False(role.JudgeAction(SniperScoutRow.New(callerUnitId: 0, row: 2), game));
+        }
+
+        [Fact]
+        public static void Scout_IsAvailableAgainAfterNewRoundBegins()
+        {
+            Game game = MakeGame(GameMode.Scout.Instance, (1, 1), (3, 3));
+
+            Assert.True(game.ExecuteAction(SniperScoutRow.New(callerUnitId: 0, row: 3)));
+            Assert.False(game.GetUnit(0)!.IsFirstAction);
+            Assert.True(game.ExecuteAction(GeneralEnd.New(callerUnitId: 1)));
+
+            Assert.Equal(0, game.CurrentPlayerId);
+            Assert.True(game.GetUnit(0)!.IsFirstAction);
+            Assert.True(game.ExecuteAction(SniperScoutCol.New(callerUnitId: 0, column: 3)));
+            Assert.False(game.GetUnit(0)!.IsFirstAction);
         }
     }
 }
