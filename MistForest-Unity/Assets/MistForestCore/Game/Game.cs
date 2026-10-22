@@ -197,7 +197,7 @@ namespace MistForest.Core.GameRefactored
                 Players[playerId]
                     .Roles.AsValueEnumerable()
                     .Where(role => role.Id != caller.RoleId)
-                    .Any(role => role.Acted)
+                    .Any(role => !role.IsFirstAction)
             )
             {
                 return false;
@@ -206,6 +206,13 @@ namespace MistForest.Core.GameRefactored
             if (role.JudgeAction(action, this))
             {
                 role.ExecuteAction(action, this);
+
+                _gameState = CheckVictory();
+                if (_isGameOver)
+                {
+                    return true;
+                }
+
                 if (role.HasActionLeft(this) is false)
                 {
                     EndTurn();
@@ -486,10 +493,18 @@ namespace MistForest.Core.GameRefactored
                 )
                 .Select((unit, index) => unit.SetId(index)!)
                 .Select(unit =>
-                    _mode is GameMode.Scout && unit is SniperUnitBuilder sniperUnit
-                        ? sniperUnit.SetAttackRange(SniperConsts.SniperAttackRangeScout)
-                        : ((SniperUnitBuilder)unit).SetAttackRange(SniperConsts.SniperAttackRange)
-                )
+                {
+                    if (unit is SniperUnitBuilder sniperUnit)
+                    {
+                        int range = _mode is GameMode.Scout
+                            ? SniperConsts.SniperAttackRangeScout
+                            : SniperConsts.SniperAttackRange;
+
+                        sniperUnit.SetAttackRange(range);
+                    }
+
+                    return unit;
+                })
                 .ToList();
             _rolesPerPlayer = rolesPerPlayer;
             _playerCount = playersInner.Count;

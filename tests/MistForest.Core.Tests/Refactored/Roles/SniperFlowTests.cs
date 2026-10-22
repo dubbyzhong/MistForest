@@ -123,7 +123,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
 
             Assert.False(game.GetUnit(1)!.Alive);
             Assert.Empty(board.GetGrid(target)!.Units);
-            Assert.True(((SniperUnit)game.GetUnit(0)!).ExecuteUsed);
+            Assert.False(game.GetUnit(0)!.HasActionLeft(game));
             ExecuteEvent executeEvent = Assert.IsType<ExecuteEvent>(Assert.Single(game.Events));
             Assert.Equal(1, executeEvent.UnitId);
             Assert.Equal(0, executeEvent.ExecutorId);
@@ -187,8 +187,209 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.False(
                 game.ExecuteAction(SniperExecute.New(callerUnitId: 0, target: lake))
             );
-            Assert.False(((SniperUnit)game.GetUnit(0)!).ExecuteUsed);
+            Assert.True(game.GetUnit(0)!.HasActionLeft(game));
             Assert.Empty(game.Events);
+        }
+
+        [Fact]
+        public static void Sniper_AttackAndMove_AreMutuallyExclusive()
+        {
+            Game attackGame = MakeSniperGame(2, 2);
+            Board.Node attackTarget = attackGame.Board.At(2, 3)!.Value;
+            Assert.True(attackGame.ExecuteAction(SniperExecute.New(0, attackTarget)));
+            Assert.False(attackGame.Roles[0].JudgeAction(
+                GeneralMove.New(0, attackGame.Board.At(3, 2)!.Value), attackGame));
+            Assert.False(attackGame.Roles[0].JudgeAction(
+                SniperExecute.New(0, attackTarget), attackGame));
+
+            Game moveGame = MakeSniperGame(2, 2);
+            Assert.True(moveGame.ExecuteAction(
+                GeneralMove.New(0, moveGame.Board.At(3, 2)!.Value)));
+            Assert.False(moveGame.Roles[0].JudgeAction(
+                SniperExecute.New(0, moveGame.Board.At(3, 3)!.Value), moveGame));
+        }
+
+        [Fact]
+        public static void Sniper_Clone_PreservesConsumedAttack()
+        {
+            Game game = MakeSniperGame(2, 2);
+            Board.Node target = game.Board.At(2, 3)!.Value;
+            Assert.True(game.ExecuteAction(SniperExecute.New(0, target)));
+
+            Sniper clone = (Sniper)game.Roles[0].Clone();
+
+            Assert.False(clone.JudgeAction(SniperExecute.New(0, target), game));
+            Assert.False(clone.JudgeAction(
+                GeneralMove.New(0, game.Board.At(3, 2)!.Value), game));
+            Assert.False(clone.HasActionLeft(game));
+        }
+
+        [Fact]
+        public static void Sniper_NewRound_RestoresAttack()
+        {
+            Game game = MakeSniperGame(2, 2);
+            Board.Node target = game.Board.At(2, 3)!.Value;
+            Assert.True(game.GetUnit(0)!.IsFirstAction);
+            Assert.True(game.ExecuteAction(SniperExecute.New(0, target)));
+            Assert.False(game.GetUnit(0)!.IsFirstAction);
+            Assert.Equal(1, game.CurrentPlayerId);
+            Assert.True(game.ExecuteAction(GeneralEnd.New(1)));
+            Assert.Equal(0, game.CurrentPlayerId);
+
+            Assert.True(game.GetUnit(0)!.IsFirstAction);
+            Assert.True(game.Roles[0].IsFirstAction);
+            Assert.True(game.GetUnit(0)!.HasActionLeft(game));
+            Assert.True(game.ExecuteAction(SniperExecute.New(0, target)));
+        }
+
+        [Fact]
+        public static void FirstAction_BuildAndDemolish_AllowedOnlyBeforeActing()
+        {
+            Game game = MakeSniperGame(2, 2);
+            Board.Node buildTarget = game.Board.At(3, 2)!.Value;
+            Board.Node ownFort = game.Board.At(2, 1)!.Value;
+            game.AddBuilding(FortBuilder.New()
+                .SetHealth(1)!
+                .SetOwner(0)!
+                .SetPos(ownFort)!);
+            Role role = game.Roles[0];
+
+            Assert.True(role.IsFirstAction);
+            Assert.True(role.JudgeAction(GeneralBuildFort.New(0, buildTarget), game));
+            Assert.True(role.JudgeAction(GeneralDemolish.New(0, ownFort), game));
+
+            Assert.True(game.ExecuteAction(SniperExecute.New(0, game.Board.At(2, 3)!.Value)));
+
+            Assert.False(role.IsFirstAction);
+            Assert.False(role.JudgeAction(GeneralBuildFort.New(0, buildTarget), game));
+            Assert.False(role.JudgeAction(GeneralDemolish.New(0, ownFort), game));
+            Assert.False(role.Clone().IsFirstAction);
+        }
+
+        [Fact]
+        public static void FirstAction_MultiUnitRole_IsFalseAfterAnyUnitActs()
+        {
+            Game game = MakeSniperGame(2, 2);
+            Unit untouched = WolfUnit.New(2, 0, game.Board.At(3, 2)!.Value);
+            Role group = new FirstActionRoleProbe(0, 0, game.GetUnit(0)!, untouched);
+            Assert.True(group.IsFirstAction);
+
+            Assert.True(game.ExecuteAction(SniperExecute.New(0, game.Board.At(2, 3)!.Value)));
+
+            Assert.True(untouched.IsFirstAction);
+            Assert.False(group.IsFirstAction);
+        }
+
+        [Fact]
+        public static void FirstAction_LocksPlayerToTheRoleThatStartedActing()
+        {
+            GameMode mode = GameMode.SelfDefine.New(5, 5);
+            Board board = Board.FromMode(mode, out _)!;
+            Unit[] units = new Unit[]
+            {
+                new FirstActionUnitProbe(0, 0, board.At(2, 2)!.Value),
+                new FirstActionUnitProbe(1, 1, board.At(3, 3)!.Value),
+                new FirstActionUnitProbe(2, 2, board.At(4, 4)!.Value),
+            };
+            var first = new FirstActionRoleProbe(0, 0, units[0]);
+            var other = new FirstActionRoleProbe(1, 0, units[1]);
+            var enemy = new FirstActionRoleProbe(2, 1, units[2]);
+            Game game = Game.New(mode, board,
+                new Role[] { first, other, enemy }, units,
+                new[]
+                {
+                    Player.New(0, null, new Role[] { first, other }),
+                    Player.New(1, null, new Role[] { enemy }),
+                },
+                Game.GameCount.SingleGameCount.New(2, 2), 0);
+
+            Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
+            Assert.False(first.IsFirstAction);
+            Assert.True(other.IsFirstAction);
+            Assert.False(game.ExecuteAction(GeneralEnd.New(1)));
+            Assert.Equal(0, other.Executions);
+            Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
+            Assert.Equal(2, first.Executions);
+        }
+
+        // Minimal role double: keep the turn open to exercise role selection.
+        private sealed class FirstActionRoleProbe : Role
+        {
+            private readonly Unit[] _units;
+            public int Executions { get; private set; }
+
+            public FirstActionRoleProbe(int id, int playerId, params Unit[] units)
+            {
+                NewBase(this, id, playerId);
+                _units = units;
+            }
+
+            public override Role Clone() => new FirstActionRoleProbe(
+                Id, PlayerId, _units.Select(unit => unit.Clone()).ToArray());
+
+            public override ReadOnlySpan<Unit> GetUnits() => _units;
+            public override bool HasActionLeft(Game game) => true;
+            public override bool JudgeAction(MistForest.Core.GameRefactored.Action action, Game game)
+                => action is GeneralEnd;
+
+            public override void ExecuteAction(MistForest.Core.GameRefactored.Action action, Game game)
+            {
+                ++Executions;
+                ((FirstActionUnitProbe)_units[0]).MarkAction();
+            }
+        }
+
+        private sealed class FirstActionUnitProbe : Unit
+        {
+            public FirstActionUnitProbe(int id, int roleId, Board.Node position)
+            {
+                NewBase(this, id, roleId, position);
+                Health = 3;
+            }
+
+            public void MarkAction() => IsFirstAction = false;
+
+            public override Unit Clone()
+            {
+                var clone = new FirstActionUnitProbe(Id, RoleId, Position);
+                CloneBase(clone);
+                return clone;
+            }
+
+            public override bool HasAction(MistForest.Core.GameRefactored.Action action)
+                => action is GeneralEnd;
+
+            public override UnitView GetView(Game game) => throw new NotSupportedException();
+        }
+
+        [Fact]
+        public static void Sniper_UnableToMove_CanStillAttack()
+        {
+            Game game = MakeSniperGame(2, 2);
+            Board board = game.Board;
+            foreach (var (row, col) in new[] { (1, 2), (3, 2), (2, 1), (2, 3) })
+            {
+                board.SetTerrain(board.At(row, col)!.Value, Terrain.Lake);
+            }
+            SniperUnit sniper = (SniperUnit)game.GetUnit(0)!;
+            SniperUnitView view = (SniperUnitView)sniper.GetView(game);
+            Assert.Single(view.CanMoveGrids);
+            Assert.Contains(board.At(4, 2)!.Value, view.CanExecuteGirds);
+
+            Assert.True(sniper.HasActionLeft(game));
+            Assert.True(game.ExecuteAction(SniperExecute.New(0, board.At(4, 2)!.Value)));
+        }
+
+        [Fact]
+        public static void Sniper_ExplicitlyEnded_RejectsMoveAndAttack()
+        {
+            Game game = MakeSniperGame(2, 2);
+            Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
+
+            Assert.False(game.Roles[0].JudgeAction(
+                GeneralMove.New(0, game.Board.At(3, 2)!.Value), game));
+            Assert.False(game.Roles[0].JudgeAction(
+                SniperExecute.New(0, game.Board.At(2, 3)!.Value), game));
         }
     }
 }

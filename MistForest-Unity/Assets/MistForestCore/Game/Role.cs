@@ -14,8 +14,8 @@ namespace MistForest.Core.GameRefactored
         public int Id { get; internal set; }
         public int PlayerId { get; internal set; }
         public bool Alive => GetUnits().AsValueEnumerable().Any(unit => unit.Alive);
-        public bool Acted =>
-            GetUnits().AsValueEnumerable().Where(unit => unit.Alive).Any(unit => unit.Acted);
+        public bool IsFirstAction =>
+            GetUnits().AsValueEnumerable().Where(unit => unit.Alive).All(unit => unit.IsFirstAction);
 
         protected static void NewBase(Role target, int Id, int playerId)
         {
@@ -63,7 +63,7 @@ namespace MistForest.Core.GameRefactored
         public bool Alive => Health > 0;
         public int WhirlpoolImmuneExpire { get; protected set; }
         public bool End { get; protected set; }
-        public bool Acted { get; protected set; }
+        public bool IsFirstAction { get; protected set; } = true;
         public int HighestDirectDamage { get; private set; }
 
         protected Unit() { }
@@ -93,9 +93,11 @@ namespace MistForest.Core.GameRefactored
             target.Position = Position;
             target._lastMoveEntries = null;
             target.MoveUsed = MoveUsed;
+            target.AttackUsed = AttackUsed;
             target.MoveDistance = MoveDistance;
+            target.HighestDirectDamage = HighestDirectDamage;
             target.End = End;
-            target.Acted = Acted;
+            target.IsFirstAction = IsFirstAction;
             target.WhirlpoolImmuneExpire = WhirlpoolImmuneExpire;
         }
 
@@ -116,18 +118,20 @@ namespace MistForest.Core.GameRefactored
 
         internal virtual bool CanMove(GeneralMove move, Game game)
         {
-            if (MoveDistance - MoveUsed <= 0)
+            if (!Alive || End || MoveDistance - MoveUsed <= 0)
             {
                 return false;
             }
+
             _lastMoveEntries = MoveEntries(game);
 
-            return _lastMoveEntries!
-                .AsSpan()
+            return _lastMoveEntries
                 .AsValueEnumerable()
-                .Any(entry => entry.node == move.Target);
+                .Any(entry =>
+                    entry.node == move.Target
+                    && entry.distance > 0
+                );
         }
-
         internal virtual bool CanEnd()
         {
             return true;
@@ -164,7 +168,7 @@ namespace MistForest.Core.GameRefactored
 
         private bool CanBuildCommon(Game game)
         {
-            if (Acted)
+            if (!IsFirstAction)
             {
                 return false;
             }
@@ -298,7 +302,7 @@ namespace MistForest.Core.GameRefactored
 
         internal bool CanDemolish(GeneralDemolish demolish, Game game)
         {
-            if (Acted)
+            if (!IsFirstAction)
             {
                 return false;
             }
@@ -322,7 +326,7 @@ namespace MistForest.Core.GameRefactored
 
         internal void StartExecuteAction()
         {
-            Acted = true;
+            IsFirstAction = false;
         }
 
         internal void GeneralMove(GeneralMove move, Game game)
@@ -463,10 +467,12 @@ namespace MistForest.Core.GameRefactored
 
         public virtual void EndRound(Game game)
         {
-            Acted = false;
+            IsFirstAction = true;
             End = false;
             MoveUsed = 0;
             AttackUsed = 0;
+            HighestDirectDamage = 0;
+
             if (WhirlpoolImmuneExpire == 0)
             {
                 WhirlpoolAttach(game);

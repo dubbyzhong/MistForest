@@ -7,6 +7,7 @@ using MistForest.Core.GameMap;
 using ZLinq;
 using System.Dynamic;
 using System;
+using static MistForest.Core.GameRefactored.PlayerBuilder;
 
 namespace MistForest.Core.GameRefactored.Roles
 {
@@ -57,6 +58,7 @@ namespace MistForest.Core.GameRefactored.Roles
 
         public override void ExecuteAction(Action action, Game game)
         {
+            Unit.StartExecuteAction();
             switch (action)
             {
                 case GeneralMove move:
@@ -94,7 +96,7 @@ namespace MistForest.Core.GameRefactored.Roles
     public class WolfUnit : Unit
     {
         public override int Health { get; protected set; }
-        protected override int MoveDistance => WolfConsts.WolfMoveDistance;
+        protected override int MoveDistance => MaxAction - AttackUsed;
         public int AttackRange => WolfConsts.WolfAttackRange;
         public int MaxAction => WolfConsts.WolfMaxAction;
         public int BiteDamage => WolfConsts.WolfBiteDamage;
@@ -173,8 +175,8 @@ namespace MistForest.Core.GameRefactored.Roles
             &&
             AttackUsed + MoveUsed < MaxAction
             && GetView(game) is WolfUnitView view
-            && view.CanBiteGrids.Length > 0
-                && view.CanMoveGrids.Length > 1; ;
+            && (view.CanBiteGrids.Length > 0
+                || view.CanMoveGrids.Length > 1);
         }
         public override UnitView GetView(Game game)
         {
@@ -189,11 +191,7 @@ namespace MistForest.Core.GameRefactored.Roles
         {
             AttackUsed++;
             Grid grid = game.Board.GetGrid(bite.Target)!;
-            game.Events.Add(new WolfBiteEvent
-            {
-                UnitId = Id,
-                Target = bite.Target
-            });
+
             int attackerPlayerId = game.PlayerIdFromUnitId(Id);
 
             Unit[] enemies = grid.Units
@@ -208,6 +206,11 @@ namespace MistForest.Core.GameRefactored.Roles
             foreach (Unit enemy in enemies)
             {
                 enemy.ReceiveDirectDamage(BiteDamage, game);
+
+                game.Events.Add(WolfBiteEvent.New(
+                    unitId: enemy.Id,
+                    biterId: Id
+                ));
             }
         }
         public override void EndRound(Game game)
@@ -241,14 +244,74 @@ namespace MistForest.Core.GameRefactored.Roles
         }
         public override UnitView Clone()
         {
-            WolfUnitView target = new(CanBiteGrids);
+            WolfUnitView target = new((Node[])CanBiteGrids.Clone());
             CloneBase(target);
             return target;
         }
     }
     public class WolfBiteEvent : Event
     {
-        public int UnitId;
-        public Node Target;
+        public int UnitId { get; private set; }
+        public int BiterId { get; private set; }
+        public static WolfBiteEvent New(int unitId, int biterId)
+        {
+            return new() { UnitId = unitId, BiterId = biterId };
+        }
+    }
+    public class WolfUnitBuilder : UnitBuilder
+    {
+        private int _attackRange;
+        public override Unit? Build()
+        {
+            if (Built is not null)
+            {
+                return Built;
+            }
+            if (Id is not int id || RoleId is not int roleId || Position is not Node position)
+            {
+                return null;
+            }
+            Built = WolfUnit.New(id, roleId, position);
+            return Built;
+        }
+    }
+    public class WolfBuilder : RoleBuilder
+    {
+        public Node Position { get; private set; }
+        private WolfBuilder(UnitBuilder[] unitBuilder) : base(unitBuilder) { }
+        public static WolfBuilder? New(UnitBuilder[] unitBuilder, Node position)
+        {
+            if (unitBuilder.Length != 1 || unitBuilder[0] is not WolfUnitBuilder)
+            {
+                return null;
+            }
+            return new(unitBuilder) { Position = position };
+        }
+        public override bool CanInitialStay(Board board)
+        {
+            if (board.GetGrid(Position) is not Grid grid)
+            {
+                return false;
+            }
+            return grid.CanInitialStay();
+        }
+        public override Role? Build()
+        {
+            if (Built is not null)
+            {
+                return Built;
+            }
+            if (Id is not int id)
+            {
+                return null;
+            }
+            if (PlayerId is not int playerId)
+            {
+                return null;
+            }
+            UnitBuilder[0].SetPosition(Position);
+            Built = Wolf.New(id, playerId, (WolfUnit)UnitBuilder[0].Build()!);
+            return Built;
+        }
     }
 }
