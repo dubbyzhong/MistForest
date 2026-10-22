@@ -42,8 +42,9 @@ namespace MistForest.Core.GameRefactored.Roles
                 GeneralSurrender _ => Unit.CanSurrender(),
                 GeneralBuildFort buildFort => Unit.CanBuildFort(buildFort, game),
                 GeneralBuildWall buildWall => Unit.CanBuildWall(buildWall, game),
-                SniperExecute execute => Unit.CanExecute(execute, game),
                 GeneralDemolish demolish => Unit.CanDemolish(demolish, game),
+                SniperExecute execute => Unit.CanExecute(execute, game),
+                SniperScout scout => Unit.CanScout(scout, game),
                 _ => false,
             };
         }
@@ -73,6 +74,9 @@ namespace MistForest.Core.GameRefactored.Roles
                     break;
                 case SniperExecute execute:
                     Unit.SniperExecute(execute, game);
+                    break;
+                case SniperScout scout:
+                    Unit.SniperScout(scout, game);
                     break;
             }
         }
@@ -170,6 +174,20 @@ namespace MistForest.Core.GameRefactored.Roles
                 .Any(node => node == execute.Target);
         }
 
+        internal bool CanScout(SniperScout scout, Game game)
+        {
+            if (Acted)
+            {
+                return false;
+            }
+            return scout switch
+            {
+                SniperScoutRow scoutRow => scoutRow.Row >= 1 && scoutRow.Row <= game.Board.Height,
+                SniperScoutCol scoutCol => scoutCol.Col >= 1 && scoutCol.Col <= game.Board.Width,
+                _ => throw new NotImplementedException(),
+            };
+        }
+
         public override bool HasActionLeft(Game game)
         {
             return base.HasActionLeft(game)
@@ -225,6 +243,65 @@ namespace MistForest.Core.GameRefactored.Roles
             }
         }
 
+        public void SniperScout(SniperScout scout, Game game)
+        {
+            Acted = true;
+            End = true;
+            if (scout is SniperScoutRow scoutRow)
+            {
+                game.Events.Add(
+                    ScoutRowEvent.New(
+                        Id,
+                        success: (1..(game.Board.Width + 1))
+                            .AsValueEnumerable()
+                            .Any(y =>
+                                game.Board.GetGrid(game.Board.At(scoutRow.Row, y)!.Value)!
+                                    .Units.AsValueEnumerable()
+                                    .Any(unit =>
+                                        game.IsPlayerAllied(
+                                            game.PlayerIdFromUnitId(Id),
+                                            game.PlayerIdFromUnitId(unit)
+                                        )
+                                            is false
+                                    )
+                            ),
+                        scoutRow.Row
+                    )
+                );
+            }
+            else if (scout is SniperScoutCol scoutCol)
+            {
+                game.Events.Add(
+                    ScoutColEvent.New(
+                        Id,
+                        success: (1..(game.Board.Height + 1))
+                            .AsValueEnumerable()
+                            .Any(x =>
+                                game.Board.GetGrid(game.Board.At(x, scoutCol.Col)!.Value)!
+                                    .Units.AsValueEnumerable()
+                                    .Any(unit =>
+                                        game.IsPlayerAllied(
+                                            game.PlayerIdFromUnitId(Id),
+                                            game.PlayerIdFromUnitId(unit)
+                                        )
+                                            is false
+                                    )
+                            ),
+                        scoutCol.Col
+                    )
+                );
+            }
+            else
+            {
+                throw new NotImplementedException();
+            }
+        }
+
+        public override void EndRound(Game game)
+        {
+            ExecuteUsed = false;
+            base.EndRound(game);
+        }
     }
 
     public class SniperUnitView : UnitView
@@ -274,6 +351,28 @@ namespace MistForest.Core.GameRefactored.Roles
         public static SniperExecute New(int callerUnitId, Node target)
         {
             return new() { CallerUnitId = callerUnitId, Target = target };
+        }
+    }
+
+    public abstract class SniperScout : Action, ISniperAction, IScoutOnlyAction { }
+
+    public class SniperScoutRow : SniperScout
+    {
+        public int Row { get; private set; }
+
+        public static SniperScoutRow New(int callerUnitId, int row)
+        {
+            return new() { CallerUnitId = callerUnitId, Row = row };
+        }
+    }
+
+    public class SniperScoutCol : SniperScout
+    {
+        public int Col { get; private set; }
+
+        public static SniperScoutCol New(int callerUnitId, int column)
+        {
+            return new() { CallerUnitId = callerUnitId, Col = column };
         }
     }
 
@@ -355,6 +454,42 @@ namespace MistForest.Core.GameRefactored.Roles
         public static ExecuteEvent New(int unitId, int executorId)
         {
             return new() { UnitId = unitId, ExecutorId = executorId };
+        }
+    }
+
+    public abstract class ScoutEvent : Event
+    {
+        public int UnitId { get; private set; }
+        public bool Success { get; private set; }
+
+        protected static void NewBase(ScoutEvent target, int unitId, bool success)
+        {
+            target.UnitId = unitId;
+            target.Success = success;
+        }
+    }
+
+    public class ScoutRowEvent : ScoutEvent
+    {
+        public int Row { get; private set; }
+
+        public static ScoutRowEvent New(int unitId, bool success, int row)
+        {
+            ScoutRowEvent target = new() { Row = row };
+            NewBase(target, unitId, success);
+            return target;
+        }
+    }
+
+    public class ScoutColEvent : ScoutEvent
+    {
+        public int Col { get; private set; }
+
+        public static ScoutColEvent New(int unitId, bool success, int column)
+        {
+            ScoutColEvent target = new() { Col = column };
+            NewBase(target, unitId, success);
+            return target;
         }
     }
 }

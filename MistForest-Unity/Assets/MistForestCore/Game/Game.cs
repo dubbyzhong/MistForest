@@ -188,7 +188,11 @@ namespace MistForest.Core.GameRefactored
             if (
                 caller.Alive is false
                 || caller.HasAction(action) is false
-                || _mode is GameMode.Scout && action is not IScoutAction
+                || _mode switch
+                {
+                    GameMode.Scout => action is not IScoutAction,
+                    _ => action is IScoutOnlyAction,
+                }
             )
             {
                 return false;

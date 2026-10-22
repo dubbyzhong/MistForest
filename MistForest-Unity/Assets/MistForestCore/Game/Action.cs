@@ -16,6 +16,8 @@ namespace MistForest.Core.GameRefactored
 
     public interface IScoutAction { }
 
+    public interface IScoutOnlyAction: IScoutAction { }
+
     public class GeneralMove : Action, IScoutAction, ISniperAction, IWolfAction
     {
         public Node Target { get; private set; }
