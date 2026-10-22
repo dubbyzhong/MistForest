@@ -170,8 +170,7 @@ namespace MistForest.Core.GameRefactored
             }
 
             if (
-                game.Board.GetGrid(Position)!.GridBuilding is int buildingId
-                && game.Buildings[buildingId] is not Building.Rubble
+                game.Board.GetGrid(Position)!.HasBlockingBuilding(game)
             )
             {
                 return false;

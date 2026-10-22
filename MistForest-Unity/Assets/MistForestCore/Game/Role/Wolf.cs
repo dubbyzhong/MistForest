@@ -145,7 +145,7 @@ namespace MistForest.Core.GameRefactored.Roles
                     Grid grid = game.Board.GetGrid(entry.node)!;
 
                     return (grid.Terrain is Terrain.Ground or Terrain.Whirlpool)
-                        && grid.CanShot(game)
+                        && !grid.HasBlockingBuilding(game)
                         && game.Board.CanLineShot(
                             Position,
                             entry.node,
@@ -194,11 +194,6 @@ namespace MistForest.Core.GameRefactored.Roles
                 UnitId = Id,
                 Target = bite.Target
             });
-            if (grid.GridBuilding is int buildingId
-        && game.Buildings[buildingId] is not Building.Rubble)
-            {
-                return;
-            }
             int attackerPlayerId = game.PlayerIdFromUnitId(Id);
 
             Unit[] enemies = grid.Units
