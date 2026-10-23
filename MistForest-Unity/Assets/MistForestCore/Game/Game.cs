@@ -251,6 +251,10 @@ namespace MistForest.Core.GameRefactored
                 {
                     unit.EndRound(this);
                 }
+                foreach (Building building in Buildings)
+                {
+                    building.EndRound();
+                }
             }
             _gameState = CheckVictory();
             if (_isGameOver)

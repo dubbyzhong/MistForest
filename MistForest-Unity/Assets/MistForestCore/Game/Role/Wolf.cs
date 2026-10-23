@@ -145,12 +145,7 @@ namespace MistForest.Core.GameRefactored.Roles
 
         internal bool CanBite(WolfBite bite, Game game)
         {
-            if (AttackUsed + MoveUsed >= MaxAction)
-            {
-                return false;
-            }
-
-            return BiteNodes(game).AsValueEnumerable().Any(node => node == bite.Target);
+            return Alive && !End && AttackUsed + MoveUsed < MaxAction && BiteNodes(game).AsValueEnumerable().Any(node => node == bite.Target);
         }
 
         public override bool HasActionLeft(Game game)
@@ -199,9 +194,12 @@ namespace MistForest.Core.GameRefactored.Roles
             foreach (Unit enemy in enemies)
             {
                 enemy.ReceiveDirectDamage(BiteDamage, game);
-
-                game.Events.Add(WolfBiteEvent.New(unitId: enemy.Id, biterId: Id));
             }
+            game.Events.Add(WolfBiteEvent.New(
+                attackerId: Id,
+                unitIds: enemies.AsValueEnumerable().Select(unit => unit.Id).ToArray(),
+                buildingId: null,
+                target: bite.Target));
         }
 
         public override void EndRound(Game game)
@@ -232,11 +230,7 @@ namespace MistForest.Core.GameRefactored.Roles
                 return null;
             }
             WolfUnitView target = new(canBiteGridsArray);
-            return NewBase(target, canMoveGrids, canBuildFortGrids, canBuildWallGrids) switch
-            {
-                false => null,
-                true => target,
-            };
+            return NewBase(target, canMoveGrids, canBuildFortGrids, canBuildWallGrids) ? target : null;
         }
 
         public override UnitView Clone()
@@ -247,14 +241,14 @@ namespace MistForest.Core.GameRefactored.Roles
         }
     }
 
-    public class WolfBiteEvent : Event
+    public class WolfBiteEvent : AttackEvent
     {
-        public int UnitId { get; private set; }
-        public int BiterId { get; private set; }
+        private WolfBiteEvent(int attackerId, int[] unitIds, int? buildingId, Node target)
+            : base(attackerId, unitIds, buildingId, target) { }
 
-        public static WolfBiteEvent New(int unitId, int biterId)
+        public static WolfBiteEvent New(int attackerId, int[] unitIds, int? buildingId, Node target)
         {
-            return new() { UnitId = unitId, BiterId = biterId };
+            return new(attackerId, unitIds, buildingId, target);
         }
     }
 
@@ -293,11 +287,7 @@ namespace MistForest.Core.GameRefactored.Roles
 
         public override bool CanInitialStay(Board board)
         {
-            if (board.GetGrid(Position) is not Grid grid)
-            {
-                return false;
-            }
-            return grid.CanInitialStay();
+            return board.GetGrid(Position) is Grid grid && grid.CanInitialStay();
         }
 
         public override Role? Build()
@@ -315,7 +305,11 @@ namespace MistForest.Core.GameRefactored.Roles
                 return null;
             }
             UnitBuilder[0].SetPosition(Position);
-            Built = Wolf.New(id, playerId, (WolfUnit)UnitBuilder[0].Build()!);
+            if (UnitBuilder[0].Build() is not WolfUnit unit)
+            {
+                return null;
+            }
+            Built = Wolf.New(id, playerId, unit);
             return Built;
         }
     }

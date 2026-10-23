@@ -97,7 +97,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
         }
 
         [Fact]
-        public static void WolfBite_DamagesEveryEnemyOnTargetAndAddsOneEventPerEnemy()
+        public static void WolfBite_DamagesEveryEnemyOnTargetAndAggregatesVictimsIntoOneEvent()
         {
             Game game = MakeWolfGame((3, 2), (3, 3), (3, 3));
             Board.Node target = game.Board.At(3, 3)!.Value;
@@ -113,10 +113,28 @@ namespace MistForest.Core.Tests.Refactored.Roles
                 WolfConsts.WolfHealth - WolfConsts.WolfBiteDamage,
                 game.GetUnit(2)!.Health
             );
-            Assert.Equal(new[] { 1, 2 }, game.Events.OfType<WolfBiteEvent>().Select(e => e.UnitId));
-            Assert.All(game.Events.Cast<WolfBiteEvent>(), e => Assert.Equal(0, e.BiterId));
+            WolfBiteEvent biteEvent = Assert.IsType<WolfBiteEvent>(Assert.Single(game.Events));
+            Assert.Equal(new[] { 1, 2 }, biteEvent.UnitIds);
+            Assert.Equal(0, biteEvent.AttackerId);
+            Assert.Null(biteEvent.BuildingId);
+            Assert.Equal(target, biteEvent.Target);
             Assert.Equal(0, game.CurrentPlayerId);
             Assert.True(game.Roles[0].HasActionLeft(game));
+        }
+
+        [Fact]
+        public static void WolfBite_EmptyTarget_RecordsOneEventWithNoVictimsOrBuilding()
+        {
+            Game game = MakeWolfGame((3, 2), (7, 7));
+            Board.Node target = game.Board.At(3, 3)!.Value;
+
+            Assert.True(game.ExecuteAction(WolfBite.New(0, target)));
+
+            WolfBiteEvent biteEvent = Assert.IsType<WolfBiteEvent>(Assert.Single(game.Events));
+            Assert.Equal(0, biteEvent.AttackerId);
+            Assert.Empty(biteEvent.UnitIds);
+            Assert.Null(biteEvent.BuildingId);
+            Assert.Equal(target, biteEvent.Target);
         }
 
         [Fact]
@@ -132,8 +150,10 @@ namespace MistForest.Core.Tests.Refactored.Roles
                 game.GetUnit(2)!.Health
             );
             WolfBiteEvent biteEvent = Assert.IsType<WolfBiteEvent>(Assert.Single(game.Events));
-            Assert.Equal(2, biteEvent.UnitId);
-            Assert.Equal(0, biteEvent.BiterId);
+            Assert.Equal(new[] { 2 }, biteEvent.UnitIds);
+            Assert.Equal(0, biteEvent.AttackerId);
+            Assert.Null(biteEvent.BuildingId);
+            Assert.Equal(game.Board.At(3, 3)!.Value, biteEvent.Target);
         }
 
         [Fact]

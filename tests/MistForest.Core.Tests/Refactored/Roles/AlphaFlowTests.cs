@@ -8,8 +8,7 @@ using static MistForest.Core.GameRefactored.PlayerBuilder;
 
 namespace MistForest.Core.Tests.Refactored.Roles
 {
-    // These tests exercise the reusable role logic directly. Full Game.ExecuteAction
-    // integration is pending the general actions opting into IAlphaAction.
+    // Tests cover reusable role logic and general actions through Game.ExecuteAction.
     public class AlphaFlowTests
     {
         private static Game MakeGame()
@@ -44,6 +43,56 @@ namespace MistForest.Core.Tests.Refactored.Roles
             GeneralMove move = GeneralMove.New(role.Unit.Id, game.Board.At(row, col)!.Value);
             Assert.True(role.JudgeAction(move, game));
             role.ExecuteAction(move, game);
+        }
+
+        [Fact]
+        public static void ExecuteAction_SplitMovement_UpdatesBoardAndAutomaticallyEndsTurn()
+        {
+            Game game = MakeGame();
+            Alpha role = GetAlpha(game);
+            Board.Node from = role.Unit.Position;
+            Board.Node middle = game.Board.At(3, 4)!.Value;
+            Board.Node target = game.Board.At(3, 5)!.Value;
+
+            Assert.True(game.ExecuteAction(GeneralMove.New(role.Unit.Id, middle)));
+            Assert.Equal(0, game.CurrentPlayerId);
+            Assert.False(role.IsFirstAction);
+            Assert.Empty(game.Board.GetGrid(from)!.Units);
+            Assert.Contains(role.Unit.Id, game.Board.GetGrid(middle)!.Units);
+
+            Assert.True(game.ExecuteAction(GeneralMove.New(role.Unit.Id, target)));
+            Assert.Equal(1, game.CurrentPlayerId);
+            Assert.Empty(game.Board.GetGrid(middle)!.Units);
+            Assert.Contains(role.Unit.Id, game.Board.GetGrid(target)!.Units);
+            Assert.Collection(game.Events,
+                first => Assert.Equal(new[] { from, middle },
+                    Assert.IsType<GeneralMoveEvent>(first).Path),
+                second => Assert.Equal(new[] { middle, target },
+                    Assert.IsType<GeneralMoveEvent>(second).Path));
+
+            Assert.False(game.ExecuteAction(GeneralMove.New(role.Unit.Id, middle)));
+            Assert.Equal(2, game.Events.Count);
+        }
+
+        [Fact]
+        public static void ExecuteAction_InvalidMoveAndUnsupportedAction_DoNotConsumeFirstAction()
+        {
+            Game game = MakeGame();
+            Alpha role = GetAlpha(game);
+            Board.Node from = role.Unit.Position;
+            Board.Node target = game.Board.At(2, 3)!.Value;
+
+            Assert.False(game.ExecuteAction(
+                GeneralMove.New(role.Unit.Id, game.Board.At(3, 6)!.Value)));
+            Assert.False(game.ExecuteAction(WolfBite.New(role.Unit.Id, target)));
+            Assert.True(role.IsFirstAction);
+            Assert.Equal(from, role.Unit.Position);
+            Assert.Empty(game.Events);
+            Assert.Equal(0, game.CurrentPlayerId);
+
+            Assert.True(game.ExecuteAction(GeneralBuildFort.New(role.Unit.Id, target)));
+            Assert.IsType<Building.Fort>(Assert.Single(game.Buildings));
+            Assert.Equal(1, game.CurrentPlayerId);
         }
 
         [Fact]
@@ -171,10 +220,10 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Equal(originalWall, view.CanBuildWallGrids[0]);
 
             GeneralBuildFort build = GeneralBuildFort.New(0, game.Board.At(2, 3)!.Value);
-            Assert.True(role.JudgeAction(build, game));
-            role.ExecuteAction(build, game);
+            Assert.True(game.ExecuteAction(build));
 
             Assert.True(role.Unit.End);
+            Assert.Equal(1, game.CurrentPlayerId);
             Assert.False(role.HasActionLeft(game));
             Assert.False(role.JudgeAction(GeneralMove.New(0, game.Board.At(3, 4)!.Value), game));
             Assert.Empty(role.Unit.GetView(game).CanMoveGrids);
@@ -189,14 +238,14 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Board.Node target = game.Board.At(2, 3)!.Value;
             GeneralBuildWall build = GeneralBuildWall.New(0, new[] { target })!;
 
-            Assert.True(role.JudgeAction(build, game));
-            role.ExecuteAction(build, game);
+            Assert.True(game.ExecuteAction(build));
 
             Building.Wall wall = Assert.IsType<Building.Wall>(game.Buildings.Single());
             Assert.Equal(target, wall.Pos);
             Assert.Equal(0, wall.Owner);
             Assert.False(role.HasActionLeft(game));
             Assert.False(role.IsFirstAction);
+            Assert.Equal(1, game.CurrentPlayerId);
         }
 
         [Fact]
@@ -209,15 +258,17 @@ namespace MistForest.Core.Tests.Refactored.Roles
             game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(2)!.SetPos(allied)!);
             game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(2)!.SetPos(enemy)!);
 
-            Assert.False(role.JudgeAction(GeneralDemolish.New(0, enemy), game));
+            Assert.False(game.ExecuteAction(GeneralDemolish.New(0, enemy)));
+            Assert.True(role.IsFirstAction);
+            Assert.Empty(game.Events);
             GeneralDemolish demolish = GeneralDemolish.New(0, allied);
-            Assert.True(role.JudgeAction(demolish, game));
-            role.ExecuteAction(demolish, game);
+            Assert.True(game.ExecuteAction(demolish));
 
             Assert.IsType<Building.Rubble>(game.Buildings[0]);
             Assert.IsType<Building.Fort>(game.Buildings[1]);
             Assert.False(role.HasActionLeft(game));
             Assert.IsType<GeneralDemolishEvent>(Assert.Single(game.Events));
+            Assert.Equal(1, game.CurrentPlayerId);
         }
 
         [Fact]
@@ -226,17 +277,17 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Game game = MakeGame();
             Alpha role = GetAlpha(game);
             GeneralEnd end = GeneralEnd.New(0);
-            Assert.True(role.JudgeAction(end, game));
-            role.ExecuteAction(end, game);
+            Assert.True(game.ExecuteAction(end));
             Assert.False(role.HasActionLeft(game));
             Assert.True(role.Unit.Alive);
+            Assert.Equal(1, game.CurrentPlayerId);
+            Assert.IsType<GeneralEndEvent>(Assert.Single(game.Events));
 
             game = MakeGame();
             role = GetAlpha(game);
             Board.Node position = role.Unit.Position;
             GeneralSurrender surrender = GeneralSurrender.New(0);
-            Assert.True(role.JudgeAction(surrender, game));
-            role.ExecuteAction(surrender, game);
+            Assert.True(game.ExecuteAction(surrender));
             Assert.False(game.Players[0].Alive);
             Assert.True(game.Players[1].Alive);
             Assert.Empty(game.Board.GetGrid(position)!.Units);

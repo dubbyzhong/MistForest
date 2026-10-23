@@ -148,8 +148,63 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Empty(board.GetGrid(target)!.Units);
             Assert.False(game.GetUnit(0)!.HasActionLeft(game));
             ExecuteEvent executeEvent = Assert.IsType<ExecuteEvent>(Assert.Single(game.Events));
-            Assert.Equal(1, executeEvent.UnitId);
-            Assert.Equal(0, executeEvent.ExecutorId);
+            Assert.Equal(new[] { 1 }, executeEvent.UnitIds);
+            Assert.Equal(0, executeEvent.AttackerId);
+            Assert.Null(executeEvent.BuildingId);
+            Assert.Equal(target, executeEvent.Target);
+        }
+
+        [Fact]
+        public static void SniperExecute_AlliedBuilding_IsNotRecordedAsAnAttackedBuilding()
+        {
+            Game game = MakeSniperGame(2, 2);
+            Board.Node target = game.Board.At(2, 3)!.Value;
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(1)!.SetPos(target)!);
+
+            Assert.True(game.ExecuteAction(SniperExecute.New(0, target)));
+
+            ExecuteEvent executeEvent = Assert.IsType<ExecuteEvent>(Assert.Single(game.Events));
+            Assert.Equal(0, executeEvent.AttackerId);
+            Assert.Empty(executeEvent.UnitIds);
+            Assert.Null(executeEvent.BuildingId);
+            Assert.Equal(target, executeEvent.Target);
+            Assert.IsType<Building.Fort>(game.Buildings[0]);
+        }
+
+        [Theory]
+        [InlineData(0, false)]
+        [InlineData(0, true)]
+        [InlineData(1, true)]
+        [InlineData(2, true)]
+        public static void SniperExecute_AggregatesUnitsAndBuildingIntoOneEvent(int victimCount, bool withBuilding)
+        {
+            Game game = MakeSniperGame(2, 2,
+                opponentX: victimCount > 0 ? 2 : 5,
+                opponentY: victimCount > 0 ? 3 : 5,
+                thirdX: victimCount > 1 ? 2 : 5,
+                thirdY: victimCount > 1 ? 3 : 1);
+            Board.Node target = game.Board.At(2, 3)!.Value;
+            if (withBuilding)
+            {
+                game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(5)!.SetPos(target)!);
+            }
+
+            Assert.True(game.ExecuteAction(SniperExecute.New(0, target)));
+
+            ExecuteEvent executeEvent = Assert.IsType<ExecuteEvent>(Assert.Single(game.Events));
+            Assert.Equal(0, executeEvent.AttackerId);
+            Assert.Equal(Enumerable.Range(1, victimCount), executeEvent.UnitIds);
+            Assert.Equal(withBuilding ? (int?)0 : null, executeEvent.BuildingId);
+            Assert.Equal(target, executeEvent.Target);
+            foreach (int unitId in executeEvent.UnitIds)
+            {
+                Assert.False(game.GetUnit(unitId)!.Alive);
+            }
+            Assert.Empty(game.Board.GetGrid(target)!.Units);
+            if (withBuilding)
+            {
+                Assert.IsType<Building.Rubble>(game.Buildings[0]);
+            }
         }
 
         [Fact]

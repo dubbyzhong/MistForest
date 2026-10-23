@@ -10,6 +10,7 @@ namespace MistForest.Core.GameMap
         public Node Pos;
         public int Owner;
         public int Health;
+        public int HighestDirectDamage { get; private set; }
 
         protected Building() { }
 
@@ -25,6 +26,26 @@ namespace MistForest.Core.GameMap
             Health = 0;
             Rubble rubble = Rubble.New(Id, Pos, owner: destroyer);
             game.Buildings[Id] = rubble;
+        }
+
+        internal void ReceiveDirectDamage(int strength, Game game, int destroyer)
+        {
+            if (Health <= 0 || strength <= HighestDirectDamage)
+            {
+                return;
+            }
+            int damage = strength - HighestDirectDamage;
+            HighestDirectDamage = strength;
+            Health = System.Math.Max(0, Health - damage);
+            if (Health == 0)
+            {
+                Destroyed(game, destroyer);
+            }
+        }
+
+        internal void EndRound()
+        {
+            HighestDirectDamage = 0;
         }
 
         public class Fort : Building

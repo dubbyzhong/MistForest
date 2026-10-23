@@ -5,6 +5,22 @@ namespace MistForest.Core.GameRefactored
 {
     public abstract class Event { }
 
+    public abstract class AttackEvent : Event
+    {
+        public int AttackerId { get; }
+        public int[] UnitIds { get; }
+        public int? BuildingId { get; }
+        public Node Target { get; }
+
+        protected AttackEvent(int attackerId, int[] unitIds, int? buildingId, Node target)
+        {
+            AttackerId = attackerId;
+            UnitIds = (int[])unitIds.Clone();
+            BuildingId = buildingId;
+            Target = target;
+        }
+    }
+
     public class GeneralMoveEvent : Event
     {
         public int UnitId;

@@ -2,12 +2,44 @@ using System;
 using MistForest.Core.Consts;
 using MistForest.Core.GameMap;
 using MistForest.Core.Utils;
+using ZLinq;
 using static MistForest.Core.GameMap.Board;
 using static MistForest.Core.GameRefactored.PlayerBuilder;
 
 namespace MistForest.Core.GameRefactored.Roles
 {
     public interface IAlphaAction { }
+
+    public class AlphaAttack : Action, IAlphaAction
+    {
+        public Node Target { get; private set; }
+
+        public static AlphaAttack New(int callerUnitId, Node target)
+        {
+            return new() { CallerUnitId = callerUnitId, Target = target };
+        }
+    }
+
+    public class AlphaAttackRush : Action, IAlphaAction
+    {
+        public Node Target { get; private set; }
+
+        public static AlphaAttackRush New(int callerUnitId, Node target)
+        {
+            return new() { CallerUnitId = callerUnitId, Target = target };
+        }
+    }
+
+    public class AlphaAttackEvent : AttackEvent
+    {
+        private AlphaAttackEvent(int attackerId, int[] unitIds, int? buildingId, Node target)
+            : base(attackerId, unitIds, buildingId, target) { }
+
+        public static AlphaAttackEvent New(int attackerId, int[] unitIds, int? buildingId, Node target)
+        {
+            return new(attackerId, unitIds, buildingId, target);
+        }
+    }
 
     public class Alpha : Role
     {
@@ -38,6 +70,8 @@ namespace MistForest.Core.GameRefactored.Roles
             return action switch
             {
                 GeneralMove move => Unit.CanMove(move, game),
+                AlphaAttack attack => Unit.CanAttack(attack, game),
+                AlphaAttackRush rush => Unit.CanAttackRush(rush, game),
                 GeneralEnd _ => Unit.CanEnd(),
                 GeneralSurrender _ => Unit.CanSurrender(),
                 GeneralBuildFort buildFort => Unit.CanBuildFort(buildFort, game),
@@ -54,6 +88,12 @@ namespace MistForest.Core.GameRefactored.Roles
             {
                 case GeneralMove move:
                     Unit.GeneralMove(move, game);
+                    break;
+                case AlphaAttack attack:
+                    Unit.AlphaAttack(attack, game);
+                    break;
+                case AlphaAttackRush rush:
+                    Unit.AlphaAttackRush(rush, game);
                     break;
                 case GeneralEnd end:
                     Unit.GeneralEnd(end, game);
@@ -82,6 +122,7 @@ namespace MistForest.Core.GameRefactored.Roles
     {
         protected override int MoveDistance => AlphaConsts.AlphaMoveDistance;
         public override int AttackRange => AlphaConsts.AlphaAttackRange;
+        public int AttackDamage => AlphaConsts.AlphaAttackDamage;
 
         private AlphaUnit() { }
 
@@ -106,6 +147,92 @@ namespace MistForest.Core.GameRefactored.Roles
             return AttackUsed == 0 && base.CanMove(move, game);
         }
 
+        internal Node[] AttackNodes(Game game)
+        {
+            return FarAttackNodes(game)
+                .AsValueEnumerable()
+                .Where(node => node != Position)
+                .ToArray();
+        }
+
+        internal bool CanAttack(AlphaAttack attack, Game game)
+        {
+            return CanAttack(attack.Target, game);
+        }
+
+        private bool CanAttack(Node target, Game game)
+        {
+            return Alive && !End && MoveUsed == 0 && AttackUsed == 0
+                && AttackNodes(game).AsValueEnumerable().Any(node => node == target);
+        }
+
+        internal Node[] AttackRushNodes(Game game)
+        {
+            int playerId = game.PlayerIdFromUnitId(Id);
+            return AttackNodes(game)
+                .AsValueEnumerable()
+                .Where(node => game.Board.GetGrid(node)!.CanStay(playerId, game))
+                .ToArray();
+        }
+
+        internal bool CanAttackRush(AlphaAttackRush rush, Game game)
+        {
+            return CanAttack(rush.Target, game)
+                && game.Board.GetGrid(rush.Target)!.CanStay(game.PlayerIdFromUnitId(Id), game);
+        }
+
+        internal void AlphaAttack(AlphaAttack attack, Game game)
+        {
+            ExecuteAttack(attack.Target, game);
+        }
+
+        internal void AlphaAttackRush(AlphaAttackRush rush, Game game)
+        {
+            Node from = Position;
+            ChangePos(rush.Target, game);
+            game.Events.Add(GeneralMoveEvent.New(Id, new[] { from, rush.Target }));
+            ExecuteAttack(rush.Target, game);
+        }
+
+        private void ExecuteAttack(Node target, Game game)
+        {
+            ++AttackUsed;
+            End = true;
+            Grid grid = game.Board.GetGrid(target)!;
+            int attackerPlayerId = game.PlayerIdFromUnitId(Id);
+            int? attackedBuildingId = null;
+            Unit[] enemies = Array.Empty<Unit>();
+
+            // A standing building shields units even when this attack destroys it.
+            if (grid.HasBlockingBuilding(game))
+            {
+                Building building = game.Buildings[grid.GridBuilding!.Value];
+                if (!game.IsPlayerAllied(attackerPlayerId, building.Owner))
+                {
+                    attackedBuildingId = building.Id;
+                    building.ReceiveDirectDamage(AttackDamage, game, attackerPlayerId);
+                }
+            }
+            else
+            {
+                enemies = grid.Units
+                    .AsValueEnumerable()
+                    .Select(unitId => game.GetUnit(unitId)!)
+                    .Where(unit => unit.Alive
+                        && !game.IsPlayerAllied(attackerPlayerId, game.PlayerIdFromUnitId(unit.Id)))
+                    .ToArray();
+                foreach (Unit enemy in enemies)
+                {
+                    enemy.ReceiveDirectDamage(AttackDamage, game);
+                }
+            }
+            game.Events.Add(AlphaAttackEvent.New(
+                attackerId: Id,
+                unitIds: enemies.AsValueEnumerable().Select(unit => unit.Id).ToArray(),
+                buildingId: attackedBuildingId,
+                target: target));
+        }
+
         public override bool HasActionLeft(Game game)
         {
             if (!Alive || !base.HasActionLeft(game))
@@ -113,9 +240,11 @@ namespace MistForest.Core.GameRefactored.Roles
                 return false;
             }
 
-            // TODO: Include attack and Blood availability when those mechanics are added.
-            UnitView view = GetView(game);
+            // TODO: Include Blood availability when that mechanic is added.
+            AlphaUnitView view = (AlphaUnitView)GetView(game);
             return view.CanMoveGrids.Length > 0
+                || view.CanAttackGrids.Length > 0
+                || view.CanAttackRushGrids.Length > 0
                 || view.CanBuildFortGrids.Length > 0
                 || view.CanBuildWallGrids.Length > 0;
         }
@@ -124,6 +253,7 @@ namespace MistForest.Core.GameRefactored.Roles
         {
             bool active = Alive && !End;
             bool canMove = active && AttackUsed == 0 && MoveUsed < MoveDistance;
+            bool canAttack = active && MoveUsed == 0 && AttackUsed == 0;
             bool canBuild = active && IsFirstAction
                 && !game.Board.GetGrid(Position)!.HasBlockingBuilding(game);
 
@@ -131,6 +261,8 @@ namespace MistForest.Core.GameRefactored.Roles
                 canMoveGrids: Box.New(canMove
                     ? MoveEntries(game)
                     : Array.Empty<(Node node, int distance, Node? lastNode)>()),
+                canAttackGrids: Box.New(canAttack ? AttackNodes(game) : Array.Empty<Node>()),
+                canAttackRushGrids: Box.New(canAttack ? AttackRushNodes(game) : Array.Empty<Node>()),
                 canBuildFortGrids: Box.New(canBuild ? BuildFortNodes(game) : Array.Empty<Node>()),
                 canBuildWallGrids: Box.New(canBuild ? BuildWallNodes(game) : Array.Empty<Node>())
             )!;
@@ -139,16 +271,33 @@ namespace MistForest.Core.GameRefactored.Roles
 
     public class AlphaUnitView : UnitView
     {
-        private AlphaUnitView()
-            : base(null!, null!, null!) { }
+        public Node[] CanAttackGrids { get; private set; }
+        public Node[] CanAttackRushGrids { get; private set; }
+
+        private AlphaUnitView(Node[] canAttackGrids, Node[] canAttackRushGrids)
+            : base(null!, null!, null!)
+        {
+            CanAttackGrids = canAttackGrids;
+            CanAttackRushGrids = canAttackRushGrids;
+        }
 
         public static AlphaUnitView? New(
             Box<(Node node, int distance, Node? lastNode)[]> canMoveGrids,
+            Box<Node[]> canAttackGrids,
+            Box<Node[]> canAttackRushGrids,
             Box<Node[]> canBuildFortGrids,
             Box<Node[]> canBuildWallGrids
         )
         {
-            AlphaUnitView target = new();
+            if (canAttackGrids.TryTake() is not Node[] attackGrids)
+            {
+                return null;
+            }
+            if (canAttackRushGrids.TryTake() is not Node[] attackRushGrids)
+            {
+                return null;
+            }
+            AlphaUnitView target = new(attackGrids, attackRushGrids);
             return NewBase(target, canMoveGrids, canBuildFortGrids, canBuildWallGrids)
                 ? target
                 : null;
@@ -156,7 +305,8 @@ namespace MistForest.Core.GameRefactored.Roles
 
         public override UnitView Clone()
         {
-            AlphaUnitView target = new();
+            AlphaUnitView target = new(
+                (Node[])CanAttackGrids.Clone(), (Node[])CanAttackRushGrids.Clone());
             CloneBase(target);
             return target;
         }
