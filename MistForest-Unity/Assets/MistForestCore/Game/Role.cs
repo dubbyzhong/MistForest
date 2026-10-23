@@ -65,6 +65,7 @@ namespace MistForest.Core.GameRefactored
         protected int AttackUsed { get; set; }
         protected virtual int MoveDistance { get; set; }
         public bool Alive => Health > 0;
+        public virtual bool CanBeDetected => true;
         public int WhirlpoolImmuneExpire { get; protected set; }
         public bool End { get; protected set; }
         public bool IsFirstAction { get; protected set; } = true;
@@ -497,6 +498,8 @@ namespace MistForest.Core.GameRefactored
                 }
             }
         }
+
+        public virtual void EndTurn(Game game) { }
 
         public virtual void EndRound(Game game)
         {

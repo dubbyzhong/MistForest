@@ -1,9 +1,11 @@
-using System.Collections.Generic;
 using static MistForest.Core.GameMap.Board;
 
 namespace MistForest.Core.GameRefactored
 {
-    public abstract class Event { }
+    public abstract class Event
+    {
+        public virtual bool IsVisibleTo(int playerId) => true;
+    }
 
     public abstract class AttackEvent : Event
     {

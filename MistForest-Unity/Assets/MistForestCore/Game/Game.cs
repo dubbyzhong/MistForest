@@ -226,8 +226,24 @@ namespace MistForest.Core.GameRefactored
             return false;
         }
 
+        public Event[] GetEventsForPlayer(int playerId)
+        {
+            if (playerId < 0 || playerId >= Players.Length)
+            {
+                return Array.Empty<Event>();
+            }
+            return Events.AsValueEnumerable().Where(entry => entry.IsVisibleTo(playerId)).ToArray();
+        }
+
         private void EndTurn()
         {
+            foreach (Unit unit in _units)
+            {
+                if (unit.Alive && PlayerIdFromUnitId(unit.Id) == CurrentPlayerId)
+                {
+                    unit.EndTurn(this);
+                }
+            }
             ++_turnCount;
             _roundActed[CurrentPlayerId] = true;
 

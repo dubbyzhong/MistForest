@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using MistForest.Core.Consts;
 using MistForest.Core.GameMap;
 using MistForest.Core.Utils;
@@ -9,6 +10,46 @@ using static MistForest.Core.GameRefactored.PlayerBuilder;
 namespace MistForest.Core.GameRefactored.Roles
 {
     public interface IAlphaAction { }
+
+    public class AlphaBlood : Action, IAlphaAction
+    {
+        public static AlphaBlood New(int callerUnitId)
+        {
+            return new() { CallerUnitId = callerUnitId };
+        }
+    }
+    //用于公布alpha自身位置
+    public class AlphaBloodEvent : Event
+    {
+        public int UnitId { get; }
+        public Node Position { get; }
+        private AlphaBloodEvent(int unitId, Node position)
+        {
+            UnitId = unitId;
+            Position = position;
+        }
+
+        public static AlphaBloodEvent New(int unitId, Node position) => new(unitId, position);
+    }
+    //用于让alpha看到别人的位置
+    public class AlphaBloodResultEvent : Event
+    {
+        public int PlayerId { get; }
+        public int UnitId { get; }
+        public Node? Target { get; }
+
+        private AlphaBloodResultEvent(int playerId, int unitId, Node? target)
+        {
+            PlayerId = playerId;
+            UnitId = unitId;
+            Target = target;
+        }
+
+        public override bool IsVisibleTo(int playerId) => playerId == PlayerId;
+
+        public static AlphaBloodResultEvent New(int playerId, int unitId, Node? target)
+            => new(playerId, unitId, target);
+    }
 
     public class AlphaAttack : Action, IAlphaAction
     {
@@ -72,6 +113,7 @@ namespace MistForest.Core.GameRefactored.Roles
                 GeneralMove move => Unit.CanMove(move, game),
                 AlphaAttack attack => Unit.CanAttack(attack, game),
                 AlphaAttackRush rush => Unit.CanAttackRush(rush, game),
+                AlphaBlood _ => Unit.CanBlood(),
                 GeneralEnd _ => Unit.CanEnd(),
                 GeneralSurrender _ => Unit.CanSurrender(),
                 GeneralBuildFort buildFort => Unit.CanBuildFort(buildFort, game),
@@ -94,6 +136,9 @@ namespace MistForest.Core.GameRefactored.Roles
                     break;
                 case AlphaAttackRush rush:
                     Unit.AlphaAttackRush(rush, game);
+                    break;
+                case AlphaBlood _:
+                    Unit.AlphaBlood(game);
                     break;
                 case GeneralEnd end:
                     Unit.GeneralEnd(end, game);
@@ -123,6 +168,8 @@ namespace MistForest.Core.GameRefactored.Roles
         protected override int MoveDistance => AlphaConsts.AlphaMoveDistance;
         public override int AttackRange => AlphaConsts.AlphaAttackRange;
         public int AttackDamage => AlphaConsts.AlphaAttackDamage;
+        public int BloodCooldown { get; private set; }
+        private bool _bloodUsedThisTurn;
 
         private AlphaUnit() { }
 
@@ -135,12 +182,76 @@ namespace MistForest.Core.GameRefactored.Roles
 
         public override Unit Clone()
         {
-            AlphaUnit target = new();
+            AlphaUnit target = new()
+            {
+                BloodCooldown = BloodCooldown,
+                _bloodUsedThisTurn = _bloodUsedThisTurn,
+            };
             CloneBase(target);
             return target;
         }
 
         public override bool HasAction(Action action) => action is IAlphaAction;
+
+        internal bool CanBlood() => Alive && !End && IsFirstAction && BloodCooldown == 0;
+
+        internal void AlphaBlood(Game game)
+        {
+            int playerId = game.PlayerIdFromUnitId(Id);
+            Node origin = Position;
+            int nearestDistance = int.MaxValue;
+            List<Node> nearest = new();
+            foreach (Player player in game.Players)
+            {
+                if (game.IsPlayerAllied(playerId, player.Id))
+                {
+                    continue;
+                }
+                foreach (Role role in player.Roles)
+                {
+                    foreach (Unit unit in role.GetUnits())
+                    {
+                        if (!unit.Alive || !unit.CanBeDetected
+                            || game.Board.Distance(origin, unit.Position) is not int distance)
+                        {
+                            continue;
+                        }
+                        if (distance < nearestDistance)
+                        {
+                            nearestDistance = distance;
+                            nearest.Clear();
+                        }
+                        if (distance == nearestDistance)
+                        {
+                            nearest.Add(unit.Position);
+                        }
+                    }
+                }
+            }
+            Node? target = nearest.Count switch
+            {
+                0 => null,
+                1 => nearest[0],
+                _ => nearest[game.Board.Random.NextInt(0, nearest.Count)!.Value],
+            };
+            BloodCooldown = AlphaConsts.AlphaBloodCooldownTurns;
+            _bloodUsedThisTurn = true;
+            game.Events.Add(AlphaBloodEvent.New(Id, origin));
+            game.Events.Add(AlphaBloodResultEvent.New(playerId, Id, target));
+        }
+
+        public override void EndTurn(Game game)
+        {
+            base.EndTurn(game);
+            if (_bloodUsedThisTurn)
+            {
+                _bloodUsedThisTurn = false;
+            }
+            else if (BloodCooldown > 0)
+            {
+                --BloodCooldown;
+            }
+        }
 
         internal override bool CanMove(GeneralMove move, Game game)
         {
@@ -160,16 +271,18 @@ namespace MistForest.Core.GameRefactored.Roles
             return CanAttack(attack.Target, game);
         }
 
+        private bool CanAttack() => Alive && !End && MoveUsed == 0 && AttackUsed == 0;
+
         private bool CanAttack(Node target, Game game)
         {
-            return Alive && !End && MoveUsed == 0 && AttackUsed == 0
+            return CanAttack()
                 && AttackNodes(game).AsValueEnumerable().Any(node => node == target);
         }
 
-        internal Node[] AttackRushNodes(Game game)
+        private Node[] AttackRushNodes(Node[] attackNodes, Game game)
         {
             int playerId = game.PlayerIdFromUnitId(Id);
-            return AttackNodes(game)
+            return attackNodes
                 .AsValueEnumerable()
                 .Where(node => CanRushStay(node, playerId, game))
                 .ToArray();
@@ -181,17 +294,14 @@ namespace MistForest.Core.GameRefactored.Roles
                 && CanRushStay(rush.Target, game.PlayerIdFromUnitId(Id), game);
         }
 
+        // node must already be a legal attack target, including its terrain.
         // Predict entry after the attack without changing the board during validation.
         private bool CanRushStay(Node node, int playerId, Game game)
         {
             Grid grid = game.Board.GetGrid(node)!;
-            if (grid.Terrain is not (Terrain.Ground or Terrain.Whirlpool))
-            {
-                return false;
-            }
             if (!grid.HasBlockingBuilding(game))
             {
-                return grid.CanStay(playerId, game);
+                return true;
             }
             Building building = game.Buildings[grid.GridBuilding!.Value];
             if (game.IsPlayerAllied(playerId, building.Owner))
@@ -265,20 +375,28 @@ namespace MistForest.Core.GameRefactored.Roles
                 return false;
             }
 
-            // TODO: Include Blood availability when that mechanic is added.
             AlphaUnitView view = (AlphaUnitView)GetView(game);
-            return view.CanMoveGrids.Length > 0
+            return view.CanBlood
+                || view.CanMoveGrids.Length > 0
                 || view.CanAttackGrids.Length > 0
-                || view.CanAttackRushGrids.Length > 0
                 || view.CanBuildFortGrids.Length > 0
-                || view.CanBuildWallGrids.Length > 0;
+                || view.CanBuildWallGrids.Length > 0
+                || (IsFirstAction && game.Board
+                    .GetNodesWithinDistance(
+                        Position,
+                        RoleConsts.MaxDemolishRange,
+                        moveDirs: MapConsts.MoveManhattan,
+                        predicate: _ => true)
+                    .AsValueEnumerable()
+                    .Any(entry => CanDemolish(
+                        MistForest.Core.GameRefactored.GeneralDemolish.New(Id, entry.node), game)));
         }
 
         public override UnitView GetView(Game game)
         {
             bool active = Alive && !End;
             bool canMove = active && AttackUsed == 0 && MoveUsed < MoveDistance;
-            bool canAttack = active && MoveUsed == 0 && AttackUsed == 0;
+            Node[] attackNodes = CanAttack() ? AttackNodes(game) : Array.Empty<Node>();
             bool canBuild = active && IsFirstAction
                 && !game.Board.GetGrid(Position)!.HasBlockingBuilding(game);
 
@@ -286,8 +404,10 @@ namespace MistForest.Core.GameRefactored.Roles
                 canMoveGrids: Box.New(canMove
                     ? MoveEntries(game)
                     : Array.Empty<(Node node, int distance, Node? lastNode)>()),
-                canAttackGrids: Box.New(canAttack ? AttackNodes(game) : Array.Empty<Node>()),
-                canAttackRushGrids: Box.New(canAttack ? AttackRushNodes(game) : Array.Empty<Node>()),
+                canAttackGrids: Box.New(attackNodes),
+                canAttackRushGrids: Box.New(AttackRushNodes(attackNodes, game)),
+                canBlood: CanBlood(),
+                bloodCooldown: BloodCooldown,
                 canBuildFortGrids: Box.New(canBuild ? BuildFortNodes(game) : Array.Empty<Node>()),
                 canBuildWallGrids: Box.New(canBuild ? BuildWallNodes(game) : Array.Empty<Node>())
             )!;
@@ -298,6 +418,8 @@ namespace MistForest.Core.GameRefactored.Roles
     {
         public Node[] CanAttackGrids { get; private set; }
         public Node[] CanAttackRushGrids { get; private set; }
+        public bool CanBlood { get; private set; }
+        public int BloodCooldown { get; private set; }
 
         private AlphaUnitView(Node[] canAttackGrids, Node[] canAttackRushGrids)
             : base(null!, null!, null!)
@@ -310,6 +432,8 @@ namespace MistForest.Core.GameRefactored.Roles
             Box<(Node node, int distance, Node? lastNode)[]> canMoveGrids,
             Box<Node[]> canAttackGrids,
             Box<Node[]> canAttackRushGrids,
+            bool canBlood,
+            int bloodCooldown,
             Box<Node[]> canBuildFortGrids,
             Box<Node[]> canBuildWallGrids
         )
@@ -322,7 +446,11 @@ namespace MistForest.Core.GameRefactored.Roles
             {
                 return null;
             }
-            AlphaUnitView target = new(attackGrids, attackRushGrids);
+            AlphaUnitView target = new(attackGrids, attackRushGrids)
+            {
+                CanBlood = canBlood,
+                BloodCooldown = bloodCooldown,
+            };
             return NewBase(target, canMoveGrids, canBuildFortGrids, canBuildWallGrids)
                 ? target
                 : null;
@@ -331,7 +459,11 @@ namespace MistForest.Core.GameRefactored.Roles
         public override UnitView Clone()
         {
             AlphaUnitView target = new(
-                (Node[])CanAttackGrids.Clone(), (Node[])CanAttackRushGrids.Clone());
+                (Node[])CanAttackGrids.Clone(), (Node[])CanAttackRushGrids.Clone())
+            {
+                CanBlood = CanBlood,
+                BloodCooldown = BloodCooldown,
+            };
             CloneBase(target);
             return target;
         }

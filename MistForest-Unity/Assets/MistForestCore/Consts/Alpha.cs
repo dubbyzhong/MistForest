@@ -7,5 +7,6 @@ namespace MistForest.Core.Consts
         public const int AlphaMoveDistance = 2;
         public const int AlphaAttackRange = 1;
         public const int AlphaAttackDamage = 2;
+        public const int AlphaBloodCooldownTurns = 2;
     }
 }
