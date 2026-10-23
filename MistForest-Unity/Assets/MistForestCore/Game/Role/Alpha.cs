@@ -171,14 +171,36 @@ namespace MistForest.Core.GameRefactored.Roles
             int playerId = game.PlayerIdFromUnitId(Id);
             return AttackNodes(game)
                 .AsValueEnumerable()
-                .Where(node => game.Board.GetGrid(node)!.CanStay(playerId, game))
+                .Where(node => CanRushStay(node, playerId, game))
                 .ToArray();
         }
 
         internal bool CanAttackRush(AlphaAttackRush rush, Game game)
         {
             return CanAttack(rush.Target, game)
-                && game.Board.GetGrid(rush.Target)!.CanStay(game.PlayerIdFromUnitId(Id), game);
+                && CanRushStay(rush.Target, game.PlayerIdFromUnitId(Id), game);
+        }
+
+        // Predict entry after the attack without changing the board during validation.
+        private bool CanRushStay(Node node, int playerId, Game game)
+        {
+            Grid grid = game.Board.GetGrid(node)!;
+            if (grid.Terrain is not (Terrain.Ground or Terrain.Whirlpool))
+            {
+                return false;
+            }
+            if (!grid.HasBlockingBuilding(game))
+            {
+                return grid.CanStay(playerId, game);
+            }
+            Building building = game.Buildings[grid.GridBuilding!.Value];
+            if (game.IsPlayerAllied(playerId, building.Owner))
+            {
+                // Allied buildings are not damaged; entry depends on their current type.
+                return grid.CanStay(playerId, game);
+            }
+            int damage = Math.Max(0, AttackDamage - building.HighestDirectDamage);
+            return damage > 0 && building.Health <= damage;
         }
 
         internal void AlphaAttack(AlphaAttack attack, Game game)
@@ -189,9 +211,12 @@ namespace MistForest.Core.GameRefactored.Roles
         internal void AlphaAttackRush(AlphaAttackRush rush, Game game)
         {
             Node from = Position;
-            ChangePos(rush.Target, game);
-            game.Events.Add(GeneralMoveEvent.New(Id, new[] { from, rush.Target }));
             ExecuteAttack(rush.Target, game);
+            if (game.Board.GetGrid(rush.Target)!.CanStay(game.PlayerIdFromUnitId(Id), game))
+            {
+                ChangePos(rush.Target, game);
+                game.Events.Add(GeneralMoveEvent.New(Id, new[] { from, rush.Target }));
+            }
         }
 
         private void ExecuteAttack(Node target, Game game)
