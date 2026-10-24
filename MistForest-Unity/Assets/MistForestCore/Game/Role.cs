@@ -499,8 +499,6 @@ namespace MistForest.Core.GameRefactored
             }
         }
 
-        public virtual void EndTurn(Game game) { }
-
         public virtual void EndRound(Game game)
         {
             IsFirstAction = true;

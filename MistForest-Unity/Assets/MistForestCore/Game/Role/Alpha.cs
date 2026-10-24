@@ -18,7 +18,9 @@ namespace MistForest.Core.GameRefactored.Roles
             return new() { CallerUnitId = callerUnitId };
         }
     }
-    //用于公布alpha自身位置
+    /// <summary>
+    /// Records Alpha's casting position as a public Blood event.
+    /// </summary>
     public class AlphaBloodEvent : Event
     {
         public int UnitId { get; }
@@ -31,7 +33,9 @@ namespace MistForest.Core.GameRefactored.Roles
 
         public static AlphaBloodEvent New(int unitId, Node position) => new(unitId, position);
     }
-    //用于让alpha看到别人的位置
+    /// <summary>
+    /// Records the detected target position for Alpha's owner only.
+    /// </summary>
     public class AlphaBloodResultEvent : Event
     {
         public int PlayerId { get; }
@@ -111,7 +115,7 @@ namespace MistForest.Core.GameRefactored.Roles
             return action switch
             {
                 GeneralMove move => Unit.CanMove(move, game),
-                AlphaAttack attack => Unit.CanAttack(attack, game),
+                AlphaAttack attack => Unit.CanAttackImpl(attack, game),
                 AlphaAttackRush rush => Unit.CanAttackRush(rush, game),
                 AlphaBlood _ => Unit.CanBlood(),
                 GeneralEnd _ => Unit.CanEnd(),
@@ -169,7 +173,7 @@ namespace MistForest.Core.GameRefactored.Roles
         public override int AttackRange => AlphaConsts.AlphaAttackRange;
         public int AttackDamage => AlphaConsts.AlphaAttackDamage;
         public int BloodCooldown { get; private set; }
-        private bool _bloodUsedThisTurn;
+        private bool _bloodUsedThisRound;
 
         private AlphaUnit() { }
 
@@ -185,7 +189,7 @@ namespace MistForest.Core.GameRefactored.Roles
             AlphaUnit target = new()
             {
                 BloodCooldown = BloodCooldown,
-                _bloodUsedThisTurn = _bloodUsedThisTurn,
+                _bloodUsedThisRound = _bloodUsedThisRound,
             };
             CloneBase(target);
             return target;
@@ -235,22 +239,19 @@ namespace MistForest.Core.GameRefactored.Roles
                 _ => nearest[game.Board.Random.NextInt(0, nearest.Count)!.Value],
             };
             BloodCooldown = AlphaConsts.AlphaBloodCooldownTurns;
-            _bloodUsedThisTurn = true;
+            _bloodUsedThisRound = true;
             game.Events.Add(AlphaBloodEvent.New(Id, origin));
             game.Events.Add(AlphaBloodResultEvent.New(playerId, Id, target));
         }
 
-        public override void EndTurn(Game game)
+        public override void EndRound(Game game)
         {
-            base.EndTurn(game);
-            if (_bloodUsedThisTurn)
-            {
-                _bloodUsedThisTurn = false;
-            }
-            else if (BloodCooldown > 0)
+            base.EndRound(game);
+            if (!_bloodUsedThisRound && BloodCooldown > 0)
             {
                 --BloodCooldown;
             }
+            _bloodUsedThisRound = false;
         }
 
         internal override bool CanMove(GeneralMove move, Game game)
@@ -266,16 +267,16 @@ namespace MistForest.Core.GameRefactored.Roles
                 .ToArray();
         }
 
-        internal bool CanAttack(AlphaAttack attack, Game game)
+        internal bool CanAttackImpl(AlphaAttack attack, Game game)
         {
             return CanAttack(attack.Target, game);
         }
 
-        private bool CanAttack() => Alive && !End && MoveUsed == 0 && AttackUsed == 0;
+        private bool CanAttackGeneral() => Alive && !End && MoveUsed == 0 && AttackUsed == 0;
 
         private bool CanAttack(Node target, Game game)
         {
-            return CanAttack()
+            return CanAttackGeneral()
                 && AttackNodes(game).AsValueEnumerable().Any(node => node == target);
         }
 
@@ -294,8 +295,10 @@ namespace MistForest.Core.GameRefactored.Roles
                 && CanRushStay(rush.Target, game.PlayerIdFromUnitId(Id), game);
         }
 
-        // node must already be a legal attack target, including its terrain.
-        // Predict entry after the attack without changing the board during validation.
+        /// <summary>
+        /// Predicts entry after the attack without modifying the board.
+        /// </summary>
+        /// <param name="node">A target already validated for attack, including its terrain.</param>
         private bool CanRushStay(Node node, int playerId, Game game)
         {
             Grid grid = game.Board.GetGrid(node)!;
@@ -306,8 +309,7 @@ namespace MistForest.Core.GameRefactored.Roles
             Building building = game.Buildings[grid.GridBuilding!.Value];
             if (game.IsPlayerAllied(playerId, building.Owner))
             {
-                // Allied buildings are not damaged; entry depends on their current type.
-                return grid.CanStay(playerId, game);
+                return false;
             }
             int damage = Math.Max(0, AttackDamage - building.HighestDirectDamage);
             return damage > 0 && building.Health <= damage;
@@ -322,11 +324,8 @@ namespace MistForest.Core.GameRefactored.Roles
         {
             Node from = Position;
             ExecuteAttack(rush.Target, game);
-            if (game.Board.GetGrid(rush.Target)!.CanStay(game.PlayerIdFromUnitId(Id), game))
-            {
-                ChangePos(rush.Target, game);
-                game.Events.Add(GeneralMoveEvent.New(Id, new[] { from, rush.Target }));
-            }
+            ChangePos(rush.Target, game);
+            game.Events.Add(GeneralMoveEvent.New(Id, new[] { from, rush.Target }));
         }
 
         private void ExecuteAttack(Node target, Game game)
@@ -396,7 +395,7 @@ namespace MistForest.Core.GameRefactored.Roles
         {
             bool active = Alive && !End;
             bool canMove = active && AttackUsed == 0 && MoveUsed < MoveDistance;
-            Node[] attackNodes = CanAttack() ? AttackNodes(game) : Array.Empty<Node>();
+            Node[] attackNodes = CanAttackGeneral() ? AttackNodes(game) : Array.Empty<Node>();
             bool canBuild = active && IsFirstAction
                 && !game.Board.GetGrid(Position)!.HasBlockingBuilding(game);
 

@@ -12,6 +12,10 @@ namespace MistForest.Core.Tests.Refactored.Roles
     public class AlphaBloodTests
     {
         private static Game MakeGame(bool withAlly, params (int row, int col, bool detectable, bool alive)[] targets)
+            => MakeGame(withAlly, 0, targets);
+
+        private static Game MakeGame(bool withAlly, int firstPlayerId,
+            params (int row, int col, bool detectable, bool alive)[] targets)
         {
             GameMode mode = GameMode.SelfDefine.New(7, 7);
             Board board = Board.FromMode(mode, out _)!;
@@ -33,6 +37,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.NotNull(builder.SetMode(Box.New(mode)));
             Assert.NotNull(builder.SetBoard(Box.New(board)));
             Assert.NotNull(builder.SetPlayers(Box.New(new List<PlayerBuilder> { New(own)!, New(enemies)! })));
+            Assert.NotNull(builder.SetFirstPlayerId(firstPlayerId));
             return builder.Build()!;
         }
 
@@ -151,30 +156,51 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Equal(0, Alpha(game).BloodCooldown);
         }
 
-        [Fact]
-        public static void Blood_CooldownSkipsCastTurnAndTicksOnOwnTurnsEvenWhenAnotherRoleActs()
+        [Theory]
+        [InlineData(0)]
+        [InlineData(1)]
+        public static void Blood_CooldownSkipsCastRoundAndTicksOnlyAtRoundEndEvenWhenAnotherRoleActs(int firstPlayerId)
         {
-            Game game = MakeGame(true, (7, 6, true, true));
+            Game game = MakeGame(true, firstPlayerId, (7, 6, true, true));
             int enemyId = game.Players[1].Roles[0].GetUnits()[0].Id;
+            if (firstPlayerId == 1)
+            {
+                Assert.True(game.ExecuteAction(GeneralEnd.New(enemyId)));
+            }
             Assert.True(game.ExecuteAction(AlphaBlood.New(0)));
             Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
             Assert.Equal(2, Alpha(game).BloodCooldown);
-            Assert.True(game.ExecuteAction(GeneralEnd.New(enemyId)));
+            if (firstPlayerId == 0)
+            {
+                Assert.True(game.ExecuteAction(GeneralEnd.New(enemyId)));
+            }
             Assert.Equal(2, Alpha(game).BloodCooldown);
             for (int remaining = 2; remaining > 0; --remaining)
             {
+                if (firstPlayerId == 1)
+                {
+                    Assert.True(game.ExecuteAction(GeneralEnd.New(enemyId)));
+                    Assert.Equal(remaining, Alpha(game).BloodCooldown);
+                }
                 Assert.False(game.ExecuteAction(AlphaBlood.New(0)));
                 Assert.True(game.ExecuteAction(GeneralEnd.New(1)));
+                if (firstPlayerId == 0)
+                {
+                    Assert.Equal(remaining, Alpha(game).BloodCooldown);
+                    Assert.True(game.ExecuteAction(GeneralEnd.New(enemyId)));
+                }
                 Assert.Equal(remaining - 1, Alpha(game).BloodCooldown);
+            }
+            if (firstPlayerId == 1)
+            {
                 Assert.True(game.ExecuteAction(GeneralEnd.New(enemyId)));
-                Assert.Equal(remaining - 1, Alpha(game).BloodCooldown);
             }
             Assert.True(((AlphaUnitView)Alpha(game).GetView(game)).CanBlood);
             Assert.True(game.ExecuteAction(AlphaBlood.New(0)));
         }
 
         [Fact]
-        public static void Blood_ClonePreservesCooldownAndCastTurnFlagWithoutSharingState()
+        public static void Blood_ClonePreservesCooldownAndCastRoundFlagWithoutSharingState()
         {
             Game game = MakeGame(false, (7, 7, true, true));
             Assert.True(game.ExecuteAction(AlphaBlood.New(0)));
@@ -183,11 +209,9 @@ namespace MistForest.Core.Tests.Refactored.Roles
             AlphaUnitView viewClone = (AlphaUnitView)view.Clone();
             Assert.False(viewClone.CanBlood);
             Assert.Equal(2, viewClone.BloodCooldown);
-            clone.EndTurn(game);
-            Assert.Equal(2, clone.BloodCooldown);
             clone.EndRound(game);
             Assert.Equal(2, clone.BloodCooldown);
-            clone.EndTurn(game);
+            clone.EndRound(game);
             Assert.Equal(1, clone.BloodCooldown);
             Assert.Equal(2, Alpha(game).BloodCooldown);
         }

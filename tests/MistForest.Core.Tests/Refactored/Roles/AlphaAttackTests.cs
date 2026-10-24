@@ -101,8 +101,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
         {
             Game game = MakeGame();
             Alpha role = GetAlpha(game);
-            // Model a prior non-movement skill before Blood is implemented.
-            typeof(Unit).GetProperty(nameof(Unit.IsFirstAction))!.SetValue(role.Unit, false);
+            Assert.True(game.ExecuteAction(AlphaBlood.New(role.Unit.Id)));
 
             Assert.False(role.IsFirstAction);
             Assert.True(game.ExecuteAction(AlphaAttack.New(role.Unit.Id, game.GetUnit(1)!.Position)));
@@ -327,7 +326,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
         {
             Game game = MakeGame();
             Alpha role = GetAlpha(game);
-            typeof(Unit).GetProperty(nameof(Unit.IsFirstAction))!.SetValue(role.Unit, false);
+            Assert.True(game.ExecuteAction(AlphaBlood.New(role.Unit.Id)));
             Assert.True(game.ExecuteAction(AlphaAttackRush.New(role.Unit.Id, game.GetUnit(1)!.Position)));
 
             game = MakeGame();
@@ -408,7 +407,6 @@ namespace MistForest.Core.Tests.Refactored.Roles
         [InlineData("ground")]
         [InlineData("whirlpool")]
         [InlineData("rubble")]
-        [InlineData("allied-fort")]
         public static void AttackRush_EnterableTarget_IsIncludedInViewAndCanBeEntered(string terrain)
         {
             Game game = MakeGame();
@@ -419,13 +417,10 @@ namespace MistForest.Core.Tests.Refactored.Roles
             {
                 game.Board.GetGrid(target)!.Terrain = Terrain.Whirlpool;
             }
-            if (terrain is "rubble" or "allied-fort")
+            if (terrain == "rubble")
             {
                 game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(1)!.SetPos(target)!);
-                if (terrain == "rubble")
-                {
-                    game.Buildings[0].Destroyed(game, 0);
-                }
+                game.Buildings[0].Destroyed(game, 0);
             }
 
             Assert.Contains(target, ((AlphaUnitView)role.Unit.GetView(game)).CanAttackRushGrids);
@@ -440,29 +435,38 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Equal(2, game.Events.Count);
         }
 
-        [Fact]
-        public static void AttackRush_AlliedFort_RemainsIntactAndCanBeEntered()
+        [Theory]
+        [InlineData(1)]
+        [InlineData(AlphaConsts.AlphaAttackDamage + 1)]
+        public static void AttackRush_AlliedFort_IsRejectedWithoutSideEffects(int health)
         {
             Game game = MakeGame();
             Alpha role = GetAlpha(game);
             Node from = role.Unit.Position;
             Node target = game.GetUnit(1)!.Position;
-            game.AddBuilding(FortBuilder.New().SetOwner(0)!
-                .SetHealth(AlphaConsts.AlphaAttackDamage + 1)!.SetPos(target)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(health)!.SetPos(target)!);
 
             AlphaUnitView view = (AlphaUnitView)role.Unit.GetView(game);
             Assert.Contains(target, view.CanAttackGrids);
-            Assert.Contains(target, view.CanAttackRushGrids);
+            Assert.DoesNotContain(target, view.CanAttackRushGrids);
+            Assert.True(game.Board.GetGrid(target)!.CanStay(0, game));
 
-            Assert.True(game.ExecuteAction(AlphaAttackRush.New(role.Unit.Id, target)));
-            Assert.Equal(target, role.Unit.Position);
-            Assert.Empty(game.Board.GetGrid(from)!.Units);
-            AlphaAttackEvent attack = Assert.IsType<AlphaAttackEvent>(game.Events[0]);
-            Assert.Empty(attack.UnitIds);
-            Assert.Null(attack.BuildingId);
-            Assert.IsType<GeneralMoveEvent>(game.Events[1]);
+            AlphaAttackRush rush = AlphaAttackRush.New(role.Unit.Id, target);
+            Assert.False(role.JudgeAction(rush, game));
+            Assert.False(game.ExecuteAction(rush));
+            Assert.Equal(from, role.Unit.Position);
+            Assert.Equal(new[] { role.Unit.Id }, game.Board.GetGrid(from)!.Units);
+            Assert.Equal(new[] { 1 }, game.Board.GetGrid(target)!.Units);
+            Assert.Empty(game.Events);
+            Assert.True(role.Unit.IsFirstAction);
+            Assert.False(role.Unit.End);
+            Assert.Equal(0, game.CurrentPlayerId);
             Assert.Equal(WolfConsts.WolfHealth, game.GetUnit(1)!.Health);
-            Assert.Equal(AlphaConsts.AlphaAttackDamage + 1, game.Buildings[0].Health);
+            Assert.Equal(0, game.GetUnit(1)!.HighestDirectDamage);
+            Assert.Equal(health, game.Buildings[0].Health);
+            Assert.Equal(0, game.Buildings[0].HighestDirectDamage);
+            Assert.True(role.JudgeAction(AlphaAttack.New(role.Unit.Id, target), game));
+            Assert.True(role.JudgeAction(GeneralMove.New(role.Unit.Id, target), game));
         }
 
         [Fact]
@@ -551,7 +555,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
         }
 
         [Fact]
-        public static void AttackRush_ExecutionRechecksEntryAfterDamage()
+        public static void AttackRush_StaleView_DoesNotBypassValidationAtGameEntry()
         {
             Game game = MakeGame();
             Alpha role = GetAlpha(game);
@@ -559,18 +563,54 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Node target = game.GetUnit(1)!.Position;
             game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(1)!.SetPos(target)!);
             AlphaAttackRush rush = AlphaAttackRush.New(role.Unit.Id, target);
-            Assert.True(role.JudgeAction(rush, game));
+            AlphaUnitView oldView = (AlphaUnitView)role.Unit.GetView(game);
+            Assert.Contains(target, oldView.CanAttackRushGrids);
 
-            // An execution-time entry check must protect against a changed target.
+            // The board changes before the action is submitted, after the view was generated.
             game.Buildings[0].Health = 4;
-            role.ExecuteAction(rush, game);
+            Assert.DoesNotContain(target, ((AlphaUnitView)role.Unit.GetView(game)).CanAttackRushGrids);
+            Assert.False(game.ExecuteAction(rush));
 
-            Assert.Equal(2, game.Buildings[0].Health);
+            Assert.Equal(4, game.Buildings[0].Health);
+            Assert.Equal(0, game.Buildings[0].HighestDirectDamage);
             Assert.Equal(from, role.Unit.Position);
             Assert.Contains(role.Unit.Id, game.Board.GetGrid(from)!.Units);
             Assert.DoesNotContain(role.Unit.Id, game.Board.GetGrid(target)!.Units);
-            Assert.IsType<AlphaAttackEvent>(Assert.Single(game.Events));
-            Assert.True(role.Unit.End);
+            Assert.Empty(game.Events);
+            Assert.True(role.Unit.IsFirstAction);
+            Assert.False(role.Unit.End);
+            Assert.Equal(0, game.CurrentPlayerId);
+            Assert.True(game.ExecuteAction(AlphaAttack.New(role.Unit.Id, target)));
+            Assert.Equal(2, game.Buildings[0].Health);
+            Assert.Equal(WolfConsts.WolfHealth, game.GetUnit(1)!.Health);
+            Assert.Equal(from, role.Unit.Position);
+            AlphaAttackEvent attack = Assert.IsType<AlphaAttackEvent>(Assert.Single(game.Events));
+            Assert.Equal(0, attack.BuildingId);
+            Assert.Empty(attack.UnitIds);
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public static void AttackView_DeadOrEndedUnit_HasNoAvailableActions(bool dead)
+        {
+            Game game = MakeGame();
+            Alpha role = GetAlpha(game);
+            MistForest.Core.GameRefactored.Action action = dead
+                ? GeneralSurrender.New(role.Unit.Id)
+                : GeneralEnd.New(role.Unit.Id);
+            Assert.True(game.ExecuteAction(action));
+
+            AlphaUnitView view = (AlphaUnitView)role.Unit.GetView(game);
+
+            Assert.Equal(!dead, role.Unit.Alive);
+            Assert.Empty(view.CanAttackGrids);
+            Assert.Empty(view.CanAttackRushGrids);
+            Assert.Empty(view.CanMoveGrids);
+            Assert.Empty(view.CanBuildFortGrids);
+            Assert.Empty(view.CanBuildWallGrids);
+            Assert.False(view.CanBlood);
+            Assert.False(role.HasActionLeft(game));
         }
 
         [Fact]

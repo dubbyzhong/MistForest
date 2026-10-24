@@ -237,13 +237,6 @@ namespace MistForest.Core.GameRefactored
 
         private void EndTurn()
         {
-            foreach (Unit unit in _units)
-            {
-                if (unit.Alive && PlayerIdFromUnitId(unit.Id) == CurrentPlayerId)
-                {
-                    unit.EndTurn(this);
-                }
-            }
             ++_turnCount;
             _roundActed[CurrentPlayerId] = true;
 
