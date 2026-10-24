@@ -10,10 +10,7 @@ namespace MistForest.Core.Tests.Refactored.Utils
         {
             int[] source = Enumerable.Range(0, 128).ToArray();
 
-            int[] result = source.AsSpan()
-                .AsValueEnumerable()
-                .Where(value => value % 2 == 0)
-                .ToArray();
+            int[] result = source.AsSpan().AsEnumerable().Where(value => value % 2 == 0).ToArray();
 
             Assert.Equal(Enumerable.Range(0, 64).Select(value => value * 2), result);
             Assert.Equal(Enumerable.Range(0, 128), source);
@@ -22,11 +19,7 @@ namespace MistForest.Core.Tests.Refactored.Utils
         [Fact]
         public static void SpanEnumerable_ToArray_ReturnsEmptyArrayWhenNothingMatches()
         {
-            int[] result = new[] { 1, 3, 5 }
-                .AsSpan()
-                .AsValueEnumerable()
-                .Where(_ => false)
-                .ToArray();
+            int[] result = new[] { 1, 3, 5 }.AsSpan().AsEnumerable().Where(_ => false).ToArray();
 
             Assert.Empty(result);
         }
