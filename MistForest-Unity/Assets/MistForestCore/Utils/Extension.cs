@@ -8,12 +8,12 @@ namespace MistForest.Core.Utils
 {
     public static class SpanExtension
     {
-        public static SpanEnumerable<T> AsValueEnumerable<T>(this Span<T> span)
+        public static SpanEnumerable<T> AsEnumerable<T>(this Span<T> span)
         {
             return SpanEnumerable<T>.New(span);
         }
 
-        public static SpanEnumerable<T> AsValueEnumerable<T>(this ReadOnlySpan<T> span)
+        public static SpanEnumerable<T> AsEnumerable<T>(this ReadOnlySpan<T> span)
         {
             return SpanEnumerable<T>.New(span);
         }

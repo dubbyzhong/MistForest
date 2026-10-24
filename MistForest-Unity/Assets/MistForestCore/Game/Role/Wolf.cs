@@ -145,7 +145,7 @@ namespace MistForest.Core.GameRefactored.Roles
         {
             return FarAttackNodes(game)
                 .AsSpan()
-                .AsValueEnumerable()
+                .AsEnumerable()
                 .Where(node => game.Board.GetGrid(node)!.HasBlockingBuilding(game) is false)
                 .ToArray();
         }
