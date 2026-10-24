@@ -138,7 +138,7 @@ namespace MistForest.Core.GameRefactored.Roles
         {
             return FarAttackNodes(game)
                 .AsSpan()
-                .AsValueEnumerable()
+                .AsEnumerable()
                 .Where(node => game.Board.GetGrid(node)!.HasBlockingBuilding(game) is false)
                 .ToArray();
         }
@@ -172,7 +172,8 @@ namespace MistForest.Core.GameRefactored.Roles
                 canMoveGrids: Box.New(MoveEntries(game)),
                 canBiteGrids: Box.New(BiteNodes(game)),
                 canBuildFortGrids: Box.New(BuildFortNodes(game)),
-                canBuildWallGrids: Box.New(BuildWallNodes(game))
+                canBuildWallGrids: Box.New(BuildWallNodes(game)),
+                canDemolishGrids: Box.New(DemolishNodes(game))
             )!;
         }
 
@@ -213,7 +214,7 @@ namespace MistForest.Core.GameRefactored.Roles
         public Node[] CanBiteGrids { get; private set; }
 
         private WolfUnitView(Node[] canBiteGrids)
-            : base(null!, null!, null!)
+            : base(null!, null!, null!, null!)
         {
             CanBiteGrids = canBiteGrids;
         }
@@ -222,7 +223,8 @@ namespace MistForest.Core.GameRefactored.Roles
             Box<(Node node, int distance, Node? lastNode)[]> canMoveGrids,
             Box<Node[]> canBiteGrids,
             Box<Node[]> canBuildFortGrids,
-            Box<Node[]> canBuildWallGrids
+            Box<Node[]> canBuildWallGrids,
+            Box<Node[]> canDemolishGrids
         )
         {
             if (canBiteGrids.TryTake() is not Node[] canBiteGridsArray)
@@ -230,7 +232,7 @@ namespace MistForest.Core.GameRefactored.Roles
                 return null;
             }
             WolfUnitView target = new(canBiteGridsArray);
-            return NewBase(target, canMoveGrids, canBuildFortGrids, canBuildWallGrids) ? target : null;
+            return NewBase(target, canMoveGrids, canBuildFortGrids, canBuildWallGrids, canDemolishGrids) ? target : null;
         }
 
         public override UnitView Clone()

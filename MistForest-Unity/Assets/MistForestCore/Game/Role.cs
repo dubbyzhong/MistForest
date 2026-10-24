@@ -13,10 +13,10 @@ namespace MistForest.Core.GameRefactored
     {
         public int Id { get; internal set; }
         public int PlayerId { get; internal set; }
-        public bool Alive => GetUnits().AsValueEnumerable().Any(unit => unit.Alive);
+        public bool Alive => GetUnits().AsEnumerable().Any(unit => unit.Alive);
         public bool IsFirstAction =>
             GetUnits()
-                .AsValueEnumerable()
+                .AsEnumerable()
                 .Where(unit => unit.Alive)
                 .All(unit => unit.IsFirstAction);
 
@@ -29,7 +29,7 @@ namespace MistForest.Core.GameRefactored
         protected bool End(Game game)
         {
             return GetUnits()
-                .AsValueEnumerable()
+                .AsEnumerable()
                 .Where(unit => unit.Alive)
                 .All(unit => unit.HasActionLeft(game) is false);
         }
@@ -135,7 +135,7 @@ namespace MistForest.Core.GameRefactored
 
             return _lastMoveEntries
                 .AsSpan()
-                .AsValueEnumerable()
+                .AsEnumerable()
                 .Any(entry => entry.node == move.Target);
         }
 
@@ -274,7 +274,7 @@ namespace MistForest.Core.GameRefactored
             if (
                 buildWall
                     .Targets.AsSpan()
-                    .AsValueEnumerable()
+                    .AsEnumerable()
                     .Any(target => game.Board.GetGrid(target)!.CanBuild() is false)
             )
             {
@@ -326,8 +326,31 @@ namespace MistForest.Core.GameRefactored
             }
             return buildWall
                 .Targets.AsSpan()
+                .AsEnumerable()
+                .All(target => wallNodes.AsSpan().AsEnumerable().Any(node => node == target));
+        }
+
+        /// <summary>
+        /// Returns legal demolition targets for a unit that can still use demolition.
+        /// </summary>
+        protected Node[] DemolishNodes(Game game)
+        {
+            if (!Alive || End || !IsFirstAction
+                || !HasAction(MistForest.Core.GameRefactored.GeneralDemolish.New(Id, Position)))
+            {
+                return Array.Empty<Node>();
+            }
+            return game.Board
+                .GetNodesWithinDistance(
+                    Position,
+                    RoleConsts.MaxDemolishRange,
+                    moveDirs: MapConsts.MoveManhattan,
+                    predicate: _ => true)
                 .AsValueEnumerable()
-                .All(target => wallNodes.AsSpan().AsValueEnumerable().Any(node => node == target));
+                .Where(entry => CanDemolish(
+                    MistForest.Core.GameRefactored.GeneralDemolish.New(Id, entry.node), game))
+                .Select(entry => entry.node)
+                .ToArray();
         }
 
         internal bool CanDemolish(GeneralDemolish demolish, Game game)
@@ -363,7 +386,7 @@ namespace MistForest.Core.GameRefactored
         {
             var (_, distance, _) = _lastMoveEntries!
                 .AsSpan()
-                .AsValueEnumerable()
+                .AsEnumerable()
                 .First(item => item.node == move.Target);
             Node[] path = GetPath(move.Target);
             MoveUsed += distance;
@@ -405,7 +428,7 @@ namespace MistForest.Core.GameRefactored
             if (
                 buildWall
                     .Targets.AsSpan()
-                    .AsValueEnumerable()
+                    .AsEnumerable()
                     .Any(target => game.Board.GetGrid(target)!.Units.Count > 0)
             )
             {
@@ -534,7 +557,7 @@ namespace MistForest.Core.GameRefactored
                 path.Add(current!.Value);
                 current = _lastMoveEntries!
                     .AsSpan()
-                    .AsValueEnumerable()
+                    .AsEnumerable()
                     .First(item => item.node == current)
                     .lastNode;
             }
@@ -564,23 +587,27 @@ namespace MistForest.Core.GameRefactored
         public (Node node, int distance, Node? lastNode)[] CanMoveGrids;
         public Node[] CanBuildFortGrids;
         public Node[] CanBuildWallGrids;
+        public Node[] CanDemolishGrids;
 
         protected UnitView(
             (Node node, int distance, Node? lastNode)[] canMoveGrids,
             Node[] canBuildFortGrids,
-            Node[] canBuildWallGrids
+            Node[] canBuildWallGrids,
+            Node[] canDemolishGrids
         )
         {
             CanMoveGrids = canMoveGrids;
             CanBuildFortGrids = canBuildFortGrids;
             CanBuildWallGrids = canBuildWallGrids;
+            CanDemolishGrids = canDemolishGrids;
         }
 
         public static bool NewBase(
             UnitView target,
             Box<(Node node, int distance, Node? lastNode)[]> canMoveGrids,
             Box<Node[]> canBuildFortGrids,
-            Box<Node[]> canBuildWallGrids
+            Box<Node[]> canBuildWallGrids,
+            Box<Node[]> canDemolishGrids
         )
         {
             if (
@@ -598,9 +625,14 @@ namespace MistForest.Core.GameRefactored
             {
                 return false;
             }
+            if (canDemolishGrids.TryTake() is not Node[] canDemolishGridsValue)
+            {
+                return false;
+            }
             target.CanMoveGrids = canMoveGridsValue;
             target.CanBuildFortGrids = canBuildFortGridsValue;
             target.CanBuildWallGrids = canBuildWallGridsValue;
+            target.CanDemolishGrids = canDemolishGridsValue;
             return true;
         }
 
@@ -609,6 +641,7 @@ namespace MistForest.Core.GameRefactored
             target.CanMoveGrids = ((Node node, int distance, Node? lastNode)[])CanMoveGrids.Clone();
             target.CanBuildFortGrids = (Node[])CanBuildFortGrids.Clone();
             target.CanBuildWallGrids = (Node[])CanBuildWallGrids.Clone();
+            target.CanDemolishGrids = (Node[])CanDemolishGrids.Clone();
         }
 
         public abstract UnitView Clone();

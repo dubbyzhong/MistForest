@@ -271,6 +271,99 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Equal(1, game.CurrentPlayerId);
         }
 
+        [Theory]
+        [InlineData("self", true)]
+        [InlineData("allied-fort", true)]
+        [InlineData("allied-wall", true)]
+        [InlineData("enemy-fort", false)]
+        [InlineData("rubble", false)]
+        [InlineData("out-of-range", false)]
+        [InlineData("diagonal", false)]
+        [InlineData("line-wall", false)]
+        public static void DemolishView_TargetsMatchActionValidation(string situation, bool canDemolish)
+        {
+            Game game = MakeGame();
+            Alpha role = GetAlpha(game);
+            Board.Node target = situation switch
+            {
+                "self" => role.Unit.Position,
+                "out-of-range" => game.Board.At(3, 5)!.Value,
+                "diagonal" => game.Board.At(2, 4)!.Value,
+                _ => game.Board.At(3, 4)!.Value,
+            };
+            BuildingBuilder builder = situation == "allied-wall" ? WallBuilder.New() : FortBuilder.New();
+            game.AddBuilding(builder.SetOwner(situation == "enemy-fort" ? 1 : 0)!
+                .SetHealth(2)!.SetPos(target)!);
+            if (situation == "rubble")
+            {
+                game.Buildings[0].Destroyed(game, 0);
+            }
+            if (situation == "line-wall")
+            {
+                int wall = game.Board.VWallAt(role.Unit.Position)!.Value;
+                Assert.True(game.Board.VerticalWalls.SetInner(wall / 64, 1ul << (wall % 64), out _));
+            }
+
+            UnitView view = role.Unit.GetView(game);
+
+            Assert.Equal(canDemolish, role.JudgeAction(GeneralDemolish.New(role.Unit.Id, target), game));
+            if (canDemolish)
+            {
+                Assert.Equal(new[] { target }, view.CanDemolishGrids);
+            }
+            else
+            {
+                Assert.Empty(view.CanDemolishGrids);
+            }
+            Assert.Empty(game.Events);
+            Assert.True(role.Unit.IsFirstAction);
+        }
+
+        [Fact]
+        public static void DemolishView_CloneOwnsTargetArrayAndExistingViewKeepsSnapshot()
+        {
+            Game game = MakeGame();
+            Alpha role = GetAlpha(game);
+            Board.Node target = game.Board.At(3, 4)!.Value;
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(2)!.SetPos(target)!);
+            UnitView view = role.Unit.GetView(game);
+            UnitView clone = view.Clone();
+
+            Assert.Equal(new[] { target }, clone.CanDemolishGrids);
+            Assert.NotSame(view.CanDemolishGrids, clone.CanDemolishGrids);
+            clone.CanDemolishGrids[0] = role.Unit.Position;
+            Assert.Equal(new[] { target }, view.CanDemolishGrids);
+            Assert.True(game.ExecuteAction(GeneralDemolish.New(role.Unit.Id, target)));
+            Assert.Empty(role.Unit.GetView(game).CanDemolishGrids);
+            Assert.Equal(new[] { target }, view.CanDemolishGrids);
+        }
+
+        [Theory]
+        [InlineData("move")]
+        [InlineData("blood")]
+        [InlineData("end")]
+        [InlineData("surrender")]
+        public static void DemolishView_AfterAnAction_HasNoTargets(string kind)
+        {
+            Game game = MakeGame();
+            Alpha role = GetAlpha(game);
+            Board.Node target = game.Board.At(3, 4)!.Value;
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(2)!.SetPos(target)!);
+            Assert.Contains(target, role.Unit.GetView(game).CanDemolishGrids);
+            MistForest.Core.GameRefactored.Action action = kind switch
+            {
+                "move" => GeneralMove.New(role.Unit.Id, target),
+                "blood" => AlphaBlood.New(role.Unit.Id),
+                "end" => GeneralEnd.New(role.Unit.Id),
+                "surrender" => GeneralSurrender.New(role.Unit.Id),
+                _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+            };
+            Assert.True(game.ExecuteAction(action));
+
+            Assert.Empty(role.Unit.GetView(game).CanDemolishGrids);
+            Assert.False(role.JudgeAction(GeneralDemolish.New(role.Unit.Id, target), game));
+        }
+
         [Fact]
         public static void EndAndSurrender_ReuseExistingUnitAndPlayerBehavior()
         {

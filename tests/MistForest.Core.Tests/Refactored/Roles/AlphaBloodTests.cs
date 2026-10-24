@@ -260,6 +260,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Empty(view.CanBuildWallGrids);
             GeneralDemolish demolish = GeneralDemolish.New(alpha.Id, alpha.Position);
             Assert.Equal(withAlliedFort, game.Roles[0].JudgeAction(demolish, game));
+            Assert.Equal(withAlliedFort, view.CanDemolishGrids.Contains(alpha.Position));
 
             Assert.Equal(withAlliedFort, game.Roles[0].HasActionLeft(game));
             if (withAlliedFort)

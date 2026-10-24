@@ -609,6 +609,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Empty(view.CanMoveGrids);
             Assert.Empty(view.CanBuildFortGrids);
             Assert.Empty(view.CanBuildWallGrids);
+            Assert.Empty(view.CanDemolishGrids);
             Assert.False(view.CanBlood);
             Assert.False(role.HasActionLeft(game));
         }

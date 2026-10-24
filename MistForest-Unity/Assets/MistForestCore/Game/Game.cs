@@ -329,7 +329,7 @@ namespace MistForest.Core.GameRefactored
             {
                 int? firstAlive = Players
                     .AsSpan()
-                    .AsValueEnumerable()
+                    .AsEnumerable()
                     .FirstOrDefault(player => player.Alive)
                     ?.Id;
                 if (firstAlive is null)
@@ -339,7 +339,7 @@ namespace MistForest.Core.GameRefactored
                 if (
                     Players
                         .AsSpan((firstAlive!.Value + 1)..)
-                        .AsValueEnumerable()
+                        .AsEnumerable()
                         .Any(player => player.Alive)
                 )
                 {
@@ -360,7 +360,7 @@ namespace MistForest.Core.GameRefactored
                     .AsValueEnumerable()
                     .FirstOrDefault(
                         teamId =>
-                            GetTeamPlayers(teamId).AsValueEnumerable().Any(player => player.Alive),
+                            GetTeamPlayers(teamId).AsEnumerable().Any(player => player.Alive),
                         defaultValue: -1
                     );
                 if (firstAliveId == -1)
@@ -371,7 +371,7 @@ namespace MistForest.Core.GameRefactored
                     ((firstAliveId + 1)..teamCountInner.TeamCount)
                         .AsValueEnumerable()
                         .Any(teamId =>
-                            GetTeamPlayers(teamId).AsValueEnumerable().Any(player => player.Alive)
+                            GetTeamPlayers(teamId).AsEnumerable().Any(player => player.Alive)
                         )
                 )
                 {

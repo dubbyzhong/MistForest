@@ -64,6 +64,33 @@ namespace MistForest.Core.Tests.Refactored.Roles
         }
 
         [Fact]
+        public static void DemolishView_UsesBaseMemberAndCloneOwnsTargets()
+        {
+            Game game = MakeSniperGame(2, 2);
+            Unit unit = game.GetUnit(0)!;
+            Board.Node target = game.Board.At(2, 3)!.Value;
+            Board.Node enemy = game.Board.At(2, 1)!.Value;
+            Board.Node rubble = game.Board.At(1, 2)!.Value;
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(2)!.SetPos(target)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(2)!.SetPos(enemy)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(2)!.SetPos(rubble)!);
+            game.Buildings[2].Destroyed(game, 0);
+            UnitView view = unit.GetView(game);
+            UnitView clone = view.Clone();
+
+            Assert.Equal(new[] { target }, view.CanDemolishGrids);
+            Assert.Equal(view.CanDemolishGrids, clone.CanDemolishGrids);
+            Assert.NotSame(view.CanDemolishGrids, clone.CanDemolishGrids);
+            clone.CanDemolishGrids[0] = unit.Position;
+            Assert.Equal(new[] { target }, view.CanDemolishGrids);
+            Assert.True(game.ExecuteAction(GeneralDemolish.New(unit.Id, target)));
+            Assert.Empty(unit.GetView(game).CanDemolishGrids);
+            Assert.Equal(new[] { target }, view.CanDemolishGrids);
+            Assert.True(game.ExecuteAction(GeneralEnd.New(1)));
+            Assert.Empty(unit.GetView(game).CanDemolishGrids);
+        }
+
+        [Fact]
         public static void ExecuteAction_SniperMove_UpdatesGridAndAppendsEvent()
         {
             Game game = MakeSniperGame(2, 2);

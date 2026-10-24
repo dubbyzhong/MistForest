@@ -380,15 +380,7 @@ namespace MistForest.Core.GameRefactored.Roles
                 || view.CanAttackGrids.Length > 0
                 || view.CanBuildFortGrids.Length > 0
                 || view.CanBuildWallGrids.Length > 0
-                || (IsFirstAction && game.Board
-                    .GetNodesWithinDistance(
-                        Position,
-                        RoleConsts.MaxDemolishRange,
-                        moveDirs: MapConsts.MoveManhattan,
-                        predicate: _ => true)
-                    .AsValueEnumerable()
-                    .Any(entry => CanDemolish(
-                        MistForest.Core.GameRefactored.GeneralDemolish.New(Id, entry.node), game)));
+                || view.CanDemolishGrids.Length > 0;
         }
 
         public override UnitView GetView(Game game)
@@ -405,6 +397,7 @@ namespace MistForest.Core.GameRefactored.Roles
                     : Array.Empty<(Node node, int distance, Node? lastNode)>()),
                 canAttackGrids: Box.New(attackNodes),
                 canAttackRushGrids: Box.New(AttackRushNodes(attackNodes, game)),
+                canDemolishGrids: Box.New(DemolishNodes(game)),
                 canBlood: CanBlood(),
                 bloodCooldown: BloodCooldown,
                 canBuildFortGrids: Box.New(canBuild ? BuildFortNodes(game) : Array.Empty<Node>()),
@@ -421,7 +414,7 @@ namespace MistForest.Core.GameRefactored.Roles
         public int BloodCooldown { get; private set; }
 
         private AlphaUnitView(Node[] canAttackGrids, Node[] canAttackRushGrids)
-            : base(null!, null!, null!)
+            : base(null!, null!, null!, null!)
         {
             CanAttackGrids = canAttackGrids;
             CanAttackRushGrids = canAttackRushGrids;
@@ -431,6 +424,7 @@ namespace MistForest.Core.GameRefactored.Roles
             Box<(Node node, int distance, Node? lastNode)[]> canMoveGrids,
             Box<Node[]> canAttackGrids,
             Box<Node[]> canAttackRushGrids,
+            Box<Node[]> canDemolishGrids,
             bool canBlood,
             int bloodCooldown,
             Box<Node[]> canBuildFortGrids,
@@ -450,7 +444,7 @@ namespace MistForest.Core.GameRefactored.Roles
                 CanBlood = canBlood,
                 BloodCooldown = bloodCooldown,
             };
-            return NewBase(target, canMoveGrids, canBuildFortGrids, canBuildWallGrids)
+            return NewBase(target, canMoveGrids, canBuildFortGrids, canBuildWallGrids, canDemolishGrids)
                 ? target
                 : null;
         }

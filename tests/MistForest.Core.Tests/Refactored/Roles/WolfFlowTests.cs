@@ -35,6 +35,25 @@ namespace MistForest.Core.Tests.Refactored.Roles
             return builder.Build()!;
         }
 
+        [Fact]
+        public static void DemolishView_UnsupportedAction_HasNoTargetsInBaseViewOrClone()
+        {
+            Game game = MakeWolfGame((3, 3), (7, 7));
+            Unit unit = game.GetUnit(0)!;
+            Board.Node target = game.Board.At(3, 4)!.Value;
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(2)!.SetPos(target)!);
+            UnitView view = unit.GetView(game);
+            GeneralDemolish demolish = GeneralDemolish.New(unit.Id, target);
+
+            Assert.Empty(view.CanDemolishGrids);
+            Assert.Empty(view.Clone().CanDemolishGrids);
+            Assert.False(unit.HasAction(demolish));
+            Assert.False(game.ExecuteAction(demolish));
+            Assert.Empty(game.Events);
+            Assert.True(unit.IsFirstAction);
+            Assert.Equal(2, game.Buildings[0].Health);
+        }
+
         private static Game MakeWolfGameWithAllyOnEnemySquare()
         {
             GameMode mode = GameMode.SelfDefine.New(7, 7);
