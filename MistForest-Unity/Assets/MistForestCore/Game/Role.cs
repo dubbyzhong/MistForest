@@ -13,12 +13,9 @@ namespace MistForest.Core.GameRefactored
     {
         public int Id { get; internal set; }
         public int PlayerId { get; internal set; }
-        public bool Alive => GetUnits().AsValueEnumerable().Any(unit => unit.Alive);
+        public bool Alive => GetUnits().AsEnumerable().Any(unit => unit.Alive);
         public bool IsFirstAction =>
-            GetUnits()
-                .AsValueEnumerable()
-                .Where(unit => unit.Alive)
-                .All(unit => unit.IsFirstAction);
+            GetUnits().AsEnumerable().Where(unit => unit.Alive).All(unit => unit.IsFirstAction);
 
         protected static void NewBase(Role target, int Id, int playerId)
         {
@@ -29,7 +26,7 @@ namespace MistForest.Core.GameRefactored
         protected bool End(Game game)
         {
             return GetUnits()
-                .AsValueEnumerable()
+                .AsEnumerable()
                 .Where(unit => unit.Alive)
                 .All(unit => unit.HasActionLeft(game) is false);
         }
@@ -61,7 +58,7 @@ namespace MistForest.Core.GameRefactored
         public Node Position { get; set; }
         protected (Node node, int distance, Node? lastNode)[]? _lastMoveEntries;
         protected int MoveUsed { get; set; }
-        public virtual int AttackRange {get; protected set;}
+        public virtual int AttackRange { get; protected set; }
         protected int AttackUsed { get; set; }
         protected virtual int MoveDistance { get; set; }
         public bool Alive => Health > 0;
@@ -132,10 +129,7 @@ namespace MistForest.Core.GameRefactored
 
             _lastMoveEntries = MoveEntries(game);
 
-            return _lastMoveEntries
-                .AsSpan()
-                .AsValueEnumerable()
-                .Any(entry => entry.node == move.Target);
+            return _lastMoveEntries.AsSpan().AsEnumerable().Any(entry => entry.node == move.Target);
         }
 
         internal virtual bool CanEnd()
@@ -273,7 +267,7 @@ namespace MistForest.Core.GameRefactored
             if (
                 buildWall
                     .Targets.AsSpan()
-                    .AsValueEnumerable()
+                    .AsEnumerable()
                     .Any(target => game.Board.GetGrid(target)!.CanBuild() is false)
             )
             {
@@ -325,8 +319,8 @@ namespace MistForest.Core.GameRefactored
             }
             return buildWall
                 .Targets.AsSpan()
-                .AsValueEnumerable()
-                .All(target => wallNodes.AsSpan().AsValueEnumerable().Any(node => node == target));
+                .AsEnumerable()
+                .All(target => wallNodes.AsSpan().AsEnumerable().Any(node => node == target));
         }
 
         internal bool CanDemolish(GeneralDemolish demolish, Game game)
@@ -362,7 +356,7 @@ namespace MistForest.Core.GameRefactored
         {
             var (_, distance, _) = _lastMoveEntries!
                 .AsSpan()
-                .AsValueEnumerable()
+                .AsEnumerable()
                 .First(item => item.node == move.Target);
             Node[] path = GetPath(move.Target);
             MoveUsed += distance;
@@ -404,7 +398,7 @@ namespace MistForest.Core.GameRefactored
             if (
                 buildWall
                     .Targets.AsSpan()
-                    .AsValueEnumerable()
+                    .AsEnumerable()
                     .Any(target => game.Board.GetGrid(target)!.Units.Count > 0)
             )
             {
@@ -533,7 +527,7 @@ namespace MistForest.Core.GameRefactored
                 path.Add(current!.Value);
                 current = _lastMoveEntries!
                     .AsSpan()
-                    .AsValueEnumerable()
+                    .AsEnumerable()
                     .First(item => item.node == current)
                     .lastNode;
             }
