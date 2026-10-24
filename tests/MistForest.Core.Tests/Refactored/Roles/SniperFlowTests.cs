@@ -64,6 +64,33 @@ namespace MistForest.Core.Tests.Refactored.Roles
         }
 
         [Fact]
+        public static void DemolishView_UsesBaseMemberAndCloneOwnsTargets()
+        {
+            Game game = MakeSniperGame(2, 2);
+            Unit unit = game.GetUnit(0)!;
+            Board.Node target = game.Board.At(2, 3)!.Value;
+            Board.Node enemy = game.Board.At(2, 1)!.Value;
+            Board.Node rubble = game.Board.At(1, 2)!.Value;
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(2)!.SetPos(target)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(2)!.SetPos(enemy)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(2)!.SetPos(rubble)!);
+            game.Buildings[2].Destroyed(game, 0);
+            UnitView view = unit.GetView(game);
+            UnitView clone = view.Clone();
+
+            Assert.Equal(new[] { target }, view.CanDemolishGrids);
+            Assert.Equal(view.CanDemolishGrids, clone.CanDemolishGrids);
+            Assert.NotSame(view.CanDemolishGrids, clone.CanDemolishGrids);
+            clone.CanDemolishGrids[0] = unit.Position;
+            Assert.Equal(new[] { target }, view.CanDemolishGrids);
+            Assert.True(game.ExecuteAction(GeneralDemolish.New(unit.Id, target)));
+            Assert.Empty(unit.GetView(game).CanDemolishGrids);
+            Assert.Equal(new[] { target }, view.CanDemolishGrids);
+            Assert.True(game.ExecuteAction(GeneralEnd.New(1)));
+            Assert.Empty(unit.GetView(game).CanDemolishGrids);
+        }
+
+        [Fact]
         public static void ExecuteAction_SniperMove_UpdatesGridAndAppendsEvent()
         {
             Game game = MakeSniperGame(2, 2);
@@ -148,8 +175,63 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Empty(board.GetGrid(target)!.Units);
             Assert.False(game.GetUnit(0)!.HasActionLeft(game));
             ExecuteEvent executeEvent = Assert.IsType<ExecuteEvent>(Assert.Single(game.Events));
-            Assert.Equal(1, executeEvent.UnitId);
-            Assert.Equal(0, executeEvent.ExecutorId);
+            Assert.Equal(new[] { 1 }, executeEvent.UnitIds);
+            Assert.Equal(0, executeEvent.AttackerId);
+            Assert.Null(executeEvent.BuildingId);
+            Assert.Equal(target, executeEvent.Target);
+        }
+
+        [Fact]
+        public static void SniperExecute_AlliedBuilding_IsNotRecordedAsAnAttackedBuilding()
+        {
+            Game game = MakeSniperGame(2, 2);
+            Board.Node target = game.Board.At(2, 3)!.Value;
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(1)!.SetPos(target)!);
+
+            Assert.True(game.ExecuteAction(SniperExecute.New(0, target)));
+
+            ExecuteEvent executeEvent = Assert.IsType<ExecuteEvent>(Assert.Single(game.Events));
+            Assert.Equal(0, executeEvent.AttackerId);
+            Assert.Empty(executeEvent.UnitIds);
+            Assert.Null(executeEvent.BuildingId);
+            Assert.Equal(target, executeEvent.Target);
+            Assert.IsType<Building.Fort>(game.Buildings[0]);
+        }
+
+        [Theory]
+        [InlineData(0, false)]
+        [InlineData(0, true)]
+        [InlineData(1, true)]
+        [InlineData(2, true)]
+        public static void SniperExecute_AggregatesUnitsAndBuildingIntoOneEvent(int victimCount, bool withBuilding)
+        {
+            Game game = MakeSniperGame(2, 2,
+                opponentX: victimCount > 0 ? 2 : 5,
+                opponentY: victimCount > 0 ? 3 : 5,
+                thirdX: victimCount > 1 ? 2 : 5,
+                thirdY: victimCount > 1 ? 3 : 1);
+            Board.Node target = game.Board.At(2, 3)!.Value;
+            if (withBuilding)
+            {
+                game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(5)!.SetPos(target)!);
+            }
+
+            Assert.True(game.ExecuteAction(SniperExecute.New(0, target)));
+
+            ExecuteEvent executeEvent = Assert.IsType<ExecuteEvent>(Assert.Single(game.Events));
+            Assert.Equal(0, executeEvent.AttackerId);
+            Assert.Equal(Enumerable.Range(1, victimCount), executeEvent.UnitIds);
+            Assert.Equal(withBuilding ? (int?)0 : null, executeEvent.BuildingId);
+            Assert.Equal(target, executeEvent.Target);
+            foreach (int unitId in executeEvent.UnitIds)
+            {
+                Assert.False(game.GetUnit(unitId)!.Alive);
+            }
+            Assert.Empty(game.Board.GetGrid(target)!.Units);
+            if (withBuilding)
+            {
+                Assert.IsType<Building.Rubble>(game.Buildings[0]);
+            }
         }
 
         [Fact]

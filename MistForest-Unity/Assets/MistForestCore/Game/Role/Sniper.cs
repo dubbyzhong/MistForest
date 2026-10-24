@@ -170,6 +170,7 @@ namespace MistForest.Core.GameRefactored.Roles
                 && (
                     view.CanBuildFortGrids.Length > 0
                     || view.CanBuildWallGrids.Length > 0
+                    || view.CanDemolishGrids.Length > 0
                     || view.CanMoveGrids.Length > 0
                     || view.CanExecuteGirds.Length > 0
                 );
@@ -181,7 +182,8 @@ namespace MistForest.Core.GameRefactored.Roles
                 canMoveGrids: Box.New(MoveEntries(game)),
                 canExecuteGrids: Box.New(ExecuteNodes(game)),
                 canBuildFortGrids: Box.New(BuildFortNodes(game)),
-                canBuildWallGrids: Box.New(BuildWallNodes(game))
+                canBuildWallGrids: Box.New(BuildWallNodes(game)),
+                canDemolishGrids: Box.New(DemolishNodes(game))
             )!;
         }
 
@@ -189,8 +191,7 @@ namespace MistForest.Core.GameRefactored.Roles
         {
             AttackUsed++;
             Grid grid = game.Board.GetGrid(execute.Target)!;
-            foreach (
-                Unit unit in grid
+            Unit[] enemies = grid
                     .Units.AsValueEnumerable()
                     .Where(unitId =>
                         game.IsPlayerAllied(
@@ -200,12 +201,12 @@ namespace MistForest.Core.GameRefactored.Roles
                             is false
                     )
                     .Select(unitId => game.GetUnit(unitId)!)
-                    .ToArray()
-            )
+                    .ToArray();
+            foreach (Unit unit in enemies)
             {
                 unit.Killed(game);
-                game.Events.Add(ExecuteEvent.New(unitId: unit.Id, executorId: Id));
             }
+            int? attackedBuildingId = null;
             if (
                 grid.GridBuilding is int buildingId
                 && game.Buildings[buildingId] is not Building.Rubble
@@ -216,8 +217,14 @@ namespace MistForest.Core.GameRefactored.Roles
                     is false
             )
             {
+                attackedBuildingId = buildingId;
                 game.Buildings[buildingId].Destroyed(game, game.PlayerIdFromUnitId(Id));
             }
+            game.Events.Add(ExecuteEvent.New(
+                attackerId: Id,
+                unitIds: enemies.AsValueEnumerable().Select(unit => unit.Id).ToArray(),
+                buildingId: attackedBuildingId,
+                target: execute.Target));
         }
 
         public void SniperScout(SniperScout scout, Game game)
@@ -284,7 +291,7 @@ namespace MistForest.Core.GameRefactored.Roles
         public Node[] CanExecuteGirds { get; private set; }
 
         private SniperUnitView(Node[] canExecuteGrids)
-            : base(null!, null!, null!)
+            : base(null!, null!, null!, null!)
         {
             CanExecuteGirds = canExecuteGrids;
         }
@@ -293,7 +300,8 @@ namespace MistForest.Core.GameRefactored.Roles
             Box<(Node node, int distance, Node? lastNode)[]> canMoveGrids,
             Box<Node[]> canExecuteGrids,
             Box<Node[]> canBuildFortGrids,
-            Box<Node[]> canBuildWallGrids
+            Box<Node[]> canBuildWallGrids,
+            Box<Node[]> canDemolishGrids
         )
         {
             if (canExecuteGrids.TryTake() is not Node[] canExecuteGridsArray)
@@ -302,7 +310,7 @@ namespace MistForest.Core.GameRefactored.Roles
             }
 
             SniperUnitView target = new(canExecuteGridsArray);
-            return NewBase(target, canMoveGrids, canBuildFortGrids, canBuildWallGrids) switch
+            return NewBase(target, canMoveGrids, canBuildFortGrids, canBuildWallGrids, canDemolishGrids) switch
             {
                 false => null,
                 true => target,
@@ -421,14 +429,14 @@ namespace MistForest.Core.GameRefactored.Roles
         }
     }
 
-    public class ExecuteEvent : Event
+    public class ExecuteEvent : AttackEvent
     {
-        public int UnitId { get; private set; }
-        public int ExecutorId { get; private set; }
+        private ExecuteEvent(int attackerId, int[] unitIds, int? buildingId, Node target)
+            : base(attackerId, unitIds, buildingId, target) { }
 
-        public static ExecuteEvent New(int unitId, int executorId)
+        public static ExecuteEvent New(int attackerId, int[] unitIds, int? buildingId, Node target)
         {
-            return new() { UnitId = unitId, ExecutorId = executorId };
+            return new(attackerId, unitIds, buildingId, target);
         }
     }
 

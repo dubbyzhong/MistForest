@@ -226,6 +226,15 @@ namespace MistForest.Core.GameRefactored
             return false;
         }
 
+        public Event[] GetEventsForPlayer(int playerId)
+        {
+            if (playerId < 0 || playerId >= Players.Length)
+            {
+                return Array.Empty<Event>();
+            }
+            return Events.AsValueEnumerable().Where(entry => entry.IsVisibleTo(playerId)).ToArray();
+        }
+
         private void EndTurn()
         {
             ++_turnCount;
@@ -250,6 +259,10 @@ namespace MistForest.Core.GameRefactored
                 foreach (Unit unit in _units.Where(unit => unit.Alive))
                 {
                     unit.EndRound(this);
+                }
+                foreach (Building building in Buildings)
+                {
+                    building.EndRound();
                 }
             }
             _gameState = CheckVictory();
@@ -346,7 +359,8 @@ namespace MistForest.Core.GameRefactored
                 int firstAliveId = (0..teamCountInner.TeamCount)
                     .AsValueEnumerable()
                     .FirstOrDefault(
-                        teamId => GetTeamPlayers(teamId).AsEnumerable().Any(player => player.Alive),
+                        teamId =>
+                            GetTeamPlayers(teamId).AsEnumerable().Any(player => player.Alive),
                         defaultValue: -1
                     );
                 if (firstAliveId == -1)

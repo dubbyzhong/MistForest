@@ -35,6 +35,25 @@ namespace MistForest.Core.Tests.Refactored.Roles
             return builder.Build()!;
         }
 
+        [Fact]
+        public static void DemolishView_UnsupportedAction_HasNoTargetsInBaseViewOrClone()
+        {
+            Game game = MakeWolfGame((3, 3), (7, 7));
+            Unit unit = game.GetUnit(0)!;
+            Board.Node target = game.Board.At(3, 4)!.Value;
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(2)!.SetPos(target)!);
+            UnitView view = unit.GetView(game);
+            GeneralDemolish demolish = GeneralDemolish.New(unit.Id, target);
+
+            Assert.Empty(view.CanDemolishGrids);
+            Assert.Empty(view.Clone().CanDemolishGrids);
+            Assert.False(unit.HasAction(demolish));
+            Assert.False(game.ExecuteAction(demolish));
+            Assert.Empty(game.Events);
+            Assert.True(unit.IsFirstAction);
+            Assert.Equal(2, game.Buildings[0].Health);
+        }
+
         private static Game MakeWolfGameWithAllyOnEnemySquare()
         {
             GameMode mode = GameMode.SelfDefine.New(7, 7);
@@ -97,7 +116,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
         }
 
         [Fact]
-        public static void WolfBite_DamagesEveryEnemyOnTargetAndAddsOneEventPerEnemy()
+        public static void WolfBite_DamagesEveryEnemyOnTargetAndAggregatesVictimsIntoOneEvent()
         {
             Game game = MakeWolfGame((3, 2), (3, 3), (3, 3));
             Board.Node target = game.Board.At(3, 3)!.Value;
@@ -113,10 +132,28 @@ namespace MistForest.Core.Tests.Refactored.Roles
                 WolfConsts.WolfHealth - WolfConsts.WolfBiteDamage,
                 game.GetUnit(2)!.Health
             );
-            Assert.Equal(new[] { 1, 2 }, game.Events.OfType<WolfBiteEvent>().Select(e => e.UnitId));
-            Assert.All(game.Events.Cast<WolfBiteEvent>(), e => Assert.Equal(0, e.BiterId));
+            WolfBiteEvent biteEvent = Assert.IsType<WolfBiteEvent>(Assert.Single(game.Events));
+            Assert.Equal(new[] { 1, 2 }, biteEvent.UnitIds);
+            Assert.Equal(0, biteEvent.AttackerId);
+            Assert.Null(biteEvent.BuildingId);
+            Assert.Equal(target, biteEvent.Target);
             Assert.Equal(0, game.CurrentPlayerId);
             Assert.True(game.Roles[0].HasActionLeft(game));
+        }
+
+        [Fact]
+        public static void WolfBite_EmptyTarget_RecordsOneEventWithNoVictimsOrBuilding()
+        {
+            Game game = MakeWolfGame((3, 2), (7, 7));
+            Board.Node target = game.Board.At(3, 3)!.Value;
+
+            Assert.True(game.ExecuteAction(WolfBite.New(0, target)));
+
+            WolfBiteEvent biteEvent = Assert.IsType<WolfBiteEvent>(Assert.Single(game.Events));
+            Assert.Equal(0, biteEvent.AttackerId);
+            Assert.Empty(biteEvent.UnitIds);
+            Assert.Null(biteEvent.BuildingId);
+            Assert.Equal(target, biteEvent.Target);
         }
 
         [Fact]
@@ -132,8 +169,10 @@ namespace MistForest.Core.Tests.Refactored.Roles
                 game.GetUnit(2)!.Health
             );
             WolfBiteEvent biteEvent = Assert.IsType<WolfBiteEvent>(Assert.Single(game.Events));
-            Assert.Equal(2, biteEvent.UnitId);
-            Assert.Equal(0, biteEvent.BiterId);
+            Assert.Equal(new[] { 2 }, biteEvent.UnitIds);
+            Assert.Equal(0, biteEvent.AttackerId);
+            Assert.Null(biteEvent.BuildingId);
+            Assert.Equal(game.Board.At(3, 3)!.Value, biteEvent.Target);
         }
 
         [Fact]
