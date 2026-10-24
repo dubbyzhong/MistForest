@@ -513,9 +513,10 @@ namespace MistForest.Core.GameRefactored
                 {
                     if (unit is SniperUnitBuilder sniperUnit)
                     {
-                        int range = _mode is GameMode.Scout
-                            ? SniperConsts.SniperAttackRangeScout
-                            : SniperConsts.SniperAttackRange;
+                        int range =
+                            _mode is GameMode.Scout
+                                ? SniperConsts.SniperAttackRangeScout
+                                : SniperConsts.SniperAttackRange;
 
                         sniperUnit.SetAttackRange(range);
                     }

@@ -61,7 +61,7 @@ namespace MistForest.Core.GameRefactored
         public Node Position { get; set; }
         protected (Node node, int distance, Node? lastNode)[]? _lastMoveEntries;
         protected int MoveUsed { get; set; }
-        public virtual int AttackRange {get; protected set;}
+        public virtual int AttackRange { get; protected set; }
         protected int AttackUsed { get; set; }
         protected virtual int MoveDistance { get; set; }
         public bool Alive => Health > 0;
