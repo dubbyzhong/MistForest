@@ -141,6 +141,25 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.True(game.Roles[0].HasActionLeft(game));
         }
 
+        [Theory]
+        [InlineData(0)]
+        [InlineData(1)]
+        public static void WolfBite_BuildingsOfEitherOwnerRemainInvalidTargets(int owner)
+        {
+            Game game = MakeWolfGame((3, 3), (3, 4));
+            Unit enemy = game.GetUnit(1)!;
+            Board.Node target = enemy.Position;
+            game.AddBuilding(FortBuilder.New().SetOwner(owner)!.SetHealth(1)!.SetPos(target)!);
+
+            Assert.DoesNotContain(target, ((WolfUnitView)game.GetUnit(0)!.GetView(game)).CanBiteGrids);
+            Assert.False(game.ExecuteAction(WolfBite.New(0, target)));
+            Assert.Empty(game.Events);
+            Assert.Equal(1, game.Buildings[0].Health);
+            Assert.Equal(0, game.Buildings[0].HighestDirectDamage);
+            Assert.Equal(WolfConsts.WolfHealth, enemy.Health);
+            Assert.Equal(0, game.CurrentPlayerId);
+        }
+
         [Fact]
         public static void WolfBite_EmptyTarget_RecordsOneEventWithNoVictimsOrBuilding()
         {

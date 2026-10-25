@@ -302,15 +302,11 @@ namespace MistForest.Core.GameRefactored.Roles
         private bool CanRushStay(Node node, int playerId, Game game)
         {
             Grid grid = game.Board.GetGrid(node)!;
-            if (!grid.HasBlockingBuilding(game))
+            if (grid.CanStay(playerId, game))
             {
                 return true;
             }
             Building building = game.Buildings[grid.GridBuilding!.Value];
-            if (game.IsPlayerAllied(playerId, building.Owner))
-            {
-                return false;
-            }
             int damage = Math.Max(0, AttackDamage - building.HighestDirectDamage);
             return damage > 0 && building.Health <= damage;
         }
@@ -341,11 +337,8 @@ namespace MistForest.Core.GameRefactored.Roles
             if (grid.HasBlockingBuilding(game))
             {
                 Building building = game.Buildings[grid.GridBuilding!.Value];
-                if (!game.IsPlayerAllied(attackerPlayerId, building.Owner))
-                {
-                    attackedBuildingId = building.Id;
-                    building.ReceiveDirectDamage(AttackDamage, game, attackerPlayerId);
-                }
+                attackedBuildingId = building.Id;
+                building.ReceiveDirectDamage(AttackDamage, game, attackerPlayerId);
             }
             else
             {

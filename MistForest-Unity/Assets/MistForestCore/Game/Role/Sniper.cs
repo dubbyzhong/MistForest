@@ -210,11 +210,6 @@ namespace MistForest.Core.GameRefactored.Roles
             if (
                 grid.GridBuilding is int buildingId
                 && game.Buildings[buildingId] is not Building.Rubble
-                && game.IsPlayerAllied(
-                    game.Buildings[buildingId].Owner,
-                    game.PlayerIdFromUnitId(Id)
-                )
-                    is false
             )
             {
                 attackedBuildingId = buildingId;

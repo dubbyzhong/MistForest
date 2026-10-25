@@ -181,21 +181,28 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Equal(target, executeEvent.Target);
         }
 
-        [Fact]
-        public static void SniperExecute_AlliedBuilding_IsNotRecordedAsAnAttackedBuilding()
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public static void SniperExecute_AlliedBuilding_IsDestroyedWithoutHarmingAlliedUnits(bool occupied)
         {
             Game game = MakeSniperGame(2, 2);
-            Board.Node target = game.Board.At(2, 3)!.Value;
+            Unit caster = game.GetUnit(0)!;
+            int health = caster.Health;
+            Board.Node target = occupied ? caster.Position : game.Board.At(2, 3)!.Value;
             game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(1)!.SetPos(target)!);
+            Assert.Contains(target, ((SniperUnitView)caster.GetView(game)).CanExecuteGirds);
 
             Assert.True(game.ExecuteAction(SniperExecute.New(0, target)));
 
             ExecuteEvent executeEvent = Assert.IsType<ExecuteEvent>(Assert.Single(game.Events));
             Assert.Equal(0, executeEvent.AttackerId);
             Assert.Empty(executeEvent.UnitIds);
-            Assert.Null(executeEvent.BuildingId);
+            Assert.Equal(0, executeEvent.BuildingId);
             Assert.Equal(target, executeEvent.Target);
-            Assert.IsType<Building.Fort>(game.Buildings[0]);
+            Assert.IsType<Building.Rubble>(game.Buildings[0]);
+            Assert.Equal(health, caster.Health);
+            Assert.True(caster.Alive);
         }
 
         [Theory]
