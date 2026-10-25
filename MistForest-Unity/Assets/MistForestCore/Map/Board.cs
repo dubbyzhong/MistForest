@@ -272,6 +272,20 @@ namespace MistForest.Core.GameMap
             return Node.New((x - 1) * Width + y - 1);
         }
 
+        public int Encode(Node node)
+        {
+            return node.Pos;
+        }
+
+        public Node? Decode(int pos)
+        {
+            if (pos < 0 || pos >= Grids.Count())
+            {
+                return null;
+            }
+            return Node.New(pos);
+        }
+
         public int? HWallAt(Node node)
         {
             if (RowOf(node) is not int row)
