@@ -108,7 +108,8 @@ namespace MistForest.Core.GameRefactored
 
         protected virtual Func<Node, bool> MovePredicate(Game game)
         {
-            return to => game.Board.GetGrid(to)!.CanStay(game.CurrentPlayerId, game);
+            int playerId = game.PlayerIdFromUnitId(Id);
+            return to => game.Board.GetGrid(to)!.CanStay(playerId, game);
         }
 
         protected virtual (Node node, int distance, Node? lastNode)[] MoveEntries(Game game)
