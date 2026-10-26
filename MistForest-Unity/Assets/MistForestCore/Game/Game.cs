@@ -128,6 +128,11 @@ namespace MistForest.Core.GameRefactored
             return Roles[_units[unitId].RoleId].PlayerId;
         }
 
+        /// <summary>
+        /// Reports whether the player's turn in the current round has ended.
+        /// </summary>
+        internal bool HasPlayerActedThisRound(int playerId) => _roundActed[playerId];
+
         public bool IsPlayerAllied(int playerA, int playerB)
         {
             return IsTeam switch

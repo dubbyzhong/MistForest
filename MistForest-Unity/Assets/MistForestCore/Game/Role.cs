@@ -58,6 +58,10 @@ namespace MistForest.Core.GameRefactored
         public int Id { get; internal set; }
         public int RoleId { get; internal set; }
         public virtual int Health { get; protected set; }
+        /// <summary>
+        /// Gets remaining armor absorption in half-point units. Two units equal one armor layer.
+        /// </summary>
+        public int Armor { get; protected set; }
         public Node Position { get; set; }
         protected (Node node, int distance, Node? lastNode)[]? _lastMoveEntries;
         protected int MoveUsed { get; set; }
@@ -95,6 +99,7 @@ namespace MistForest.Core.GameRefactored
             target.Id = Id;
             target.RoleId = RoleId;
             target.Health = Health;
+            target.Armor = Armor;
             target.Position = Position;
             target._lastMoveEntries = null;
             target.MoveUsed = MoveUsed;
@@ -465,22 +470,26 @@ namespace MistForest.Core.GameRefactored
             game.Events.Add(GeneralDemolishEvent.New(unitId: Id, target: demolish.Target));
         }
 
-        internal virtual void ReceiveDirectDamage(int strength, Game game)
+        internal virtual DamageResult ReceiveDirectDamage(int strength, Game game)
         {
             if (!Alive || strength <= HighestDirectDamage)
             {
-                return;
+                return default;
             }
 
             int damage = strength - HighestDirectDamage;
             HighestDirectDamage = strength;
 
-            Health = System.Math.Max(0, Health - damage);
+            int armorDamage = System.Math.Min(Armor, damage);
+            Armor -= armorDamage;
+            int healthDamage = System.Math.Min(Health, damage - armorDamage);
+            Health -= healthDamage;
 
             if (Health == 0)
             {
                 Killed(game);
             }
+            return new DamageResult(armorDamage, healthDamage);
         }
 
         private void WhirlpoolAttach(Game game)
@@ -570,6 +579,7 @@ namespace MistForest.Core.GameRefactored
         internal void Killed(Game game)
         {
             Health = 0;
+            Armor = 0;
             _lastMoveEntries = null;
             game.Board.GetGrid(Position)!.Units.Remove(Id);
         }
