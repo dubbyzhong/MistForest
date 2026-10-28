@@ -13,6 +13,7 @@ namespace MistForest.Client.Utils
             },
             NullValueHandling = NullValueHandling.Ignore,
             TypeNameHandling = TypeNameHandling.None,
+            Formatting = Formatting.None,
         };
     }
 }

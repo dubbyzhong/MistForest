@@ -1,3 +1,7 @@
 *.csproj
 *.sln
 *.slnx
+
+/[Bb]uild/
+/[Bb]uilds/
+/Data/
