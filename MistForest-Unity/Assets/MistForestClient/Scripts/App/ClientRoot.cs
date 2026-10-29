@@ -1,4 +1,7 @@
+using System;
+using System.Collections.Generic;
 using System.Net.WebSockets;
+using System.Threading.Tasks;
 using MistForest.Client.Consts;
 using MistForest.Core.Protocol;
 using UnityEngine;
@@ -10,6 +13,8 @@ namespace MistForest.Client.App
         [SerializeField]
         private string serverUrl = $"ws://localhost:{GeneralConsts.DefaultPort}/ws";
 
+        private readonly List<UnityEngine.Object> _startupResources = new();
+
         public ClientSession Session { get; set; } = null!;
 
         private void Awake()
@@ -20,15 +25,30 @@ namespace MistForest.Client.App
 
             Session = ClientSession.New();
             Session.RoomCreated += (response) => OnRoomCreated(ref response);
-            Session.Error += message => Debug.LogError($"[Client] Error: {message}");
-            Session.Disconnected += (closeStatus, closeStatusDescription) =>
-                Debug.Log($"[Client] Disconnected: {closeStatus} {closeStatusDescription}");
+            Session.Error += OnError;
+            Session.Disconnected += OnDisconnected;
         }
 
-        private async void Start()
+        public Task ConnectAsync()
         {
-            await Session.ConnectAsync(serverUrl);
+            return Session.ConnectAsync(serverUrl);
         }
+
+        public void RetainStartupResources(IReadOnlyList<UnityEngine.Object> assets)
+        {
+            _startupResources.Clear();
+            foreach (UnityEngine.Object asset in assets)
+            {
+                _startupResources.Add(asset);
+            }
+        }
+
+        public void ClearStartupResources()
+        {
+            _startupResources.Clear();
+        }
+
+        private async void Start() { }
 
         private void Update()
         {
@@ -49,6 +69,16 @@ namespace MistForest.Client.App
         private void OnRoomCreated(ref CreateRoomResponse response)
         {
             Debug.Log($"[Client] Room created: {response.RoomId}");
+        }
+
+        private void OnError(string message)
+        {
+            Debug.LogError($"[Client] Error: {message}");
+        }
+
+        private void OnDisconnected(int closeStatus, string closeStatusDescription)
+        {
+            Debug.Log($"[Client] Disconnected: {closeStatus} {closeStatusDescription}");
         }
     }
 }

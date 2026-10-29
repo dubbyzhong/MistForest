@@ -5,9 +5,23 @@ docs/*
 !docs/rule*
 .vscode/
 .marscode
+.idea/
+.vs/
 Temp
 Library
 Logs
 UserSettings
 .vsconfig
+
+# Operating system files
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
+
+# IDE user state and caches
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
 

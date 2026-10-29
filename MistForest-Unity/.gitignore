@@ -5,3 +5,20 @@
 /[Bb]uild/
 /[Bb]uilds/
 /Data/
+
+# Unity profiling and crash output
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+/[Ss]ysinfo.txt
+
+# Unity and IDE-generated project files
+*.unityproj
+*.tmp_proj
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+*.user

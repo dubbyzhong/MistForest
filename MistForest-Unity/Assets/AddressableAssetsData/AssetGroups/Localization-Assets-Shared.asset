@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bbb281ee3bf0b054c82ac2347e9e782c, type: 3}
+  m_Name: Localization-Assets-Shared
+  m_EditorClassIdentifier: Unity.Addressables.Editor::UnityEditor.AddressableAssets.Settings.AddressableAssetGroup
+  m_GroupName: Localization-Assets-Shared
+  m_GUID: 348c9a59a12b70d4e9b11124b4543d50
+  m_SerializeEntries:
+  - m_GUID: 6cc4e5039f86062ebac52234e455d37f
+    m_Address: Assets/MistForestClient/Scripts/I18n/UI String Table Collection Shared Data.asset
+    m_ReadOnly: 1
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  m_ReadOnly: 1
+  m_Settings: {fileID: 11400000, guid: fe72cda9b4bb3ad6fa26dffcfbb1a505, type: 2}
+  m_SchemaSet:
+    m_Schemas:
+    - {fileID: 11400000, guid: c27569ff9fbe28c4382303ab12362f43, type: 2}
+    - {fileID: 11400000, guid: a3e996cb3523500e9ab7754db0c73daf, type: 2}
+    - {fileID: 11400000, guid: 6d497b399b85328d69a8fef74b0fef47, type: 2}
