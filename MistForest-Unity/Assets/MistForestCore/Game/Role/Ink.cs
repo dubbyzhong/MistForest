@@ -223,9 +223,9 @@ namespace MistForest.Core.GameRefactored.Roles
                     .ToArray();
                 foreach (Unit enemy in enemies)
                 {
-                    int healthBefore = enemy.Health;
-                    enemy.ReceiveDirectDamage(AttackDamage, game);
-                    if (enemy.Health < healthBefore)
+                    DamageResult result = enemy.ReceiveDirectDamage(AttackDamage, game);
+                    // TODO: Include actual temporary shield loss when shared shield resolution is implemented.
+                    if (result.TotalDamage > 0)
                     {
                         DashCooldown = 0;
                     }

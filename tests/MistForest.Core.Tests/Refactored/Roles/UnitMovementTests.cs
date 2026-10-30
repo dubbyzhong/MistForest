@@ -12,7 +12,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
     {
         public static IEnumerable<object[]> RoleAndFortOwners()
         {
-            foreach (string role in new[] { "Alpha", "Ink", "Sniper", "Wolf" })
+            foreach (string role in new[] { "Alpha", "Armiger", "Ink", "Sniper", "Wolf" })
             {
                 foreach (int unitOwner in new[] { 0, 1 })
                 {
@@ -43,6 +43,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             RoleBuilder role = roleName switch
             {
                 "Alpha" => AlphaBuilder.New(new UnitBuilder[] { new AlphaUnitBuilder() }, origin)!,
+                "Armiger" => ArmigerBuilder.New(new UnitBuilder[] { new ArmigerUnitBuilder() }, origin)!,
                 "Ink" => InkBuilder.New(new UnitBuilder[] { new InkUnitBuilder() }, origin)!,
                 "Sniper" => SniperBuilder.New(new UnitBuilder[] { new SniperUnitBuilder() }, origin)!,
                 "Wolf" => WolfBuilder.New(new UnitBuilder[] { new WolfUnitBuilder() }, origin)!,
