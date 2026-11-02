@@ -115,6 +115,66 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.True(game.ExecuteAction(HeavyChargeContinue.New(0, At(game, 4, 5))));
         }
 
+        [Theory]
+        [InlineData("open")]
+        [InlineData("terrain-wall")]
+        [InlineData("line-wall")]
+        [InlineData("enemy-fort")]
+        [InlineData("allied-fort")]
+        public static void ContinueValidation_AcceptsExactlyTheTargetsOfferedByTheCurrentView(string obstruction)
+        {
+            Game game = MakeGame();
+            Start(game);
+            Board.Node next = At(game, 4, 5);
+            switch (obstruction)
+            {
+                case "terrain-wall": game.Board.SetTerrain(next, Terrain.Wall); break;
+                case "line-wall":
+                    int wall = game.Board.VWallAt(At(game, 4, 4))!.Value;
+                    Assert.True(game.Board.VerticalWalls.SetInner(wall / 64, 1ul << (wall % 64), out _));
+                    break;
+                case "enemy-fort":
+                    game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(2)!.SetPos(next)!);
+                    break;
+                case "allied-fort":
+                    game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(2)!.SetPos(next)!);
+                    break;
+            }
+            Board.Node[] offered = View(game).CanChargeContinueGrids;
+            Heavy role = Role(game);
+            for (int row = 1; row <= game.Board.Height; ++row)
+            {
+                for (int col = 1; col <= game.Board.Width; ++col)
+                {
+                    Board.Node target = At(game, row, col);
+                    Assert.Equal(offered.Contains(target),
+                        role.JudgeAction(HeavyChargeContinue.New(0, target), game));
+                }
+            }
+            Assert.Equal(At(game, 4, 4), role.Unit.Position);
+            Assert.True(role.Unit.IsCharging);
+            Assert.Single(game.Events);
+            Assert.True(game.ExecuteAction(HeavyChargeContinue.New(0, offered[0])));
+        }
+
+        [Fact]
+        public static void ContinueValidation_RechecksTargetsWhenAnOlderViewIsStale()
+        {
+            Game game = MakeGame();
+            Start(game);
+            Board.Node target = At(game, 4, 5);
+            Assert.Contains(target, View(game).CanChargeContinueGrids);
+            Assert.True(Role(game).JudgeAction(HeavyChargeContinue.New(0, target), game));
+
+            game.Board.SetTerrain(target, Terrain.Wall);
+
+            Assert.DoesNotContain(target, View(game).CanChargeContinueGrids);
+            Assert.False(game.ExecuteAction(HeavyChargeContinue.New(0, target)));
+            Assert.Single(game.Events);
+            Assert.Equal(At(game, 4, 4), Role(game).Unit.Position);
+            Assert.True(game.ExecuteAction(HeavyChargeContinue.New(0, At(game, 3, 4))));
+        }
+
         [Fact]
         public static void Continue_RejectsMoreThanThreeRemainingStepsAndForeignNode()
         {

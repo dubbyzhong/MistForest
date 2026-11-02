@@ -253,12 +253,11 @@ namespace MistForest.Core.GameRefactored.Roles
         internal bool CanChargeContinue(HeavyChargeContinue charge, Game game)
         {
             ClearChargePath();
-            Node[] path = ChargePath(charge.Target, game);
-            if (path.Length == 0)
+            if (Array.IndexOf(ChargeContinueNodes(game), charge.Target) < 0)
             {
                 return false;
             }
-            _lastChargePath = path;
+            _lastChargePath = ChargePath(charge.Target, game);
             _lastChargeTarget = charge.Target;
             _lastChargeFrom = Position;
             return true;
