@@ -204,7 +204,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
                     Assert.True(game.Board.VerticalWalls.SetInner(wall / 64, 1ul << (wall % 64), out _));
                     break;
                 case "enemy-fort":
-                    game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(2)!.SetPos(target)!);
+                    game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(4)!.SetPos(target)!);
                     break;
             }
 
@@ -249,7 +249,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Game game = MakeGame();
             Ink role = GetInk(game);
             Board.Node target = role.Unit.Position;
-            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(2)!.SetPos(target)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(4)!.SetPos(target)!);
             foreach ((int row, int col) in new[] { (2, 3), (4, 3), (3, 2), (3, 4) })
             {
                 game.Board.GetGrid(game.Board.At(row, col)!.Value)!.Terrain = Terrain.Wall;
@@ -276,7 +276,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Game game = MakeGame();
             Ink role = GetInk(game);
             Board.Node fort = game.Board.At(3, 4)!.Value;
-            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(2)!.SetPos(fort)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(4)!.SetPos(fort)!);
             UnitView view = Assert.IsType<InkUnitView>(role.Unit.GetView(game));
             UnitView clone = Assert.IsType<InkUnitView>(view.Clone());
             var originalMove = view.CanMoveGrids[0];

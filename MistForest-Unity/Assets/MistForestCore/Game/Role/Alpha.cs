@@ -350,7 +350,7 @@ namespace MistForest.Core.GameRefactored.Roles
                     .ToArray();
                 foreach (Unit enemy in enemies)
                 {
-                    enemy.ReceiveDirectDamage(AttackDamage, game);
+                    enemy.ReceiveDirectDamage(AttackDamage, game, DamageType.Melee);
                 }
             }
             game.Events.Add(AlphaAttackEvent.New(

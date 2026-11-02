@@ -20,6 +20,9 @@ namespace MistForest.Core.GameRefactored
                 .Where(unit => unit.Alive)
                 .All(unit => unit.IsFirstAction);
 
+        /// <summary>Includes actions such as transformation that preserve ordinary first-action eligibility.</summary>
+        public virtual bool HasStartedTurn => !IsFirstAction;
+
         protected static void NewBase(Role target, int Id, int playerId)
         {
             target.Id = Id;
@@ -57,11 +60,14 @@ namespace MistForest.Core.GameRefactored
     {
         public int Id { get; internal set; }
         public int RoleId { get; internal set; }
+        /// <summary>Remaining health in quarter-point units (four units per point).</summary>
         public virtual int Health { get; protected set; }
         /// <summary>
-        /// Gets remaining armor absorption in half-point units. Two units equal one armor layer.
+        /// Gets remaining armor absorption in quarter-point units. Four units equal one armor layer.
         /// </summary>
         public int Armor { get; protected set; }
+        /// <summary>Quarter-point absorption that expires at the owner's next turn start.</summary>
+        public int TemporaryShield { get; protected set; }
         public Node Position { get; set; }
         protected (Node node, int distance, Node? lastNode)[]? _lastMoveEntries;
         protected int MoveUsed { get; set; }
@@ -73,6 +79,7 @@ namespace MistForest.Core.GameRefactored
         public int WhirlpoolImmuneExpire { get; protected set; }
         public bool End { get; protected set; }
         public bool IsFirstAction { get; protected set; } = true;
+        /// <summary>Highest direct strength after reduction this round, in quarter-point units.</summary>
         public int HighestDirectDamage { get; private set; }
 
         protected Unit() { }
@@ -89,6 +96,7 @@ namespace MistForest.Core.GameRefactored
             target.AttackUsed = 0;
             target.WhirlpoolImmuneExpire = 0;
             target.HighestDirectDamage = 0;
+            target.TemporaryShield = 0;
             return target;
         }
 
@@ -100,6 +108,7 @@ namespace MistForest.Core.GameRefactored
             target.RoleId = RoleId;
             target.Health = Health;
             target.Armor = Armor;
+            target.TemporaryShield = TemporaryShield;
             target.Position = Position;
             target._lastMoveEntries = null;
             target.MoveUsed = MoveUsed;
@@ -470,26 +479,41 @@ namespace MistForest.Core.GameRefactored
             game.Events.Add(GeneralDemolishEvent.New(unitId: Id, target: demolish.Target));
         }
 
-        internal virtual DamageResult ReceiveDirectDamage(int strength, Game game)
+        protected virtual int ReduceDirectDamage(int strength, DamageType damageType) => strength;
+
+        internal virtual DamageResult ReceiveDirectDamage(int strength, Game game, DamageType damageType)
         {
-            if (!Alive || strength <= HighestDirectDamage)
+            if (!Alive || strength <= 0)
+            {
+                return default;
+            }
+            int effectiveStrength = ReduceDirectDamage(strength, damageType);
+            if (effectiveStrength <= HighestDirectDamage)
             {
                 return default;
             }
 
-            int damage = strength - HighestDirectDamage;
-            HighestDirectDamage = strength;
+            int damage = effectiveStrength - HighestDirectDamage;
+            HighestDirectDamage = effectiveStrength;
 
             int armorDamage = System.Math.Min(Armor, damage);
             Armor -= armorDamage;
-            int healthDamage = System.Math.Min(Health, damage - armorDamage);
+            int shieldDamage = System.Math.Min(TemporaryShield, damage - armorDamage);
+            TemporaryShield -= shieldDamage;
+            int healthDamage = System.Math.Min(Health, damage - armorDamage - shieldDamage);
             Health -= healthDamage;
 
             if (Health == 0)
             {
                 Killed(game);
             }
-            return new DamageResult(armorDamage, healthDamage);
+            return new DamageResult(armorDamage, shieldDamage, healthDamage);
+        }
+
+        /// <summary>Called for every living unit of the player whose turn is starting.</summary>
+        public virtual void PrepareTurn(Game game)
+        {
+            TemporaryShield = 0;
         }
 
         private void WhirlpoolAttach(Game game)
@@ -580,6 +604,7 @@ namespace MistForest.Core.GameRefactored
         {
             Health = 0;
             Armor = 0;
+            TemporaryShield = 0;
             _lastMoveEntries = null;
             game.Board.GetGrid(Position)!.Units.Remove(Id);
         }

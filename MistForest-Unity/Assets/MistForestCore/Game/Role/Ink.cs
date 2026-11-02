@@ -223,8 +223,7 @@ namespace MistForest.Core.GameRefactored.Roles
                     .ToArray();
                 foreach (Unit enemy in enemies)
                 {
-                    DamageResult result = enemy.ReceiveDirectDamage(AttackDamage, game);
-                    // TODO: Include actual temporary shield loss when shared shield resolution is implemented.
+                    DamageResult result = enemy.ReceiveDirectDamage(AttackDamage, game, DamageType.Ranged);
                     if (result.TotalDamage > 0)
                     {
                         DashCooldown = 0;

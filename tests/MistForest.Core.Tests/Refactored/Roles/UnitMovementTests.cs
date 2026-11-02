@@ -75,7 +75,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Board.Node origin = unit.Position;
             Board.Node target = game.Board.At(3, 4)!.Value;
             bool canMove = fortOwner == unitOwner;
-            game.AddBuilding(FortBuilder.New().SetOwner(fortOwner)!.SetHealth(3)!.SetPos(target)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(fortOwner)!.SetHealth(6)!.SetPos(target)!);
 
             Assert.Equal(canMove, unit.GetView(game).CanMoveGrids.Any(entry => entry.node == target));
             Assert.Equal(opponent, game.CurrentPlayerId);
@@ -104,7 +104,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Board.Node target = game.Board.At(3, 4)!.Value;
             bool canEnter = fortOwner == unitOwner;
             Assert.True(game.Board.SetTerrain(target, Terrain.Whirlpool));
-            game.AddBuilding(FortBuilder.New().SetOwner(fortOwner)!.SetHealth(3)!.SetPos(target)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(fortOwner)!.SetHealth(6)!.SetPos(target)!);
 
             Assert.True(game.ExecuteAction(GeneralEnd.New(firstPlayerId)));
             Assert.Equal(origin, unit.Position);

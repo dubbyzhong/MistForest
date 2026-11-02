@@ -99,7 +99,7 @@ namespace MistForest.Core.GameRefactored
             int firstPlayerId
         )
         {
-            return new(
+            Game game = new(
                 mode,
                 board,
                 roles,
@@ -121,6 +121,8 @@ namespace MistForest.Core.GameRefactored
             {
                 CurrentPlayerId = firstPlayerId,
             };
+            game.PrepareTurn();
+            return game;
         }
 
         public int PlayerIdFromUnitId(int unitId)
@@ -206,7 +208,7 @@ namespace MistForest.Core.GameRefactored
                 Players[playerId]
                     .Roles.AsValueEnumerable()
                     .Where(role => role.Id != caller.RoleId)
-                    .Any(role => !role.IsFirstAction)
+                    .Any(role => role.HasStartedTurn)
             )
             {
                 return false;
@@ -284,6 +286,16 @@ namespace MistForest.Core.GameRefactored
 
         public void PrepareTurn()
         {
+            foreach (Role role in Players[CurrentPlayerId].Roles)
+            {
+                foreach (Unit unit in role.GetUnits())
+                {
+                    if (unit.Alive)
+                    {
+                        unit.PrepareTurn(this);
+                    }
+                }
+            }
             for (int i = 1; i <= Board.Height; ++i)
             {
                 for (int j = 1; j <= Board.Width; ++j)

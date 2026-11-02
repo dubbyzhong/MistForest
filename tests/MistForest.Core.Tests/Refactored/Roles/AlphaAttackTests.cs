@@ -105,7 +105,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
 
             Assert.False(role.IsFirstAction);
             Assert.True(game.ExecuteAction(AlphaAttack.New(role.Unit.Id, game.GetUnit(1)!.Position)));
-            Assert.Equal(1, game.GetUnit(1)!.Health);
+            Assert.Equal(2, game.GetUnit(1)!.Health);
         }
 
         [Theory]
@@ -167,7 +167,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Unit ally = game.GetUnit(1)!;
             if (withBuilding)
             {
-                game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(3)!.SetPos(ally.Position)!);
+                game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(6)!.SetPos(ally.Position)!);
             }
 
             Assert.True(game.ExecuteAction(AlphaAttack.New(0, ally.Position)));
@@ -180,14 +180,14 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Equal(ally.Position, attackEvent.Target);
             if (withBuilding)
             {
-                Assert.Equal(1, game.Buildings[0].Health);
+                Assert.Equal(2, game.Buildings[0].Health);
                 Assert.Equal(AlphaConsts.AlphaAttackDamage, game.Buildings[0].HighestDirectDamage);
             }
         }
 
         [Theory]
-        [InlineData(1)]
-        [InlineData(5)]
+        [InlineData(2)]
+        [InlineData(10)]
         public static void Attack_EnemyBuilding_AbsorbsDamageWithoutOverflow(int health)
         {
             Game game = MakeGame();
@@ -227,8 +227,8 @@ namespace MistForest.Core.Tests.Refactored.Roles
 
             Assert.True(game.ExecuteAction(AlphaAttack.New(0, secondEnemy.Position)));
 
-            Assert.Equal(1, firstEnemy.Health);
-            Assert.Equal(1, secondEnemy.Health);
+            Assert.Equal(2, firstEnemy.Health);
+            Assert.Equal(2, secondEnemy.Health);
             AlphaAttackEvent attackEvent = Assert.IsType<AlphaAttackEvent>(Assert.Single(game.Events));
             Assert.Equal(new[] { 1, 2 }, attackEvent.UnitIds.OrderBy(id => id));
             Assert.Equal(0, attackEvent.AttackerId);
@@ -241,12 +241,12 @@ namespace MistForest.Core.Tests.Refactored.Roles
         {
             Game game = MakeGame();
             Unit enemy = game.GetUnit(1)!;
-            game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(1)!.SetPos(enemy.Position)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(2)!.SetPos(enemy.Position)!);
             game.Buildings[0].Destroyed(game, 1);
 
             Assert.True(game.ExecuteAction(AlphaAttack.New(0, enemy.Position)));
 
-            Assert.Equal(1, enemy.Health);
+            Assert.Equal(2, enemy.Health);
         }
 
         [Theory]
@@ -259,12 +259,12 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Node target = enemy.Position;
             if (withBuilding)
             {
-                game.AddBuilding(FortBuilder.New().SetOwner(2)!.SetHealth(5)!.SetPos(target)!);
+                game.AddBuilding(FortBuilder.New().SetOwner(2)!.SetHealth(10)!.SetPos(target)!);
             }
 
             Assert.True(game.ExecuteAction(AlphaAttack.New(0, target)));
             Assert.True(game.ExecuteAction(AlphaAttack.New(1, target)));
-            Assert.Equal(withBuilding ? 5 - AlphaConsts.AlphaAttackDamage : 1,
+            Assert.Equal(withBuilding ? 10 - AlphaConsts.AlphaAttackDamage : 2,
                 withBuilding ? game.Buildings[0].Health : enemy.Health);
             Assert.True(game.ExecuteAction(GeneralEnd.New(enemy.Id)));
             Assert.Equal(0, game.CurrentPlayerId);
@@ -273,7 +273,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.True(game.ExecuteAction(AlphaAttack.New(0, target)));
             if (withBuilding)
             {
-                Assert.Equal(1, game.Buildings[0].Health);
+                Assert.Equal(2, game.Buildings[0].Health);
             }
             else
             {
@@ -297,7 +297,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Empty(game.Board.GetGrid(from)!.Units);
             Assert.Equal(new[] { 0, 1 }, game.Board.GetGrid(target)!.Units.OrderBy(id => id));
             Assert.Equal(AlphaConsts.AlphaHealth, role.Unit.Health);
-            Assert.Equal(1, enemy.Health);
+            Assert.Equal(2, enemy.Health);
             Assert.True(role.Unit.End);
             Assert.Equal(1, game.CurrentPlayerId);
             Assert.Collection(game.Events,
@@ -375,12 +375,12 @@ namespace MistForest.Core.Tests.Refactored.Roles
                     Assert.True(game.Board.HorizontalWalls.SetInner(horizontal / 64, 1ul << (horizontal % 64), out _));
                     break;
                 case "enemy-fort":
-                    game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(3)!.SetPos(target)!);
+                    game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(6)!.SetPos(target)!);
                     break;
                 case "allied-wall":
                 case "enemy-wall":
                     game.AddBuilding(WallBuilder.New().SetOwner(obstruction == "allied-wall" ? 0 : 1)!
-                        .SetHealth(3)!.SetPos(target)!);
+                        .SetHealth(6)!.SetPos(target)!);
                     break;
             }
 
@@ -399,7 +399,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Equal(WolfConsts.WolfHealth, game.GetUnit(1)!.Health);
             if (game.Buildings.Count > 0)
             {
-                Assert.Equal(3, game.Buildings[0].Health);
+                Assert.Equal(6, game.Buildings[0].Health);
             }
         }
 
@@ -419,7 +419,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             }
             if (terrain == "rubble")
             {
-                game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(1)!.SetPos(target)!);
+                game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(2)!.SetPos(target)!);
                 game.Buildings[0].Destroyed(game, 0);
             }
 
@@ -436,8 +436,8 @@ namespace MistForest.Core.Tests.Refactored.Roles
         }
 
         [Theory]
-        [InlineData(1)]
-        [InlineData(AlphaConsts.AlphaAttackDamage + 1)]
+        [InlineData(2)]
+        [InlineData(AlphaConsts.AlphaAttackDamage + 2)]
         public static void AttackRush_AlliedFort_TakesDamageAndAllowsEntry(int health)
         {
             Game game = MakeGame();
@@ -486,7 +486,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Alpha role = GetAlpha(game);
             Node from = role.Unit.Position;
             Node target = game.GetUnit(1)!.Position;
-            game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(1)!.SetPos(target)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(2)!.SetPos(target)!);
             RushOrderBuilding building = new(target);
             game.Buildings[0] = building;
 
@@ -505,7 +505,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             {
                 Id = 0;
                 Owner = 1;
-                Health = 1;
+                Health = 2;
                 Pos = position;
             }
 
@@ -517,14 +517,14 @@ namespace MistForest.Core.Tests.Refactored.Roles
         }
 
         [Theory]
-        [InlineData(false, 1, 0)]
         [InlineData(false, 2, 0)]
-        [InlineData(true, 1, 0)]
+        [InlineData(false, 4, 0)]
         [InlineData(true, 2, 0)]
-        [InlineData(false, 1, 1)]
+        [InlineData(true, 4, 0)]
         [InlineData(false, 2, 1)]
-        [InlineData(true, 1, 1)]
+        [InlineData(false, 4, 1)]
         [InlineData(true, 2, 1)]
+        [InlineData(true, 4, 1)]
         public static void AttackRush_DestroyableBuildingOfEitherOwner_IsClearedBeforeEntry(bool wall, int health, int owner)
         {
             Game game = MakeGame();
@@ -556,16 +556,16 @@ namespace MistForest.Core.Tests.Refactored.Roles
         {
             Game game = MakeGame(extraAttacker: true);
             Node target = game.GetUnit(2)!.Position;
-            game.AddBuilding(FortBuilder.New().SetOwner(2)!.SetHealth(3)!.SetPos(target)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(2)!.SetHealth(6)!.SetPos(target)!);
             Assert.True(game.ExecuteAction(AlphaAttack.New(0, target)));
-            Assert.Equal(1, game.Buildings[0].Health);
+            Assert.Equal(2, game.Buildings[0].Health);
 
             AlphaUnitView view = (AlphaUnitView)game.GetUnit(1)!.GetView(game);
             Assert.Contains(target, view.CanAttackGrids);
             Assert.DoesNotContain(target, view.CanAttackRushGrids);
             Assert.False(game.ExecuteAction(AlphaAttackRush.New(1, target)));
             Assert.Single(game.Events);
-            Assert.Equal(1, game.Buildings[0].Health);
+            Assert.Equal(2, game.Buildings[0].Health);
         }
 
         [Fact]
@@ -575,17 +575,17 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Alpha role = GetAlpha(game);
             Node from = role.Unit.Position;
             Node target = game.GetUnit(1)!.Position;
-            game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(1)!.SetPos(target)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(2)!.SetPos(target)!);
             AlphaAttackRush rush = AlphaAttackRush.New(role.Unit.Id, target);
             AlphaUnitView oldView = (AlphaUnitView)role.Unit.GetView(game);
             Assert.Contains(target, oldView.CanAttackRushGrids);
 
             // The board changes before the action is submitted, after the view was generated.
-            game.Buildings[0].Health = 4;
+            game.Buildings[0].Health = 8;
             Assert.DoesNotContain(target, ((AlphaUnitView)role.Unit.GetView(game)).CanAttackRushGrids);
             Assert.False(game.ExecuteAction(rush));
 
-            Assert.Equal(4, game.Buildings[0].Health);
+            Assert.Equal(8, game.Buildings[0].Health);
             Assert.Equal(0, game.Buildings[0].HighestDirectDamage);
             Assert.Equal(from, role.Unit.Position);
             Assert.Contains(role.Unit.Id, game.Board.GetGrid(from)!.Units);
@@ -595,7 +595,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.False(role.Unit.End);
             Assert.Equal(0, game.CurrentPlayerId);
             Assert.True(game.ExecuteAction(AlphaAttack.New(role.Unit.Id, target)));
-            Assert.Equal(2, game.Buildings[0].Health);
+            Assert.Equal(4, game.Buildings[0].Health);
             Assert.Equal(WolfConsts.WolfHealth, game.GetUnit(1)!.Health);
             Assert.Equal(from, role.Unit.Position);
             AlphaAttackEvent attack = Assert.IsType<AlphaAttackEvent>(Assert.Single(game.Events));

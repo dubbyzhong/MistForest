@@ -54,7 +54,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
 
             Assert.Equal(At(game, 4, 4), role.Unit.Position);
             Assert.Empty(game.Board.GetGrid(At(game, 4, 3))!.Units);
-            Assert.Equal(3, game.GetUnit(1)!.Health);
+            Assert.Equal(6, game.GetUnit(1)!.Health);
             Assert.Equal(0, game.CurrentPlayerId);
             Assert.False(role.IsFirstAction);
             Assert.True(role.HasActionLeft(game));
@@ -134,10 +134,10 @@ namespace MistForest.Core.Tests.Refactored.Roles
                     Assert.True(game.Board.VerticalWalls.SetInner(wall / 64, 1ul << (wall % 64), out _));
                     break;
                 case "enemy-fort":
-                    game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(2)!.SetPos(next)!);
+                    game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(4)!.SetPos(next)!);
                     break;
                 case "allied-fort":
-                    game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(2)!.SetPos(next)!);
+                    game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(4)!.SetPos(next)!);
                     break;
             }
             Board.Node[] offered = View(game).CanChargeContinueGrids;
@@ -205,7 +205,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
                 game.Board.SetTerrain(blocked, obstruction == "lake" ? Terrain.Lake : Terrain.Wall);
             }
             Assert.False(game.ExecuteAction(HeavyChargeContinue.New(0, At(game, 4, 7))));
-            Assert.Equal(3, game.GetUnit(1)!.Health);
+            Assert.Equal(6, game.GetUnit(1)!.Health);
             Assert.Equal(At(game, 4, 4), Role(game).Unit.Position);
             Assert.True(Role(game).Unit.IsCharging);
             Assert.Single(game.Events);
@@ -217,8 +217,8 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Game game = MakeGame((3, 4), (2, 4));
             Start(game);
             Assert.True(game.ExecuteAction(HeavyChargeContinue.New(0, At(game, 1, 4))));
-            Assert.Equal(1, game.GetUnit(1)!.Health);
-            Assert.Equal(1, game.GetUnit(2)!.Health);
+            Assert.Equal(2, game.GetUnit(1)!.Health);
+            Assert.Equal(2, game.GetUnit(2)!.Health);
             HeavyChargeEvent hit = Assert.IsType<HeavyChargeEvent>(Assert.Single(game.GetEventsForPlayer(1)));
             Assert.Equal(new[] { At(game, 1, 4), At(game, 2, 4), At(game, 3, 4) }, hit.HitNodes);
             Assert.DoesNotContain(At(game, 4, 4), hit.HitNodes);
@@ -228,8 +228,8 @@ namespace MistForest.Core.Tests.Refactored.Roles
         }
 
         [Theory]
-        [InlineData(2, true)]
-        [InlineData(4, false)]
+        [InlineData(4, true)]
+        [InlineData(8, false)]
         public static void BuildingImpact_StopsAndProtectsUnitsWhetherDestroyedOrSurviving(int health, bool destroyed)
         {
             Game game = MakeGame((4, 5), (4, 6));
@@ -242,12 +242,12 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Equal(destroyed, game.Buildings[0] is Building.Rubble);
             if (!destroyed)
             {
-                Assert.Equal(2, game.Buildings[0].Health);
-                Assert.Equal(2, game.Buildings[0].HighestDirectDamage);
+                Assert.Equal(4, game.Buildings[0].Health);
+                Assert.Equal(4, game.Buildings[0].HighestDirectDamage);
             }
-            Assert.Equal(3, game.GetUnit(1)!.Health);
+            Assert.Equal(6, game.GetUnit(1)!.Health);
             Assert.Equal(0, game.GetUnit(1)!.HighestDirectDamage);
-            Assert.Equal(3, game.GetUnit(2)!.Health);
+            Assert.Equal(6, game.GetUnit(2)!.Health);
             Assert.Equal(new[] { buildingPos }, Assert.Single(game.Events.OfType<HeavyChargeEvent>()).HitNodes);
         }
 
@@ -256,38 +256,38 @@ namespace MistForest.Core.Tests.Refactored.Roles
         {
             Game game = MakeGame();
             Board.Node target = At(game, 4, 4);
-            game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(2)!.SetPos(target)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(4)!.SetPos(target)!);
             Assert.DoesNotContain(target, View(game).CanChargeStartGrids);
             Assert.False(game.ExecuteAction(HeavyChargeStart.New(0, target)));
-            Assert.Equal(2, game.Buildings[0].Health);
+            Assert.Equal(4, game.Buildings[0].Health);
             Assert.True(Role(game).IsFirstAction);
             game.Buildings[0].Owner = 0;
             Start(game);
-            Assert.Equal(2, game.Buildings[0].Health);
+            Assert.Equal(4, game.Buildings[0].Health);
         }
 
         [Fact]
         public static void AlliedFort_PassesWithoutDamageOrStoppingAndShieldsUnits()
         {
             Game game = MakeGame((4, 5));
-            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(2)!.SetPos(At(game, 4, 5))!);
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(4)!.SetPos(At(game, 4, 5))!);
             Start(game);
             Assert.True(game.ExecuteAction(HeavyChargeContinue.New(0, At(game, 4, 7))));
             Assert.Equal(At(game, 4, 7), Role(game).Unit.Position);
-            Assert.Equal(2, game.Buildings[0].Health);
-            Assert.Equal(3, game.GetUnit(1)!.Health);
+            Assert.Equal(4, game.Buildings[0].Health);
+            Assert.Equal(6, game.GetUnit(1)!.Health);
         }
 
         [Fact]
         public static void WallImpact_DestroysWallAndDoesNotContinueIntoNextEnemy()
         {
             Game game = MakeGame((4, 6));
-            game.AddBuilding(WallBuilder.New().SetOwner(0)!.SetHealth(2)!.SetPos(At(game, 4, 5))!);
+            game.AddBuilding(WallBuilder.New().SetOwner(0)!.SetHealth(4)!.SetPos(At(game, 4, 5))!);
             Start(game);
             Assert.True(game.ExecuteAction(HeavyChargeContinue.New(0, At(game, 4, 7))));
             Assert.Equal(At(game, 4, 5), Role(game).Unit.Position);
             Assert.IsType<Building.Rubble>(game.Buildings[0]);
-            Assert.Equal(3, game.GetUnit(1)!.Health);
+            Assert.Equal(6, game.GetUnit(1)!.Health);
         }
 
         [Fact]
@@ -413,7 +413,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Start(game);
             Assert.False(game.ExecuteAction(WolfBite.New(1, At(game, 4, 6))));
             Assert.True(game.ExecuteAction(HeavyChargeContinue.New(0, At(game, 4, 7))));
-            Assert.Equal(3, game.GetUnit(1)!.Health);
+            Assert.Equal(6, game.GetUnit(1)!.Health);
             Assert.Equal(0, game.GetUnit(1)!.HighestDirectDamage);
         }
 
@@ -422,7 +422,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
         {
             Game game = MakeGame();
             Board.Node wall = At(game, 4, 5);
-            game.Buildings.Add(new Building.GreatWall { Id = 0, Pos = wall, Owner = 0, Health = 2 });
+            game.Buildings.Add(new Building.GreatWall { Id = 0, Pos = wall, Owner = 0, Health = 4 });
             game.Board.GetGrid(wall)!.GridBuilding = 0;
             Board.Node rubble = At(game, 4, 6);
             game.Buildings.Add(Building.Rubble.New(1, rubble, owner: 1));
@@ -430,7 +430,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Start(game);
             Assert.True(game.ExecuteAction(HeavyChargeContinue.New(0, At(game, 4, 7))));
             Assert.Equal(At(game, 4, 7), Role(game).Unit.Position);
-            Assert.Equal(2, game.Buildings[0].Health);
+            Assert.Equal(4, game.Buildings[0].Health);
             Assert.Equal(3, Assert.Single(game.Events.OfType<HeavyChargeEvent>()).HitNodes.Length);
         }
 
@@ -478,14 +478,14 @@ namespace MistForest.Core.Tests.Refactored.Roles
             builder.SetFirstPlayerId(1);
             Game game = builder.Build()!;
             Board.Node target = At(game, 4, 5);
-            game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(4)!.SetPos(target)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(8)!.SetPos(target)!);
             Assert.True(game.ExecuteAction(AlphaAttack.New(1, target)));
-            Assert.Equal(2, game.Buildings[0].Health);
+            Assert.Equal(4, game.Buildings[0].Health);
             Assert.True(game.ExecuteAction(GeneralEnd.New(2)));
             Start(game);
             Assert.True(game.ExecuteAction(HeavyChargeContinue.New(0, target)));
             Assert.IsType<Building.Fort>(game.Buildings[0]);
-            Assert.Equal(2, game.Buildings[0].Health);
+            Assert.Equal(4, game.Buildings[0].Health);
             Assert.Equal(At(game, 4, 4), Role(game).Unit.Position);
         }
 
@@ -504,11 +504,11 @@ namespace MistForest.Core.Tests.Refactored.Roles
             role.ExecuteAction(charge, game);
 
             Assert.Equal(At(game, 1, 4), role.Unit.Position);
-            Assert.Equal(1, game.GetUnit(1)!.Health);
+            Assert.Equal(2, game.GetUnit(1)!.Health);
             int eventCount = game.Events.Count;
             Assert.Throws<InvalidOperationException>(() => role.ExecuteAction(charge, game));
             Assert.Equal(eventCount, game.Events.Count);
-            Assert.Equal(1, game.GetUnit(1)!.Health);
+            Assert.Equal(2, game.GetUnit(1)!.Health);
         }
 
         [Theory]

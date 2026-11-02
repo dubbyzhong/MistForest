@@ -1,17 +1,25 @@
 namespace MistForest.Core.GameRefactored
 {
+    public enum DamageType
+    {
+        Melee,
+        Ranged,
+    }
+
     /// <summary>
-    /// Records actual armor and health loss in half-point units, excluding excess damage.
+    /// Records actual armor, temporary shield and health loss in quarter-point units.
     /// </summary>
     public readonly struct DamageResult
     {
         public int ArmorDamage { get; }
+        public int ShieldDamage { get; }
         public int HealthDamage { get; }
-        public int TotalDamage => ArmorDamage + HealthDamage;
+        public int TotalDamage => ArmorDamage + ShieldDamage + HealthDamage;
 
-        internal DamageResult(int armorDamage, int healthDamage)
+        internal DamageResult(int armorDamage, int shieldDamage, int healthDamage)
         {
             ArmorDamage = armorDamage;
+            ShieldDamage = shieldDamage;
             HealthDamage = healthDamage;
         }
     }

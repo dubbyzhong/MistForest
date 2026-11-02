@@ -9,6 +9,7 @@ namespace MistForest.Core.GameMap
         public int Id;
         public Node Pos;
         public int Owner;
+        /// <summary>Remaining health in quarter-point units (four units per point).</summary>
         public int Health;
         public int HighestDirectDamage { get; private set; }
 
@@ -134,6 +135,7 @@ namespace MistForest.Core.GameMap
             return this;
         }
 
+        /// <summary>Sets health in quarter-point units (four units per point).</summary>
         public BuildingBuilder? SetHealth(int health)
         {
             if (_health is not null)

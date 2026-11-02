@@ -194,7 +194,7 @@ namespace MistForest.Core.GameRefactored.Roles
 
             foreach (Unit enemy in enemies)
             {
-                enemy.ReceiveDirectDamage(BiteDamage, game);
+                enemy.ReceiveDirectDamage(BiteDamage, game, DamageType.Melee);
             }
             game.Events.Add(WolfBiteEvent.New(
                 attackerId: Id,

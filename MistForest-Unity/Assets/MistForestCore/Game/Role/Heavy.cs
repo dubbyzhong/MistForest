@@ -327,7 +327,7 @@ namespace MistForest.Core.GameRefactored.Roles
                         Unit enemy = game.GetUnit(unitId)!;
                         if (enemy.Alive && !game.IsPlayerAllied(playerId, game.PlayerIdFromUnitId(unitId)))
                         {
-                            enemy.ReceiveDirectDamage(HeavyConsts.HeavyChargeDamage, game);
+                            enemy.ReceiveDirectDamage(HeavyConsts.HeavyChargeDamage, game, DamageType.Melee);
                         }
                     }
                 }
