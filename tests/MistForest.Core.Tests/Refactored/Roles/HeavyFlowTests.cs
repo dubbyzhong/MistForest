@@ -64,8 +64,8 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Equal(0, role.PlayerId);
             Assert.Equal(role.Id, role.Unit.RoleId);
             Assert.Equal(0, role.Unit.Id);
-            Assert.Equal(4, role.Unit.Health);
-            Assert.Equal(2, role.Unit.Armor);
+            Assert.Equal(8, role.Unit.Health);
+            Assert.Equal(4, role.Unit.Armor);
             Assert.Equal(0, role.Unit.AttackRange);
             Assert.Equal(game.Board.At(3, 3)!.Value, role.Unit.Position);
             Assert.Same(role.Unit, Assert.Single(role.GetUnits().ToArray()));
@@ -76,7 +76,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Equal(role.Unit.Health, unitClone.Health);
             Assert.Equal(role.PlayerId, clone.PlayerId);
             Assert.True(clone.IsFirstAction);
-            Assert.Equal(2, Assert.IsType<HeavyUnitView>(role.Unit.GetView(game)).Armor);
+            Assert.Equal(4, Assert.IsType<HeavyUnitView>(role.Unit.GetView(game)).Armor);
         }
 
         [Fact]
@@ -202,10 +202,10 @@ namespace MistForest.Core.Tests.Refactored.Roles
                     Assert.True(game.Board.VerticalWalls.SetInner(wall / 64, 1ul << (wall % 64), out _));
                     break;
                 case "enemy-fort":
-                    game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(2)!.SetPos(target)!);
+                    game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(4)!.SetPos(target)!);
                     break;
                 case "allied-wall":
-                    game.AddBuilding(WallBuilder.New().SetOwner(0)!.SetHealth(2)!.SetPos(target)!);
+                    game.AddBuilding(WallBuilder.New().SetOwner(0)!.SetHealth(4)!.SetPos(target)!);
                     break;
                 case "out-of-board": target = Board.New(8, 8).At(8, 8)!.Value; break;
             }
@@ -225,11 +225,11 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Board.Node middle = game.Board.At(4, 3)!.Value;
             Board.Node target = game.Board.At(4, 4)!.Value;
             game.Board.SetTerrain(game.Board.At(3, 4)!.Value, Terrain.Wall);
-            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(2)!.SetPos(middle)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(4)!.SetPos(middle)!);
             ExecuteRoleAction(game, GeneralMove.New(0, target));
             Assert.Equal(new[] { origin, middle, target },
                 Assert.IsType<GeneralMoveEvent>(Assert.Single(game.Events)).Path);
-            Assert.Equal(2, game.Buildings[0].Health);
+            Assert.Equal(4, game.Buildings[0].Health);
         }
 
         [Theory]
@@ -263,8 +263,8 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Game game = MakeGame();
             Board.Node allied = game.Board.At(2, 3)!.Value;
             Board.Node enemy = game.Board.At(3, 4)!.Value;
-            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(2)!.SetPos(allied)!);
-            game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(2)!.SetPos(enemy)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(4)!.SetPos(allied)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(4)!.SetPos(enemy)!);
             Assert.False(Role(game).JudgeAction(GeneralDemolish.New(0, enemy), game));
             ExecuteRoleAction(game, GeneralDemolish.New(0, allied));
             Assert.IsType<Building.Rubble>(game.Buildings[0]);
@@ -281,20 +281,20 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Board.Node target = role.Unit.Position;
             Assert.True(game.ExecuteAction(WolfBite.New(1, target)));
             Assert.Equal(0, role.Unit.Armor);
-            Assert.Equal(4, role.Unit.Health);
+            Assert.Equal(8, role.Unit.Health);
             Heavy clone = Assert.IsType<Heavy>(role.Clone());
             HeavyUnitView snapshot = Assert.IsType<HeavyUnitView>(role.Unit.GetView(game));
             Assert.Equal(0, clone.Unit.Armor);
-            Assert.Equal(2, clone.Unit.HighestDirectDamage);
+            Assert.Equal(4, clone.Unit.HighestDirectDamage);
             Assert.Equal(0, snapshot.Armor);
 
             Assert.True(game.ExecuteAction(WolfBite.New(1, target)));
-            Assert.Equal(4, role.Unit.Health);
+            Assert.Equal(8, role.Unit.Health);
             role.Unit.EndRound(game);
             Assert.Equal(0, role.Unit.Armor);
             Assert.True(game.ExecuteAction(WolfBite.New(1, target)));
-            Assert.Equal(2, role.Unit.Health);
-            Assert.Equal(4, clone.Unit.Health);
+            Assert.Equal(4, role.Unit.Health);
+            Assert.Equal(8, clone.Unit.Health);
         }
 
         [Fact]

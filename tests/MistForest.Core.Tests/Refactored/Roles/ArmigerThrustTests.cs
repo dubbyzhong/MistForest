@@ -1,3 +1,4 @@
+using MistForest.Core.Consts;
 using MistForest.Core.GameMap;
 using MistForest.Core.GameRefactored;
 using MistForest.Core.GameRefactored.Roles;
@@ -48,12 +49,13 @@ namespace MistForest.Core.Tests.Refactored.Roles
 
         private static void PrepareArmor(Game game, int armor)
         {
-            for (int layer = 0; layer < (armor + 1) / 2; ++layer)
+            int perLayer = ArmigerConsts.ArmigerArmorPerLayer;
+            for (int layer = 0; layer < (armor + perLayer - 1) / perLayer; ++layer)
             {
                 Assert.True(game.ExecuteAction(ArmigerArmorUp.New(0)));
                 Assert.True(game.ExecuteAction(GeneralEnd.New(2)));
             }
-            if (armor % 2 != 0)
+            if (armor % perLayer != 0)
             {
                 PlaceUnit(game, game.GetUnit(2)!, game.Board.At(3, 4)!.Value);
                 Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
@@ -66,10 +68,10 @@ namespace MistForest.Core.Tests.Refactored.Roles
 
         [Theory]
         [InlineData(0, 1)]
-        [InlineData(1, 2)]
         [InlineData(2, 2)]
-        [InlineData(3, 3)]
-        [InlineData(4, 3)]
+        [InlineData(4, 2)]
+        [InlineData(6, 3)]
+        [InlineData(8, 3)]
         public static void Thrust_RangeUsesActualArmorAndDoesNotDamageUnitsBeyondIt(int armor, int range)
         {
             Game game = MakeGame();
@@ -88,8 +90,8 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Equal(new[] { 2 }, hit.UnitIds);
             Assert.Null(hit.BuildingId);
             Assert.Equal(Enumerable.Range(1, range).Select(step => game.Board.At(3, 3 + step)!.Value), hit.HitNodes);
-            Assert.Equal(1, game.GetUnit(2)!.Health);
-            Assert.Equal(3, game.GetUnit(3)!.Health);
+            Assert.Equal(2, game.GetUnit(2)!.Health);
+            Assert.Equal(6, game.GetUnit(3)!.Health);
             Assert.Equal(armor, Unit(game).Armor);
             Assert.Equal(game.Board.At(3, 3), Unit(game).Position);
             Assert.True(Unit(game).End);
@@ -105,7 +107,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
         public static void Thrust_SupportsAllFourCardinalDirections(int dx, int dy)
         {
             Game game = MakeGame();
-            PrepareArmor(game, 2);
+            PrepareArmor(game, 4);
             Board.Node start = Unit(game).Position;
             Board.Node first = game.Board.Move(start, dx, dy)!.Value;
             Board.Node last = game.Board.Move(start, dx * 2, dy * 2)!.Value;
@@ -115,7 +117,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
 
             ArmigerThrustEvent hit = Assert.IsType<ArmigerThrustEvent>(Assert.Single(game.Events));
             Assert.Equal(new[] { first, last }, hit.HitNodes);
-            Assert.Equal(1, game.GetUnit(2)!.Health);
+            Assert.Equal(2, game.GetUnit(2)!.Health);
         }
 
         [Theory]
@@ -166,7 +168,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
         public static void Thrust_StopsBeforeAnIntermediateTerrainOrLineWall(bool lineWall)
         {
             Game game = MakeGame();
-            PrepareArmor(game, 4);
+            PrepareArmor(game, 8);
             Board.Node first = game.Board.At(3, 4)!.Value;
             Board.Node second = game.Board.At(3, 5)!.Value;
             PlaceUnit(game, game.GetUnit(2)!, first);
@@ -184,8 +186,8 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.True(game.ExecuteAction(ArmigerThrust.New(0, first)));
 
             Assert.Equal(new[] { first }, Assert.IsType<ArmigerThrustEvent>(Assert.Single(game.Events)).HitNodes);
-            Assert.Equal(1, game.GetUnit(2)!.Health);
-            Assert.Equal(3, game.GetUnit(3)!.Health);
+            Assert.Equal(2, game.GetUnit(2)!.Health);
+            Assert.Equal(6, game.GetUnit(3)!.Health);
         }
 
         [Theory]
@@ -195,7 +197,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
         public static void Thrust_ContinuesThroughNonBlockingTerrain(Terrain terrain)
         {
             Game game = MakeGame();
-            PrepareArmor(game, 4);
+            PrepareArmor(game, 8);
             Board.Node first = game.Board.At(3, 4)!.Value;
             game.Board.SetTerrain(first, terrain);
             PlaceUnit(game, game.GetUnit(2)!, game.Board.At(3, 6)!.Value);
@@ -204,14 +206,14 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.True(game.ExecuteAction(ArmigerThrust.New(0, first)));
 
             Assert.Equal(3, Assert.IsType<ArmigerThrustEvent>(Assert.Single(game.Events)).HitNodes.Length);
-            Assert.Equal(1, game.GetUnit(2)!.Health);
+            Assert.Equal(2, game.GetUnit(2)!.Health);
         }
 
         [Fact]
         public static void Thrust_ClipsAtBoardEdgeAndViewExcludesOutsideDirections()
         {
             Game game = MakeGame(startRow: 1, startCol: 6);
-            PrepareArmor(game, 4);
+            PrepareArmor(game, 8);
             Board.Node first = game.Board.At(1, 7)!.Value;
             PlaceUnit(game, game.GetUnit(2)!, first);
             Assert.Equal(3, View(game).CanThrustGrids.Length);
@@ -219,14 +221,14 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.True(game.ExecuteAction(ArmigerThrust.New(0, first)));
 
             Assert.Equal(new[] { first }, Assert.IsType<ArmigerThrustEvent>(Assert.Single(game.Events)).HitNodes);
-            Assert.Equal(1, game.GetUnit(2)!.Health);
+            Assert.Equal(2, game.GetUnit(2)!.Health);
         }
 
         [Fact]
         public static void Thrust_DamagesEnemiesAcrossMultipleGridsAndProtectsAlliedUnits()
         {
             Game game = MakeGame();
-            PrepareArmor(game, 2);
+            PrepareArmor(game, 4);
             Board.Node first = game.Board.At(3, 4)!.Value;
             Board.Node second = game.Board.At(3, 5)!.Value;
             PlaceUnit(game, game.GetUnit(1)!, first);
@@ -238,11 +240,11 @@ namespace MistForest.Core.Tests.Refactored.Roles
             ArmigerThrustEvent hit = Assert.IsType<ArmigerThrustEvent>(Assert.Single(game.Events));
             Assert.Equal(new[] { 2, 3 }, hit.UnitIds);
             Assert.Equal(new[] { first, second }, hit.HitNodes);
-            Assert.Equal(1, game.GetUnit(2)!.Health);
-            Assert.Equal(1, game.GetUnit(3)!.Health);
-            Assert.Equal(3, game.GetUnit(1)!.Health);
+            Assert.Equal(2, game.GetUnit(2)!.Health);
+            Assert.Equal(2, game.GetUnit(3)!.Health);
+            Assert.Equal(6, game.GetUnit(1)!.Health);
             Assert.Equal(0, game.GetUnit(1)!.HighestDirectDamage);
-            Assert.Equal(3, Unit(game).Health);
+            Assert.Equal(6, Unit(game).Health);
         }
 
         [Fact]
@@ -282,10 +284,10 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Equal(new[] { first }, hit.HitNodes);
             Assert.True(Unit(game).End);
             Assert.Equal(1, game.CurrentPlayerId);
-            Assert.Equal(3, game.GetUnit(1)!.Health);
+            Assert.Equal(6, game.GetUnit(1)!.Health);
             Assert.False(Role(game).JudgeAction(ArmigerThrust.New(0, first), game));
             Assert.False(Role(game).JudgeAction(GeneralMove.New(0, first), game));
-            Assert.False(Role(game).JudgeAction(ArmigerArmorDown.New(0, 2), game));
+            Assert.False(Role(game).JudgeAction(ArmigerArmorDown.New(0, 4), game));
             Assert.Empty(View(game).CanThrustGrids);
         }
 
@@ -294,7 +296,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             foreach (bool wall in new[] { false, true })
             foreach (int owner in new[] { 0, 1 })
             foreach (int distance in new[] { 1, 2 })
-            foreach (int health in new[] { 1, 5 })
+            foreach (int health in new[] { 2, 10 })
                 yield return new object[] { wall, owner, distance, health };
         }
 
@@ -304,7 +306,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             bool wall, int owner, int distance, int health)
         {
             Game game = MakeGame();
-            PrepareArmor(game, 4);
+            PrepareArmor(game, 8);
             Board.Node first = game.Board.At(3, 4)!.Value;
             Board.Node buildingNode = game.Board.At(3, 3 + distance)!.Value;
             PlaceUnit(game, game.GetUnit(2)!, buildingNode);
@@ -319,17 +321,17 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Equal(buildingNode, hit.HitNodes.Last());
             Assert.Equal(0, hit.BuildingId);
             Assert.Empty(hit.UnitIds);
-            Assert.Equal(3, game.GetUnit(2)!.Health);
-            Assert.Equal(3, game.GetUnit(3)!.Health);
+            Assert.Equal(6, game.GetUnit(2)!.Health);
+            Assert.Equal(6, game.GetUnit(3)!.Health);
             Assert.Equal(0, game.GetUnit(2)!.HighestDirectDamage);
-            if (health == 1)
+            if (health == 2)
             {
                 Assert.IsType<Building.Rubble>(game.Buildings[0]);
             }
             else
             {
-                Assert.Equal(3, game.Buildings[0].Health);
-                Assert.Equal(2, game.Buildings[0].HighestDirectDamage);
+                Assert.Equal(6, game.Buildings[0].Health);
+                Assert.Equal(4, game.Buildings[0].HighestDirectDamage);
             }
         }
 
@@ -337,12 +339,12 @@ namespace MistForest.Core.Tests.Refactored.Roles
         public static void Thrust_RecordsBothEarlierVictimsAndTheBlockingBuilding()
         {
             Game game = MakeGame();
-            PrepareArmor(game, 4);
+            PrepareArmor(game, 8);
             Board.Node first = game.Board.At(3, 4)!.Value;
             Board.Node buildingNode = game.Board.At(3, 5)!.Value;
             PlaceUnit(game, game.GetUnit(2)!, first);
             PlaceUnit(game, game.GetUnit(3)!, buildingNode);
-            game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(1)!.SetPos(buildingNode)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(2)!.SetPos(buildingNode)!);
 
             Assert.True(game.ExecuteAction(ArmigerThrust.New(0, first)));
 
@@ -350,8 +352,8 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Equal(new[] { 2 }, hit.UnitIds);
             Assert.Equal(0, hit.BuildingId);
             Assert.Equal(new[] { first, buildingNode }, hit.HitNodes);
-            Assert.Equal(1, game.GetUnit(2)!.Health);
-            Assert.Equal(3, game.GetUnit(3)!.Health);
+            Assert.Equal(2, game.GetUnit(2)!.Health);
+            Assert.Equal(6, game.GetUnit(3)!.Health);
             Assert.IsType<Building.Rubble>(game.Buildings[0]);
         }
 
@@ -359,9 +361,9 @@ namespace MistForest.Core.Tests.Refactored.Roles
         public static void Thrust_RubbleDoesNotShieldUnitsOrStopTheRay()
         {
             Game game = MakeGame();
-            PrepareArmor(game, 4);
+            PrepareArmor(game, 8);
             Board.Node first = game.Board.At(3, 4)!.Value;
-            game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(1)!.SetPos(first)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(2)!.SetPos(first)!);
             game.Buildings[0].Destroyed(game, 0);
             PlaceUnit(game, game.GetUnit(2)!, game.Board.At(3, 6)!.Value);
 
@@ -371,7 +373,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Equal(3, hit.HitNodes.Length);
             Assert.Null(hit.BuildingId);
             Assert.Equal(new[] { 2 }, hit.UnitIds);
-            Assert.Equal(1, game.GetUnit(2)!.Health);
+            Assert.Equal(2, game.GetUnit(2)!.Health);
         }
 
         [Fact]
@@ -388,9 +390,9 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.True(game.ExecuteAction(ArmigerThrust.New(0, first)));
 
             Assert.Equal(0, enemy.Armor);
-            Assert.Equal(3, enemy.Health);
+            Assert.Equal(6, enemy.Health);
             Assert.Equal(2, enemy.ArmorLockRounds);
-            Assert.Equal(2, enemy.HighestDirectDamage);
+            Assert.Equal(4, enemy.HighestDirectDamage);
             Assert.Equal(new[] { 2 }, Assert.IsType<ArmigerThrustEvent>(Assert.Single(game.Events)).UnitIds);
         }
 
@@ -427,8 +429,8 @@ namespace MistForest.Core.Tests.Refactored.Roles
 
             Assert.True(game.ExecuteAction(ArmigerThrust.New(1, target)));
 
-            Assert.Equal(1, game.GetUnit(2)!.Health);
-            Assert.Equal(2, game.GetUnit(2)!.HighestDirectDamage);
+            Assert.Equal(2, game.GetUnit(2)!.Health);
+            Assert.Equal(4, game.GetUnit(2)!.HighestDirectDamage);
             Assert.Equal(new[] { 2 }, Assert.IsType<ArmigerThrustEvent>(game.Events.Last()).UnitIds);
         }
 
@@ -451,7 +453,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
 
             Assert.True(game.ExecuteAction(ArmigerThrust.New(0, first)));
 
-            Assert.Equal(1, game.GetUnit(2)!.Health);
+            Assert.Equal(2, game.GetUnit(2)!.Health);
             Assert.Equal(1, game.CurrentPlayerId);
             Assert.Empty(View(game).CanThrustGrids);
             Assert.False(Role(game).JudgeAction(ArmigerThrust.New(0, first), game));
@@ -468,10 +470,10 @@ namespace MistForest.Core.Tests.Refactored.Roles
         }
 
         [Theory]
-        [InlineData(4, 2, 2)]
-        [InlineData(4, 4, 1)]
-        [InlineData(3, 1, 2)]
-        [InlineData(3, 3, 1)]
+        [InlineData(8, 4, 2)]
+        [InlineData(8, 8, 1)]
+        [InlineData(6, 2, 2)]
+        [InlineData(6, 6, 1)]
         public static void Thrust_RecomputesRangeAfterUnloading(int armor, int amount, int range)
         {
             Game game = MakeGame();
@@ -484,15 +486,15 @@ namespace MistForest.Core.Tests.Refactored.Roles
 
             ArmigerThrustEvent hit = Assert.IsType<ArmigerThrustEvent>(game.Events.Last());
             Assert.Equal(range, hit.HitNodes.Length);
-            Assert.Equal(1, game.GetUnit(2)!.Health);
-            Assert.Equal(3, game.GetUnit(3)!.Health);
+            Assert.Equal(2, game.GetUnit(2)!.Health);
+            Assert.Equal(6, game.GetUnit(3)!.Health);
         }
 
         [Fact]
         public static void ViewAndCloneQueries_DoNotOverwriteTheValidatedPath()
         {
             Game game = MakeGame();
-            PrepareArmor(game, 4);
+            PrepareArmor(game, 8);
             Board.Node first = game.Board.At(3, 4)!.Value;
             ArmigerThrust thrust = ArmigerThrust.New(0, first);
             Assert.True(Role(game).JudgeAction(thrust, game));

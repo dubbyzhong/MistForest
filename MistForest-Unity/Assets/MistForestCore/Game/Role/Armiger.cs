@@ -51,7 +51,7 @@ namespace MistForest.Core.GameRefactored.Roles
     }
 
     /// <summary>
-    /// Requests armor removal in half-point units, including any remaining partial layer.
+    /// Requests armor removal in quarter-point units, including any remaining partial layer.
     /// </summary>
     public class ArmigerArmorDown : Action, IArmigerAction
     {
@@ -62,7 +62,7 @@ namespace MistForest.Core.GameRefactored.Roles
     }
 
     /// <summary>
-    /// Records armor before and after restoration in half-point units.
+    /// Records armor before and after restoration in quarter-point units.
     /// </summary>
     public class ArmigerArmorUpEvent : Event
     {
@@ -82,7 +82,7 @@ namespace MistForest.Core.GameRefactored.Roles
     }
 
     /// <summary>
-    /// Records armor before and after unloading in half-point units.
+    /// Records armor before and after unloading in quarter-point units.
     /// </summary>
     public class ArmigerArmorDownEvent : Event
     {
@@ -318,7 +318,7 @@ namespace MistForest.Core.GameRefactored.Roles
                         Unit enemy = game.GetUnit(unitId)!;
                         if (enemy.Alive && !game.IsPlayerAllied(playerId, game.PlayerIdFromUnitId(unitId)))
                         {
-                            enemy.ReceiveDirectDamage(ThrustDamage, game);
+                            enemy.ReceiveDirectDamage(ThrustDamage, game, DamageType.Melee);
                             attackedUnits.Add(unitId);
                         }
                     }
@@ -373,9 +373,9 @@ namespace MistForest.Core.GameRefactored.Roles
             game.Events.Add(ArmigerArmorDownEvent.New(Id, before, Armor));
         }
 
-        internal override DamageResult ReceiveDirectDamage(int strength, Game game)
+        internal override DamageResult ReceiveDirectDamage(int strength, Game game, DamageType damageType)
         {
-            DamageResult result = base.ReceiveDirectDamage(strength, game);
+            DamageResult result = base.ReceiveDirectDamage(strength, game, damageType);
             if (result.TotalDamage > 0)
             {
                 int playerId = game.PlayerIdFromUnitId(Id);
@@ -434,7 +434,7 @@ namespace MistForest.Core.GameRefactored.Roles
     }
 
     /// <summary>
-    /// Exposes available actions and an armor snapshot in half-point units.
+    /// Exposes available actions and an armor snapshot in quarter-point units.
     /// </summary>
     public class ArmigerUnitView : UnitView
     {

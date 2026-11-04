@@ -71,9 +71,9 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Board.Node target = game.Board.At(2, 3)!.Value;
             Board.Node enemy = game.Board.At(2, 1)!.Value;
             Board.Node rubble = game.Board.At(1, 2)!.Value;
-            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(2)!.SetPos(target)!);
-            game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(2)!.SetPos(enemy)!);
-            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(2)!.SetPos(rubble)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(4)!.SetPos(target)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(4)!.SetPos(enemy)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(4)!.SetPos(rubble)!);
             game.Buildings[2].Destroyed(game, 0);
             UnitView view = unit.GetView(game);
             UnitView clone = view.Clone();
@@ -190,7 +190,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Unit caster = game.GetUnit(0)!;
             int health = caster.Health;
             Board.Node target = occupied ? caster.Position : game.Board.At(2, 3)!.Value;
-            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(1)!.SetPos(target)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(2)!.SetPos(target)!);
             Assert.Contains(target, ((SniperUnitView)caster.GetView(game)).CanExecuteGirds);
 
             Assert.True(game.ExecuteAction(SniperExecute.New(0, target)));
@@ -220,7 +220,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Board.Node target = game.Board.At(2, 3)!.Value;
             if (withBuilding)
             {
-                game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(5)!.SetPos(target)!);
+                game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(10)!.SetPos(target)!);
             }
 
             Assert.True(game.ExecuteAction(SniperExecute.New(0, target)));
@@ -361,7 +361,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Board.Node buildTarget = game.Board.At(3, 2)!.Value;
             Board.Node ownFort = game.Board.At(2, 1)!.Value;
             game.AddBuilding(FortBuilder.New()
-                .SetHealth(1)!
+                .SetHealth(2)!
                 .SetOwner(0)!
                 .SetPos(ownFort)!);
             Role role = game.Roles[0];
@@ -456,7 +456,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             public FirstActionUnitProbe(int id, int roleId, Board.Node position)
             {
                 NewBase(this, id, roleId, position);
-                Health = 3;
+                Health = 6;
             }
 
             public void MarkAction() => IsFirstAction = false;

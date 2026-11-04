@@ -249,10 +249,10 @@ namespace MistForest.Core.Tests.Refactored.Roles
                     Assert.True(game.Board.VerticalWalls.SetInner(wall / 64, 1ul << (wall % 64), out _));
                     break;
                 case "enemy-fort":
-                    game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(3)!.SetPos(target)!);
+                    game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(6)!.SetPos(target)!);
                     break;
                 case "allied-wall":
-                    game.AddBuilding(WallBuilder.New().SetOwner(0)!.SetHealth(3)!.SetPos(target)!);
+                    game.AddBuilding(WallBuilder.New().SetOwner(0)!.SetHealth(6)!.SetPos(target)!);
                     break;
                 case "out-of-board": target = Board.New(8, 8).At(8, 8)!.Value; break;
             }
@@ -274,14 +274,14 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Board.Node middle = game.Board.At(4, 3)!.Value;
             Board.Node target = game.Board.At(4, 4)!.Value;
             game.Board.SetTerrain(game.Board.At(3, 4)!.Value, Terrain.Wall);
-            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(3)!.SetPos(middle)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(6)!.SetPos(middle)!);
 
             Assert.True(game.ExecuteAction(GeneralMove.New(0, target)));
 
             GeneralMoveEvent moved = Assert.IsType<GeneralMoveEvent>(Assert.Single(game.Events));
             Assert.Equal(new[] { origin, middle, target }, moved.Path);
             Assert.Equal(target, Role(game).Unit.Position);
-            Assert.Equal(3, game.Buildings[0].Health);
+            Assert.Equal(6, game.Buildings[0].Health);
         }
 
         [Theory]
@@ -335,7 +335,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Game game = MakeGame();
             Armiger role = Role(game);
             Board.Node target = role.Unit.Position;
-            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(3)!.SetPos(target)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(6)!.SetPos(target)!);
             foreach ((int row, int col) in new[] { (2, 3), (4, 3), (3, 2), (3, 4) })
             {
                 game.Board.SetTerrain(game.Board.At(row, col)!.Value, Terrain.Wall);
@@ -362,7 +362,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Game game = MakeGame();
             Armiger role = Role(game);
             Board.Node fort = game.Board.At(3, 4)!.Value;
-            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(3)!.SetPos(fort)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(6)!.SetPos(fort)!);
             UnitView view = Assert.IsType<ArmigerUnitView>(role.Unit.GetView(game));
             UnitView clone = Assert.IsType<ArmigerUnitView>(view.Clone());
             var originalMove = view.CanMoveGrids[0];

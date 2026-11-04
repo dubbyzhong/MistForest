@@ -59,7 +59,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.All(game.Buildings, building =>
             {
                 Assert.Equal(wallSegments == 0 ? typeof(Building.Fort) : typeof(Building.Wall), building.GetType());
-                Assert.Equal(2, building.Health);
+                Assert.Equal(4, building.Health);
                 Assert.Equal(0, building.HighestDirectDamage);
                 Assert.Equal(0, building.Owner);
                 Assert.Contains(building.Pos, targets);

@@ -255,8 +255,8 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Alpha role = GetAlpha(game);
             Board.Node allied = game.Board.At(2, 3)!.Value;
             Board.Node enemy = game.Board.At(3, 4)!.Value;
-            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(2)!.SetPos(allied)!);
-            game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(2)!.SetPos(enemy)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(4)!.SetPos(allied)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(4)!.SetPos(enemy)!);
 
             Assert.False(game.ExecuteAction(GeneralDemolish.New(0, enemy)));
             Assert.True(role.IsFirstAction);
@@ -293,7 +293,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             };
             BuildingBuilder builder = situation == "allied-wall" ? WallBuilder.New() : FortBuilder.New();
             game.AddBuilding(builder.SetOwner(situation == "enemy-fort" ? 1 : 0)!
-                .SetHealth(2)!.SetPos(target)!);
+                .SetHealth(4)!.SetPos(target)!);
             if (situation == "rubble")
             {
                 game.Buildings[0].Destroyed(game, 0);
@@ -325,7 +325,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Game game = MakeGame();
             Alpha role = GetAlpha(game);
             Board.Node target = game.Board.At(3, 4)!.Value;
-            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(2)!.SetPos(target)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(4)!.SetPos(target)!);
             UnitView view = role.Unit.GetView(game);
             UnitView clone = view.Clone();
 
@@ -348,7 +348,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Game game = MakeGame();
             Alpha role = GetAlpha(game);
             Board.Node target = game.Board.At(3, 4)!.Value;
-            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(2)!.SetPos(target)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(4)!.SetPos(target)!);
             Assert.Contains(target, role.Unit.GetView(game).CanDemolishGrids);
             MistForest.Core.GameRefactored.Action action = kind switch
             {
