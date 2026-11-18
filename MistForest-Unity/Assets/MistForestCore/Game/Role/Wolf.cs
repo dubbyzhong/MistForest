@@ -55,7 +55,6 @@ namespace MistForest.Core.GameRefactored.Roles
                 GeneralEnd _ => Unit.CanEnd(),
                 GeneralSurrender _ => Unit.CanSurrender(),
                 WolfBite bite => Unit.CanBite(bite, game),
-                GeneralDemolish demolish => Unit.CanDemolish(demolish, game),
                 _ => false,
             };
         }
@@ -73,9 +72,6 @@ namespace MistForest.Core.GameRefactored.Roles
                     break;
                 case GeneralSurrender _:
                     GeneralSurrender(game);
-                    break;
-                case GeneralDemolish demolish:
-                    Unit.GeneralDemolish(demolish, game);
                     break;
                 case WolfBite bite:
                     Unit.WolfBite(bite, game);
