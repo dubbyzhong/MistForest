@@ -90,7 +90,11 @@ namespace MistForest.Core.GameMap
 
             public override void Destroyed(Game game, int _)
             {
-                game.Board.GetGrid(Pos)!.GridBuilding = null;
+                Grid grid = game.Board.GetGrid(Pos)!;
+                if (grid.GridBuilding == Id)
+                {
+                    grid.GridBuilding = null;
+                }
             }
 
             /// <summary>
