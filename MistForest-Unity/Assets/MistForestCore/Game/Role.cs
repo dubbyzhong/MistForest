@@ -409,6 +409,26 @@ namespace MistForest.Core.GameRefactored
                 .ToArray();
         }
 
+        /// <summary>
+        /// Whether a build or demolish action still has a legal target. The action budget cannot
+        /// answer this because the grids depend on buildings, terrain and line of sight.
+        /// </summary>
+        protected bool HasBuildOrDemolishTarget(Game game)
+        {
+            if (!Alive || End || !IsFirstAction
+                || game.Board.GetGrid(Position)!.HasBlockingBuilding(game))
+            {
+                return false;
+            }
+
+            return HasAction(MistForest.Core.GameRefactored.GeneralBuildFort.New(Id, Position))
+                && BuildFortNodes(game).Length > 0
+                || HasAction(MistForest.Core.GameRefactored.GeneralBuildWall.New(Id, new[] { Position })!)
+                && BuildWallNodes(game).Length > 0
+                || HasAction(MistForest.Core.GameRefactored.GeneralDemolish.New(Id, Position))
+                && DemolishNodes(game).Length > 0;
+        }
+
         internal bool CanDemolish(GeneralDemolish demolish, Game game)
         {
             if (!IsFirstAction)
@@ -688,6 +708,11 @@ namespace MistForest.Core.GameRefactored
             game.ClearShadowLinks(Id);
         }
 
+        /// <summary>
+        /// Whether the unit still has an action this turn. The action budget decides: legal targets
+        /// belong to the view, so a trapped unit keeps its turn until the budget is spent. Build and
+        /// demolish are the exception, because availability is the rule for those targets.
+        /// </summary>
         public virtual bool HasActionLeft(Game game)
         {
             return End is false;

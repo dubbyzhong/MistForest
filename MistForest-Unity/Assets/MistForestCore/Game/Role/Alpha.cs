@@ -172,8 +172,8 @@ namespace MistForest.Core.GameRefactored.Roles
         protected override int MoveDistance => AlphaConsts.AlphaMoveDistance;
         public override int AttackRange => AlphaConsts.AlphaAttackRange;
         public int AttackDamage => AlphaConsts.AlphaAttackDamage;
-        public int BloodCooldown { get; private set; }
-        private bool _bloodUsedThisRound;
+        public int BloodCooldown => _bloodCooldown.Remaining;
+        private Cooldown _bloodCooldown;
 
         private AlphaUnit() { }
 
@@ -188,8 +188,7 @@ namespace MistForest.Core.GameRefactored.Roles
         {
             AlphaUnit target = new()
             {
-                BloodCooldown = BloodCooldown,
-                _bloodUsedThisRound = _bloodUsedThisRound,
+                _bloodCooldown = _bloodCooldown,
             };
             CloneBase(target);
             return target;
@@ -197,7 +196,7 @@ namespace MistForest.Core.GameRefactored.Roles
 
         public override bool HasAction(Action action) => action is IAlphaAction;
 
-        internal bool CanBlood() => Alive && !End && !IsSilenced && IsFirstAction && BloodCooldown == 0;
+        internal bool CanBlood() => Alive && !End && !IsSilenced && IsFirstAction && _bloodCooldown.IsReady;
 
         internal void AlphaBlood(Game game)
         {
@@ -238,20 +237,15 @@ namespace MistForest.Core.GameRefactored.Roles
                 1 => nearest[0],
                 _ => nearest[game.Board.Random.NextInt(0, nearest.Count)!.Value],
             };
-            BloodCooldown = AlphaConsts.AlphaBloodCooldownTurns;
-            _bloodUsedThisRound = true;
+            _bloodCooldown = _bloodCooldown.Use(AlphaConsts.AlphaBloodCooldownTurns);
             game.Events.Add(AlphaBloodEvent.New(Id, origin));
             game.Events.Add(AlphaBloodResultEvent.New(playerId, Id, target));
         }
 
-        public override void EndRound(Game game)
+        public override void PrepareTurn(Game game)
         {
-            base.EndRound(game);
-            if (!_bloodUsedThisRound && BloodCooldown > 0)
-            {
-                --BloodCooldown;
-            }
-            _bloodUsedThisRound = false;
+            base.PrepareTurn(game);
+            _bloodCooldown = _bloodCooldown.Tick();
         }
 
         internal override bool CanMove(GeneralMove move, Game game)
@@ -366,15 +360,11 @@ namespace MistForest.Core.GameRefactored.Roles
                 return false;
             }
 
-            AlphaUnitView view = (AlphaUnitView)GetView(game);
-            return view.CanBlood
-                || view.CanMoveGrids.Length > 0
-                || view.CanAttackGrids.Length > 0
-                || view.CanBuildFortGrids.Length > 0
-                || view.CanBuildWallGrids.Length > 0
-                || view.CanDemolishGrids.Length > 0;
+            return CanBlood()
+                || AttackUsed == 0 && MoveUsed < MoveDistance
+                || MoveUsed == 0 && AttackUsed == 0
+                || HasBuildOrDemolishTarget(game);
         }
-
         public override UnitView GetView(Game game)
         {
             bool active = Alive && !End;

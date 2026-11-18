@@ -267,6 +267,10 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.True(game.ExecuteAction(ArmigerArmorDown.New(0, 4)));
             Assert.Equal(0, game.CurrentPlayerId);
             Assert.True(game.ExecuteAction(ArmigerArmorDown.New(0, 4)));
+            Assert.Equal(0, game.CurrentPlayerId);
+            Assert.Empty(View(game).CanThrustGrids);
+            Assert.True(Role(game).HasActionLeft(game));
+            Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
             Assert.Equal(1, game.CurrentPlayerId);
             Assert.False(Role(game).HasActionLeft(game));
         }
@@ -276,7 +280,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
         [InlineData(false, true)]
         [InlineData(true, false)]
         [InlineData(true, true)]
-        public static void ArmorLock_BlocksTwoOwnTurnsAndTicksWhenAnotherRoleActs(
+        public static void ArmorLock_BlocksTwoOwnTurnsAndTicksAtTheOwnerTurnStart(
             bool hitBeforeOwnTurn, bool useOtherRole)
         {
             Game game = MakeGame(firstPlayerId: hitBeforeOwnTurn ? 1 : 0, withAlly: useOtherRole);
@@ -289,17 +293,18 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.True(game.ExecuteAction(InkAttack.New(enemy, Unit(game).Position)));
             Assert.Equal(2, Unit(game).ArmorLockRounds);
             Assert.True(game.ExecuteAction(GeneralEnd.New(enemy)));
-            for (int remaining = 2; remaining > 0; --remaining)
+            for (int blocked = 2; blocked > 0; --blocked)
             {
                 Assert.Equal(0, game.CurrentPlayerId);
-                Assert.Equal(remaining, Unit(game).ArmorLockRounds);
+                Assert.Equal(blocked, Unit(game).ArmorLockRounds);
                 Assert.False(View(game).CanArmorUp);
                 Assert.False(game.ExecuteAction(ArmigerArmorUp.New(0)));
                 Assert.True(game.ExecuteAction(GeneralEnd.New(ownActor)));
-                Assert.Equal(hitBeforeOwnTurn ? remaining - 1 : remaining, Unit(game).ArmorLockRounds);
+                Assert.Equal(blocked, Unit(game).ArmorLockRounds);
                 Assert.True(game.ExecuteAction(GeneralEnd.New(enemy)));
-                Assert.Equal(remaining - 1, Unit(game).ArmorLockRounds);
             }
+            Assert.Equal(0, game.CurrentPlayerId);
+            Assert.Equal(0, Unit(game).ArmorLockRounds);
             Assert.True(View(game).CanArmorUp);
             Assert.True(game.ExecuteAction(ArmigerArmorUp.New(0)));
             Assert.Equal(4, Unit(game).Armor);
@@ -340,7 +345,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
         [Theory]
         [InlineData(false)]
         [InlineData(true)]
-        public static void LaterHitAfterOwnTurn_OnlyRefreshesLockWhenItAddsDamage(bool stronger)
+        public static void LaterHitAfterOwnTurn_RefreshesTheLockOnlyWhenItAddsDamage(bool stronger)
         {
             GameMode mode = GameMode.SelfDefine.New(7, 7);
             Board board = Board.FromMode(mode, out _)!;
@@ -365,19 +370,20 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Game game = builder.Build()!;
             ArmigerUnit unit = Assert.IsType<Armiger>(game.Roles[1]).Unit;
             Assert.True(game.ExecuteAction(InkAttack.New(0, unit.Position)));
+            Assert.Equal(2, unit.ArmorLockRounds);
             Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
             Assert.True(game.ExecuteAction(GeneralEnd.New(1)));
+            unit.PrepareTurn(game);
+            Assert.Equal(1, unit.ArmorLockRounds);
+
             GameAction hit = stronger ? WolfBite.New(2, unit.Position) : InkAttack.New(2, unit.Position);
-
             Assert.True(game.ExecuteAction(hit));
-            Assert.True(game.ExecuteAction(GeneralEnd.New(2)));
-
             Assert.Equal(stronger ? 2 : 4, unit.Health);
             Assert.Equal(stronger ? 2 : 1, unit.ArmorLockRounds);
         }
 
         [Fact]
-        public static void DamageDuringOwnTurn_AndClonesSkipTheHitRound()
+        public static void DamageDuringOwnTurn_CloneSkipsTheHitTurn()
         {
             Game game = MakeGame();
             int enemyId = EnemyId(game);
@@ -388,22 +394,13 @@ namespace MistForest.Core.Tests.Refactored.Roles
             enemy.ExecuteAction(hit, game);
             Assert.Equal(2, Unit(game).ArmorLockRounds);
             Armiger clone = Assert.IsType<Armiger>(Role(game).Clone());
-            clone.Unit.EndRound(game);
+            clone.Unit.PrepareTurn(game);
             Assert.Equal(2, clone.Unit.ArmorLockRounds);
-            clone.Unit.EndRound(game);
+            clone.Unit.PrepareTurn(game);
             Assert.Equal(1, clone.Unit.ArmorLockRounds);
+            clone.Unit.PrepareTurn(game);
+            Assert.Equal(0, clone.Unit.ArmorLockRounds);
             Assert.Equal(2, Unit(game).ArmorLockRounds);
-
-            Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
-            Assert.True(game.ExecuteAction(GeneralEnd.New(enemyId)));
-
-            Assert.Equal(2, Unit(game).ArmorLockRounds);
-            Armiger afterRound = Assert.IsType<Armiger>(Role(game).Clone());
-            afterRound.Unit.EndRound(game);
-            Assert.Equal(1, afterRound.Unit.ArmorLockRounds);
-            afterRound.Unit.EndRound(game);
-            afterRound.Unit.EndRound(game);
-            Assert.Equal(0, afterRound.Unit.ArmorLockRounds);
         }
 
         [Fact]
@@ -424,7 +421,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Equal(new[] { 2, 6 }, ((ArmigerUnitView)clone.Unit.GetView(game)).CanArmorDownAmounts);
 
             Assert.True(game.ExecuteAction(ArmigerArmorDown.New(0, 2)));
-            clone.Unit.EndRound(game);
+            clone.Unit.PrepareTurn(game);
 
             Assert.Equal(4, Unit(game).Armor);
             Assert.Equal(6, clone.Unit.Armor);

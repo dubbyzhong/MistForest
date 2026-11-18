@@ -321,52 +321,35 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Equal(0, game.CurrentPlayerId);
         }
 
-        [Theory]
-        [InlineData(0)]
-        [InlineData(1)]
-        public static void Cooldown_SkipsCastRoundAndTicksAtRoundEndWhenAnotherRoleActs(int firstPlayerId)
+        [Fact]
+        public static void Cooldown_TicksOnlyAtTheInkTurnStart()
         {
-            Game game = MakeGame(withAlly: true, firstPlayerId: firstPlayerId);
+            Game game = MakeGame(withAlly: true, firstPlayerId: 1);
             int enemyId = game.Players[1].Roles[0].GetUnits()[0].Id;
-            if (firstPlayerId == 1)
-            {
-                Assert.True(game.ExecuteAction(GeneralEnd.New(enemyId)));
-            }
+            Assert.True(game.ExecuteAction(GeneralEnd.New(enemyId)));
             Assert.True(game.ExecuteAction(InkDash.New(0, game.Board.At(3, 5)!.Value)));
             Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
             Assert.Equal(2, Unit(game).DashCooldown);
-            if (firstPlayerId == 0)
-            {
-                Assert.True(game.ExecuteAction(GeneralEnd.New(enemyId)));
-            }
+
+            Assert.True(game.ExecuteAction(GeneralEnd.New(enemyId)));
             Assert.Equal(2, Unit(game).DashCooldown);
-            for (int remaining = 2; remaining > 0; --remaining)
-            {
-                if (firstPlayerId == 1)
-                {
-                    Assert.True(game.ExecuteAction(GeneralEnd.New(enemyId)));
-                    Assert.Equal(remaining, Unit(game).DashCooldown);
-                }
-                Assert.False(game.ExecuteAction(InkDash.New(0, game.Board.At(3, 3)!.Value)));
-                Assert.Empty(View(game).CanDashGrids);
-                Assert.True(game.ExecuteAction(GeneralEnd.New(1)));
-                if (firstPlayerId == 0)
-                {
-                    Assert.Equal(remaining, Unit(game).DashCooldown);
-                    Assert.True(game.ExecuteAction(GeneralEnd.New(enemyId)));
-                }
-                Assert.Equal(remaining - 1, Unit(game).DashCooldown);
-            }
-            if (firstPlayerId == 1)
-            {
-                Assert.True(game.ExecuteAction(GeneralEnd.New(enemyId)));
-            }
+            Assert.False(game.ExecuteAction(InkDash.New(0, game.Board.At(3, 3)!.Value)));
+            Assert.Empty(View(game).CanDashGrids);
+
+            Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
+            Assert.True(game.ExecuteAction(GeneralEnd.New(enemyId)));
+            Assert.Equal(1, Unit(game).DashCooldown);
+            Assert.False(game.ExecuteAction(InkDash.New(0, game.Board.At(3, 3)!.Value)));
+
+            Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
+            Assert.True(game.ExecuteAction(GeneralEnd.New(enemyId)));
+            Assert.Equal(0, Unit(game).DashCooldown);
             Assert.Contains(game.Board.At(3, 3)!.Value, View(game).CanDashGrids);
             Assert.True(game.ExecuteAction(InkDash.New(0, game.Board.At(3, 3)!.Value)));
         }
 
         [Fact]
-        public static void Clone_PreservesCooldownAndCastRoundFlagWithoutSharingState()
+        public static void Clone_PreservesCooldownWithoutSharingState()
         {
             Game game = MakeGame();
             Assert.True(game.ExecuteAction(InkDash.New(0, game.Board.At(3, 5)!.Value)));
@@ -376,19 +359,10 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Equal(2, viewClone.DashCooldown);
             Assert.Empty(viewClone.CanDashGrids);
 
-            clone.Unit.EndRound(game);
+            clone.Unit.PrepareTurn(game);
             Assert.Equal(2, clone.Unit.DashCooldown);
-            clone.Unit.EndRound(game);
+            clone.Unit.PrepareTurn(game);
             Assert.Equal(1, clone.Unit.DashCooldown);
-            Assert.Equal(2, Unit(game).DashCooldown);
-            Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
-            Assert.True(game.ExecuteAction(GeneralEnd.New(1)));
-            Ink afterRound = (Ink)Role(game).Clone();
-            afterRound.Unit.EndRound(game);
-            Assert.Equal(1, afterRound.Unit.DashCooldown);
-            afterRound.Unit.EndRound(game);
-            afterRound.Unit.EndRound(game);
-            Assert.Equal(0, afterRound.Unit.DashCooldown);
             Assert.Equal(2, Unit(game).DashCooldown);
             Assert.Equal(2, viewClone.DashCooldown);
         }
