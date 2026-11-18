@@ -4,6 +4,8 @@ namespace MistForest.Core.Consts
     {
         public const int ScoutLength = 3;
         public const int HeroesLen = 5;
+        public const int SelfDefineMinLength = 1;
+        public const int SelfDefineMaxLength = 9;
 
         private static readonly (int, int)[] _heroesWallPos =
         {

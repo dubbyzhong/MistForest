@@ -25,6 +25,20 @@ namespace MistForest.Core.Tests.Refactored.Utils
         }
 
         [Fact]
+        public static void SpanEnumerable_First_ThrowsForMissingValueTypeElement()
+        {
+            int[] source = { 1, 2, 3 };
+
+            Assert.Equal(2, source.AsSpan().AsEnumerable().First(value => value == 2));
+            Assert.Throws<InvalidOperationException>(() =>
+                source.AsSpan().AsEnumerable().First(value => value == 9)
+            );
+            Assert.True(source.AsSpan().AsEnumerable().TryFirst(value => value == 3, out int found));
+            Assert.Equal(3, found);
+            Assert.False(source.AsSpan().AsEnumerable().TryFirst(value => value == 9, out _));
+        }
+
+        [Fact]
         public static void SpanEnumerable_ToArray_ReturnsEmptyArrayWhenNothingMatches()
         {
             int[] result = new[] { 1, 3, 5 }

@@ -33,6 +33,58 @@ namespace MistForest.Core.Tests.Refactored.Roles
         }
 
         [Fact]
+        public static void ScoutRow_DoesNotRevealUndetectableUnit()
+        {
+            // Scout 类动作目前在非 Scout 模式下会被 Game.ExecuteAction 拦下,
+            // 所以这里直接走角色层执行,只验证"成功判定"是否遵守免探测口径。
+            GameMode mode = GameMode.SelfDefine.New(7, 7);
+            Board board = Board.FromMode(mode, out _)!;
+            GameBuilder builder = new();
+            Assert.NotNull(builder.SetMode(Box<GameMode>.New(mode)));
+            Assert.NotNull(builder.SetBoard(Box.New(board)));
+            Assert.NotNull(builder.SetPlayers(Box.New(new List<PlayerBuilder>
+            {
+                New(new List<PlayerBuilder.RoleBuilder>
+                {
+                    SniperBuilder.New(
+                        new UnitBuilder[] { new SniperUnitBuilder() },
+                        board.At(1, 3)!.Value
+                    )!,
+                })!,
+                New(new List<PlayerBuilder.RoleBuilder>
+                {
+                    HiddenWolfBuilder.New(
+                        new UnitBuilder[] { new HiddenWolfUnitBuilder() },
+                        board.At(5, 3)!.Value
+                    )!,
+                })!,
+                New(new List<PlayerBuilder.RoleBuilder>
+                {
+                    WolfBuilder.New(
+                        new UnitBuilder[] { new WolfUnitBuilder() },
+                        board.At(6, 6)!.Value
+                    )!,
+                })!,
+            })));
+            Game game = builder.Build()!;
+            Sniper sniper = Assert.IsType<Sniper>(game.Roles[0]);
+            Assert.False(game.GetUnit(1)!.CanBeDetected);
+            Assert.True(game.GetUnit(2)!.CanBeDetected);
+
+            // 第 5 行只有人形隐狼:不应报成功。
+            sniper.ExecuteAction(SniperScoutRow.New(callerUnitId: 0, row: 5), game);
+            // 第 6 行有可见的座狼:应报成功。
+            sniper.ExecuteAction(SniperScoutRow.New(callerUnitId: 0, row: 6), game);
+
+            ScoutRowEvent[] events = game.Events.OfType<ScoutRowEvent>().ToArray();
+            Assert.Equal(2, events.Length);
+            Assert.False(events[0].Success);
+            Assert.Equal(5, events[0].Row);
+            Assert.True(events[1].Success);
+            Assert.Equal(6, events[1].Row);
+        }
+
+        [Fact]
         public static void ScoutRow_FindsEnemyOnSelectedRow_AndEndsTurn()
         {
             Game game = MakeGame(GameMode.Scout.Instance, (1, 1), (3, 3));

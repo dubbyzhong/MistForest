@@ -25,7 +25,12 @@ namespace MistForest.Core.GameMap
         public virtual void Destroyed(Game game, int destroyer)
         {
             Health = 0;
-            Rubble rubble = Rubble.New(Id, Pos, owner: destroyer);
+            Rubble rubble = Rubble.New(
+                Id,
+                Pos,
+                owner: destroyer,
+                expireTurn: game.TurnCount + MapConsts.RubbleExpireRound * game.Players.Length
+            );
             game.Buildings[Id] = rubble;
         }
 
@@ -73,11 +78,12 @@ namespace MistForest.Core.GameMap
 
         public class Rubble : Building
         {
-            int expireRound;
+            /// <summary>Absolute turn index at which this rubble disappears.</summary>
+            private int _expireTurn;
 
-            public static Rubble New(int id, Node pos, int owner)
+            public static Rubble New(int id, Node pos, int owner, int expireTurn = 0)
             {
-                Rubble rubble = new() { expireRound = MapConsts.RubbleExpireRound, Health = 0 };
+                Rubble rubble = new() { _expireTurn = expireTurn, Health = 0 };
                 NewBase(rubble, id, pos, owner);
                 return rubble;
             }
@@ -87,10 +93,13 @@ namespace MistForest.Core.GameMap
                 game.Board.GetGrid(Pos)!.GridBuilding = null;
             }
 
+            /// <summary>
+            /// Called at the start of every player's turn: rubble clears one full round after it
+            /// appears, regardless of whether the destroyer is still in the game.
+            /// </summary>
             public void PrepareTurn(Game game)
             {
-                --expireRound;
-                if (expireRound == 0)
+                if (game.TurnCount >= _expireTurn)
                 {
                     Destroyed(game, 0);
                 }

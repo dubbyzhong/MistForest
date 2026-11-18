@@ -395,7 +395,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
         }
 
         [Fact]
-        public static void Follow_SurvivesRoundBoundaryAndObservesWhirlpoolBeforeNextTargetTurn()
+        public static void Follow_SurvivesRoundBoundary_ButDoesNotCopyWhirlpoolPull()
         {
             Game game = MakeGame(first: 1, threePlayers: true);
             Assert.True(game.ExecuteAction(GeneralEnd.New(2)));
@@ -405,9 +405,10 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
             Assert.Equal(1, game.CurrentPlayerId);
             Assert.Equal(At(game, 4, 5), game.GetUnit(2)!.Position);
-            Assert.Equal(At(game, 3, 4), Shadow(game).Unit.Position);
+            // 漩涡吸附不算目标移动,附骨不复制这次位移。
+            Assert.Equal(At(game, 3, 3), Shadow(game).Unit.Position);
             Assert.Equal(2, Shadow(game).Unit.TargetUnitId);
-            Assert.Single(game.Events.OfType<ShadowAttachmentEvent>());
+            Assert.Empty(game.Events.OfType<ShadowAttachmentEvent>());
             Assert.True(game.ExecuteAction(GeneralEnd.New(2)));
             Assert.Null(Shadow(game).Unit.TargetUnitId);
         }

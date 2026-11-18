@@ -62,6 +62,22 @@ namespace MistForest.Core.GameMap
             };
         }
 
+        /// <summary>
+        /// Custom maps are 1-9 grids wide and high and need at least one standable grid.
+        /// </summary>
+        private static bool IsValidSize(int height, int width)
+        {
+            return height >= ModeConsts.SelfDefineMinLength
+                && height <= ModeConsts.SelfDefineMaxLength
+                && width >= ModeConsts.SelfDefineMinLength
+                && width <= ModeConsts.SelfDefineMaxLength;
+        }
+
+        private static bool HasStandableGrid(Board board)
+        {
+            return board.Grids.AsValueEnumerable().Any(grid => grid.CanInitialStay());
+        }
+
         public static Board? FromMode(GameMode mode, out string? error)
         {
             error = null;
@@ -81,6 +97,12 @@ namespace MistForest.Core.GameMap
 
             var (height, width) = size.Value;
 
+            if (IsValidSize(height, width) is false)
+            {
+                error = $"invalid size {height}x{width}";
+                return null;
+            }
+
             Board board = New(height, width);
 
             if (mode is GameMode.Heroes)
@@ -93,6 +115,11 @@ namespace MistForest.Core.GameMap
                 {
                     board.Grids[wall.Pos] = Grid.New().WithOriginalBuilding(Terrain.Wall);
                 }
+            }
+            if (HasStandableGrid(board) is false)
+            {
+                error = "board has no standable grid";
+                return null;
             }
             return board;
         }
@@ -113,6 +140,12 @@ namespace MistForest.Core.GameMap
             if (reader.ReadInt(out error) is not int height)
             {
                 error = $"Board.FromCode Error: {error}";
+                return null;
+            }
+
+            if (IsValidSize(height, width) is false)
+            {
+                error = $"invalid size {height}x{width}";
                 return null;
             }
 
@@ -157,6 +190,11 @@ namespace MistForest.Core.GameMap
                     error = $"Board.FromCode Error: {error}";
                     return null;
                 }
+            }
+            if (HasStandableGrid(board) is false)
+            {
+                error = "board has no standable grid";
+                return null;
             }
             return board;
         }

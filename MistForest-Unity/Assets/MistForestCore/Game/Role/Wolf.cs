@@ -54,8 +54,6 @@ namespace MistForest.Core.GameRefactored.Roles
                 GeneralMove move => Unit.CanMove(move, game),
                 GeneralEnd _ => Unit.CanEnd(),
                 GeneralSurrender _ => Unit.CanSurrender(),
-                GeneralBuildFort buildFort => Unit.CanBuildFort(buildFort, game),
-                GeneralBuildWall buildWall => Unit.CanBuildWall(buildWall, game),
                 WolfBite bite => Unit.CanBite(bite, game),
                 GeneralDemolish demolish => Unit.CanDemolish(demolish, game),
                 _ => false,
@@ -76,12 +74,6 @@ namespace MistForest.Core.GameRefactored.Roles
                 case GeneralSurrender _:
                     GeneralSurrender(game);
                     break;
-                case GeneralBuildFort buildFort:
-                    Unit.GeneralBuildFort(buildFort, game);
-                    break;
-                case GeneralBuildWall buildWall:
-                    Unit.GeneralBuildWall(buildWall, game);
-                    break;
                 case GeneralDemolish demolish:
                     Unit.GeneralDemolish(demolish, game);
                     break;
@@ -93,9 +85,7 @@ namespace MistForest.Core.GameRefactored.Roles
 
         public override bool HasActionLeft(Game game) => !End(game);
 
-
         public override ReadOnlySpan<Unit> GetUnits() => _units;
-
     }
 
     public class WolfUnit : Unit
@@ -128,7 +118,6 @@ namespace MistForest.Core.GameRefactored.Roles
 
         public override bool HasAction(Action action) => action is IWolfAction;
 
-
         internal override bool CanMove(GeneralMove move, Game game)
         {
             return base.CanMove(move, game) && (MoveUsed + AttackUsed < MaxAction);
@@ -158,12 +147,7 @@ namespace MistForest.Core.GameRefactored.Roles
             return base.HasActionLeft(game)
                 && AttackUsed + MoveUsed < MaxAction
                 && GetView(game) is WolfUnitView view
-                && (
-                    view.CanBiteGrids.Length > 0
-                    || view.CanMoveGrids.Length > 0
-                    || view.CanBuildFortGrids.Length > 0
-                    || view.CanBuildWallGrids.Length > 0
-                );
+                && (view.CanBiteGrids.Length > 0 || view.CanMoveGrids.Length > 0);
         }
 
         public override UnitView GetView(Game game)
@@ -171,8 +155,8 @@ namespace MistForest.Core.GameRefactored.Roles
             return WolfUnitView.New(
                 canMoveGrids: Box.New(MoveEntries(game)),
                 canBiteGrids: Box.New(BiteNodes(game)),
-                canBuildFortGrids: Box.New(BuildFortNodes(game)),
-                canBuildWallGrids: Box.New(BuildWallNodes(game)),
+                canBuildFortGrids: Box.New(Array.Empty<Node>()),
+                canBuildWallGrids: Box.New(Array.Empty<Node>()),
                 canDemolishGrids: Box.New(DemolishNodes(game))
             )!;
         }

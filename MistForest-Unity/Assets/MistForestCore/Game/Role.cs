@@ -200,6 +200,19 @@ namespace MistForest.Core.GameRefactored
                 .ToArray();
         }
 
+        /// <summary>
+        /// Only hidden units make a build fail, so grids occupied by detectable units are not legal
+        /// build targets. Grids occupied by hidden units stay selectable; executing still fails and
+        /// consumes the turn.
+        /// </summary>
+        private static bool HasDetectableUnit(Node node, Game game)
+        {
+            return game
+                .Board.GetGrid(node)!
+                .Units.AsValueEnumerable()
+                .Any(unitId => game.GetUnit(unitId)!.CanBeDetected);
+        }
+
         protected Node[] BuildFortNodes(Game game)
         {
             return game
@@ -213,6 +226,7 @@ namespace MistForest.Core.GameRefactored
                 .Where(entry =>
                     entry.distance > 0
                     && game.Board.GetGrid(entry.node)!.CanBuild()
+                    && HasDetectableUnit(entry.node, game) is false
                     && game.Board.CanLineShot(
                         Position,
                         entry.node,
@@ -251,6 +265,11 @@ namespace MistForest.Core.GameRefactored
                 return false;
             }
 
+            if (HasDetectableUnit(buildFort.Target, game))
+            {
+                return false;
+            }
+
             int distance = game.Board.Distance(Position, buildFort.Target)!.Value;
 
             if (distance > RoleConsts.MaxFortBuildRange || distance < 1)
@@ -279,6 +298,7 @@ namespace MistForest.Core.GameRefactored
                 .Where(entry =>
                     entry.distance > 0
                     && game.Board.GetGrid(entry.node)!.CanBuild()
+                    && HasDetectableUnit(entry.node, game) is false
                     && game.Board.CanLineShot(
                         Position,
                         entry.node,
@@ -302,6 +322,16 @@ namespace MistForest.Core.GameRefactored
                     .Targets.AsSpan()
                     .AsEnumerable()
                     .Any(target => game.Board.GetGrid(target)!.CanBuild() is false)
+            )
+            {
+                return false;
+            }
+
+            if (
+                buildWall
+                    .Targets.AsSpan()
+                    .AsEnumerable()
+                    .Any(target => HasDetectableUnit(target, game))
             )
             {
                 return false;
@@ -584,7 +614,8 @@ namespace MistForest.Core.GameRefactored
                     game.Events.Add(
                         WhirlpoolAttachEvent.New(Id, GetPath(filteredNodes[randomIndex]))
                     );
-                    ChangePos(target: filteredNodes[randomIndex], game);
+                    // Whirlpool attachment is not a move of the target, so ShadowAttachment does not copy it.
+                    ChangePos(target: filteredNodes[randomIndex], game, notifyAttachments: false);
                     WhirlpoolImmuneExpire = MapConsts.WhirlpoolImmuneExpire;
                     return;
                 }
@@ -629,11 +660,18 @@ namespace MistForest.Core.GameRefactored
             while (current != Position)
             {
                 path.Add(current!.Value);
-                current = _lastMoveEntries!
-                    .AsSpan()
-                    .AsEnumerable()
-                    .First(item => item.node == current)
-                    .lastNode;
+                if (
+                    _lastMoveEntries!
+                        .AsSpan()
+                        .AsEnumerable()
+                        .TryFirst(item => item.node == current, out var entry) is false
+                )
+                {
+                    throw new InvalidOperationException(
+                        $"path from {Position} to {target} is broken"
+                    );
+                }
+                current = entry.lastNode;
             }
             path.Add(current!.Value);
             path.Reverse();

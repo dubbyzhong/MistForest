@@ -53,6 +53,50 @@ namespace MistForest.Core.Tests.Refactored.Roles
 
         private static Alpha GetAlpha(Game game) => Assert.IsType<Alpha>(game.Roles[0]);
 
+        private static Game MakeStackedGame()
+        {
+            GameMode mode = GameMode.SelfDefine.New(7, 7);
+            Board board = Board.FromMode(mode, out _)!;
+            Node shared = board.At(3, 3)!.Value;
+            GameBuilder builder = new();
+            Assert.NotNull(builder.SetMode(Box.New(mode)));
+            Assert.NotNull(builder.SetBoard(Box.New(board)));
+            Assert.NotNull(builder.SetPlayers(Box.New(new List<PlayerBuilder>
+            {
+                New(new List<RoleBuilder>
+                {
+                    AlphaBuilder.New(new UnitBuilder[] { new AlphaUnitBuilder() }, shared)!,
+                })!,
+                New(new List<RoleBuilder>
+                {
+                    WolfBuilder.New(new UnitBuilder[] { new WolfUnitBuilder() }, shared)!,
+                })!,
+            })));
+            return builder.Build()!;
+        }
+
+        [Fact]
+        public static void Attack_OwnGrid_HitsStackedEnemyButNeverHurtsSelf()
+        {
+            Game game = MakeStackedGame();
+            Alpha role = GetAlpha(game);
+            Unit enemy = game.GetUnit(1)!;
+            Node shared = role.Unit.Position;
+            Assert.Equal(shared, enemy.Position);
+            int selfHealth = role.Unit.Health;
+            int enemyHealth = enemy.Health;
+
+            AlphaUnitView view = Assert.IsType<AlphaUnitView>(role.Unit.GetView(game));
+            Assert.Contains(shared, view.CanAttackGrids);
+
+            Assert.True(game.ExecuteAction(AlphaAttack.New(role.Unit.Id, shared)));
+
+            Assert.Equal(enemyHealth - AlphaConsts.AlphaAttackDamage, enemy.Health);
+            Assert.Equal(selfHealth, role.Unit.Health);
+            Assert.Equal(0, role.Unit.HighestDirectDamage);
+            Assert.True(role.Unit.End);
+        }
+
         [Fact]
         public static void Attack_DamagesEnemyWithoutMovingAndEndsTurn()
         {
@@ -109,7 +153,6 @@ namespace MistForest.Core.Tests.Refactored.Roles
         }
 
         [Theory]
-        [InlineData("self")]
         [InlineData("range")]
         [InlineData("diagonal")]
         [InlineData("lake")]
@@ -122,7 +165,6 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Node target = game.Board.At(3, 4)!.Value;
             switch (obstruction)
             {
-                case "self": target = role.Unit.Position; break;
                 case "range": target = game.Board.At(3, 5)!.Value; break;
                 case "diagonal": target = game.Board.At(2, 4)!.Value; break;
                 case "lake": game.Board.GetGrid(target)!.Terrain = Terrain.Lake; break;
@@ -342,7 +384,6 @@ namespace MistForest.Core.Tests.Refactored.Roles
         }
 
         [Theory]
-        [InlineData("self")]
         [InlineData("range")]
         [InlineData("diagonal")]
         [InlineData("lake")]
@@ -360,7 +401,6 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Node target = game.GetUnit(1)!.Position;
             switch (obstruction)
             {
-                case "self": target = from; break;
                 case "range": target = game.Board.At(3, 5)!.Value; break;
                 case "diagonal": target = game.Board.At(2, 4)!.Value; break;
                 case "lake": game.Board.GetGrid(target)!.Terrain = Terrain.Lake; break;

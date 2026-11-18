@@ -36,6 +36,34 @@ namespace MistForest.Core.Tests.Refactored.Roles
         }
 
         [Fact]
+        public static void BuildView_UnsupportedActions_HaveNoTargetsAndAreRejected()
+        {
+            Game game = MakeWolfGame((3, 3), (7, 7));
+            Unit unit = game.GetUnit(0)!;
+            Board.Node fortTarget = game.Board.At(3, 4)!.Value;
+            Board.Node[] wallTargets =
+            {
+                game.Board.At(2, 3)!.Value,
+                game.Board.At(2, 4)!.Value,
+            };
+            GeneralBuildFort buildFort = GeneralBuildFort.New(unit.Id, fortTarget);
+            GeneralBuildWall buildWall = GeneralBuildWall.New(unit.Id, wallTargets)!;
+            UnitView view = unit.GetView(game);
+
+            Assert.Empty(view.CanBuildFortGrids);
+            Assert.Empty(view.CanBuildWallGrids);
+            Assert.Empty(view.Clone().CanBuildFortGrids);
+            Assert.Empty(view.Clone().CanBuildWallGrids);
+            Assert.False(unit.HasAction(buildFort));
+            Assert.False(unit.HasAction(buildWall));
+            Assert.False(game.ExecuteAction(buildFort));
+            Assert.False(game.ExecuteAction(buildWall));
+            Assert.Empty(game.Buildings);
+            Assert.Empty(game.Events);
+            Assert.True(unit.IsFirstAction);
+        }
+
+        [Fact]
         public static void DemolishView_UnsupportedAction_HasNoTargetsInBaseViewOrClone()
         {
             Game game = MakeWolfGame((3, 3), (7, 7));

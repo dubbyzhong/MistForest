@@ -241,6 +241,7 @@ namespace MistForest.Core.GameRefactored.Roles
                                             game.PlayerIdFromUnitId(unit)
                                         )
                                             is false
+                                        && game.GetUnit(unit)!.CanBeDetected
                                     )
                             ),
                         scoutRow.Row
@@ -263,6 +264,7 @@ namespace MistForest.Core.GameRefactored.Roles
                                             game.PlayerIdFromUnitId(unit)
                                         )
                                             is false
+                                        && game.GetUnit(unit)!.CanBeDetected
                                     )
                             ),
                         scoutCol.Col
