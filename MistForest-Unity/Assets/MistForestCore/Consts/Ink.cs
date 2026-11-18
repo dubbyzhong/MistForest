@@ -1,7 +1,7 @@
 namespace MistForest.Core.Consts
 {
     /// <summary>
-    /// Defines Ink's base values. Health and damage are measured in quarter-point units.
+    /// Defines Ink's base values. Health and damage are measured in combat units.
     /// </summary>
     public class InkConsts
     {

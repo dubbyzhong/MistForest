@@ -6,6 +6,7 @@ using MistForest.Core.Utils;
 using Xunit;
 using static MistForest.Core.GameRefactored.PlayerBuilder;
 using GameAction = MistForest.Core.GameRefactored.Action;
+using static MistForest.Core.Consts.CombatConsts;
 
 namespace MistForest.Core.Tests.Refactored.Roles
 {
@@ -90,7 +91,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Equal(new[] { from, expected }, copied.Path);
             Assert.Equal(0, copied.UnitId);
             Assert.False(Assert.Single(game.Events.OfType<ShadowAttachmentEvent>()).Blocked);
-            Assert.Equal(6, Shadow(game).Unit.Health);
+            Assert.Equal(3 * HalfPoint, Shadow(game).Unit.Health);
         }
 
         [Theory]
@@ -138,7 +139,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             {
                 case "leg-wall": game.Board.SetTerrain(leg, Terrain.Wall); break;
                 case "leg-lake": game.Board.SetTerrain(leg, Terrain.Lake); break;
-                case "leg-building": game.AddBuilding(WallBuilder.New().SetOwner(1)!.SetHealth(4)!.SetPos(leg)!); break;
+                case "leg-building": game.AddBuilding(WallBuilder.New().SetOwner(1)!.SetHealth(UnitsPerPoint)!.SetPos(leg)!); break;
                 case "leg-edge":
                     int edge = game.Board.HWallAt(leg)!.Value;
                     game.Board.HorizontalWalls.SetInner(edge / 64, 1ul << (edge % 64), out _); break;
@@ -147,7 +148,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
                 case "enemy-fort":
                 case "own-fort":
                     game.AddBuilding(FortBuilder.New().SetOwner(obstacle == "own-fort" ? 0 : 1)!
-                        .SetHealth(4)!.SetPos(landing)!); break;
+                        .SetHealth(UnitsPerPoint)!.SetPos(landing)!); break;
                 case "intermediate-wall": game.Board.SetTerrain(At(game, 1, 3), Terrain.Wall); break;
                 case "later-edge":
                     edge = game.Board.HWallAt(At(game, 1, 3))!.Value;

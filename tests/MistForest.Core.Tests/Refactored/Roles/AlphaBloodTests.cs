@@ -6,6 +6,7 @@ using Xunit;
 using static MistForest.Core.GameMap.Board;
 using static MistForest.Core.GameRefactored.PlayerBuilder;
 using GameAction = MistForest.Core.GameRefactored.Action;
+using static MistForest.Core.Consts.CombatConsts;
 
 namespace MistForest.Core.Tests.Refactored.Roles
 {
@@ -135,7 +136,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
                 ? AlphaAttackRush.New(0, game.GetUnit(1)!.Position)
                 : AlphaAttack.New(0, game.GetUnit(1)!.Position);
             Assert.True(game.ExecuteAction(attack));
-            Assert.Equal(2, game.GetUnit(1)!.Health);
+            Assert.Equal(HalfPoint, game.GetUnit(1)!.Health);
             Assert.Equal(1, game.CurrentPlayerId);
             Assert.Equal(2, Alpha(game).BloodCooldown);
         }
@@ -247,7 +248,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             AlphaUnit alpha = Alpha(game);
             if (withAlliedFort)
             {
-                game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(4)!.SetPos(alpha.Position)!);
+                game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(UnitsPerPoint)!.SetPos(alpha.Position)!);
             }
             foreach ((int row, int col) in new[] { (2, 3), (4, 3), (3, 2), (3, 4) })
             {
@@ -284,7 +285,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             public DetectionUnit(int id, int roleId, Node position, bool detectable, bool alive)
             {
                 NewBase(this, id, roleId, position);
-                Health = alive ? 6 : 0;
+                Health = alive ? 3 * HalfPoint : 0;
                 _detectable = detectable;
             }
             public override Unit Clone()

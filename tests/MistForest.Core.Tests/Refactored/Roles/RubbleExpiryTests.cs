@@ -4,6 +4,7 @@ using MistForest.Core.GameRefactored.Roles;
 using MistForest.Core.Utils;
 using Xunit;
 using static MistForest.Core.GameRefactored.PlayerBuilder;
+using static MistForest.Core.Consts.CombatConsts;
 
 namespace MistForest.Core.Tests.Refactored.Roles
 {
@@ -53,7 +54,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Board board = Board.FromMode(mode, out _)!;
             Game game = MakeGame(board);
             Board.Node fortPos = board.At(2, 3)!.Value;
-            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(4)!.SetPos(fortPos)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(UnitsPerPoint)!.SetPos(fortPos)!);
             Unit sniper = game.Players[0].Roles[0].GetUnits()[0];
             Unit wolf1 = game.Players[1].Roles[0].GetUnits()[0];
             Unit wolf2 = game.Players[2].Roles[0].GetUnits()[0];
@@ -101,7 +102,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Game game = MakeGame(board);
             Board.Node fortPos = board.At(2, 3)!.Value;
             Grid grid = board.GetGrid(fortPos)!;
-            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(4)!.SetPos(fortPos)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(UnitsPerPoint)!.SetPos(fortPos)!);
             int sniperId = game.Players[0].Roles[0].GetUnits()[0].Id;
             int firstWolfId = game.Players[1].Roles[0].GetUnits()[0].Id;
             int secondWolfId = game.Players[2].Roles[0].GetUnits()[0].Id;

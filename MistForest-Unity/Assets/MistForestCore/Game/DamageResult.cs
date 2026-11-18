@@ -7,7 +7,7 @@ namespace MistForest.Core.GameRefactored
     }
 
     /// <summary>
-    /// Records actual armor, temporary shield and health loss in quarter-point units.
+    /// Records actual armor, temporary shield and health loss in combat units.
     /// </summary>
     public readonly struct DamageResult
     {

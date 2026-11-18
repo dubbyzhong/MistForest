@@ -5,6 +5,7 @@ using MistForest.Core.GameRefactored.Roles;
 using MistForest.Core.Utils;
 using Xunit;
 using static MistForest.Core.GameRefactored.PlayerBuilder;
+using static MistForest.Core.Consts.CombatConsts;
 
 namespace MistForest.Core.Tests.Refactored.Roles
 {
@@ -66,10 +67,10 @@ namespace MistForest.Core.Tests.Refactored.Roles
             enemy.Position = At(game, 6, 5);
             game.Board.GetGrid(enemy.Position)!.Units.Add(1);
             Assert.True(game.ExecuteAction(KnightHunt.New(0, enemy.Position)));
-            Assert.Equal(2, enemy.Health);
+            Assert.Equal(HalfPoint, enemy.Health);
             Assert.True(game.ExecuteAction(KnightCleave.New(0, enemy.Position)));
-            Assert.Equal(2, enemy.Health);
-            Assert.Equal(4, enemy.HighestDirectDamage);
+            Assert.Equal(HalfPoint, enemy.Health);
+            Assert.Equal(UnitsPerPoint, enemy.HighestDirectDamage);
         }
 
         [Fact]
@@ -83,7 +84,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             game.Board.GetGrid(foe.Position)!.Units.Add(1);
             Assert.True(game.ExecuteAction(KnightHunt.New(0, foe.Position)));
             Assert.Equal(foe.Position, Role(game).Unit.Position);
-            Assert.Equal(2, foe.Health);
+            Assert.Equal(HalfPoint, foe.Health);
             Assert.True(View(game).IsHunting);
             Assert.True(View(game).CanSilence);
             Assert.Equal(0, Role(game).Unit.OptionsUsed);
@@ -159,12 +160,12 @@ namespace MistForest.Core.Tests.Refactored.Roles
         {
             Game game = MakeGame();
             Board.Node target = game.GetUnit(1)!.Position;
-            game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(4)!.SetPos(target)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(UnitsPerPoint)!.SetPos(target)!);
             Hunt(game);
             Assert.Contains(target, View(game).CanCleaveRushGrids);
             Assert.True(game.ExecuteAction(rush ? KnightCleaveRush.New(0, target) : KnightCleave.New(0, target)));
             Assert.IsType<Building.Rubble>(game.Buildings[0]);
-            Assert.Equal(6, game.GetUnit(1)!.Health);
+            Assert.Equal(3 * HalfPoint, game.GetUnit(1)!.Health);
             Assert.Equal(rush ? target : At(game, 4, 4), Role(game).Unit.Position);
             KnightAttackEvent hit = game.Events.OfType<KnightAttackEvent>().Last();
             Assert.False(hit.IsHunt);
@@ -185,7 +186,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Board.Node target = At(game, 4, 5);
             switch (obstacle)
             {
-                case "strong-fort": game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(8)!.SetPos(target)!); break;
+                case "strong-fort": game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(2 * UnitsPerPoint)!.SetPos(target)!); break;
                 case "wall-terrain": game.Board.SetTerrain(target, Terrain.Wall); break;
                 case "lake": game.Board.SetTerrain(target, Terrain.Lake); break;
                 case "line-wall":

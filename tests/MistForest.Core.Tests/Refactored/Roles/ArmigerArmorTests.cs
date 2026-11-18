@@ -6,6 +6,7 @@ using MistForest.Core.Utils;
 using Xunit;
 using static MistForest.Core.GameRefactored.PlayerBuilder;
 using GameAction = MistForest.Core.GameRefactored.Action;
+using static MistForest.Core.Consts.CombatConsts;
 
 namespace MistForest.Core.Tests.Refactored.Roles
 {
@@ -65,10 +66,10 @@ namespace MistForest.Core.Tests.Refactored.Roles
 
         [Theory]
         [InlineData(0, 2, 1)]
-        [InlineData(2, 1, 2)]
-        [InlineData(4, 1, 2)]
-        [InlineData(6, 0, 3)]
-        [InlineData(8, 0, 3)]
+        [InlineData(HalfPoint, 1, 2)]
+        [InlineData(UnitsPerPoint, 1, 2)]
+        [InlineData(3 * HalfPoint, 0, 3)]
+        [InlineData(2 * UnitsPerPoint, 0, 3)]
         public static void Armor_UsesQuarterPointUnitsAndRoundsPartialLayersForRanges(
             int armor, int movementRange, int attackRange)
         {
@@ -99,8 +100,8 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.True(initial.CanArmorUp);
             Assert.Empty(initial.CanArmorDownAmounts);
             Assert.True(Unit(game).HasAction(ArmigerArmorUp.New(0)));
-            Assert.True(Unit(game).HasAction(ArmigerArmorDown.New(0, 4)));
-            for (int expected = 4; expected <= 8; expected += 4)
+            Assert.True(Unit(game).HasAction(ArmigerArmorDown.New(0, UnitsPerPoint)));
+            for (int expected = UnitsPerPoint; expected <= 2 * UnitsPerPoint; expected += UnitsPerPoint)
             {
                 int count = game.Events.Count;
                 Assert.True(game.ExecuteAction(ArmigerArmorUp.New(0)));
@@ -114,24 +115,24 @@ namespace MistForest.Core.Tests.Refactored.Roles
                 Assert.Equal(count + 1, game.Events.Count);
                 ArmigerArmorUpEvent changed = Assert.IsType<ArmigerArmorUpEvent>(game.Events.Last());
                 Assert.Equal(0, changed.UnitId);
-                Assert.Equal(expected - 4, changed.ArmorBefore);
+                Assert.Equal(expected - UnitsPerPoint, changed.ArmorBefore);
                 Assert.Equal(expected, changed.ArmorAfter);
                 Assert.True(game.ExecuteAction(GeneralEnd.New(EnemyId(game))));
             }
             Assert.Equal(0, initial.Armor);
             Assert.True(initial.CanArmorUp);
             Assert.False(View(game).CanArmorUp);
-            Assert.Equal(new[] { 4, 8 }, View(game).CanArmorDownAmounts);
+            Assert.Equal(new[] { UnitsPerPoint, 2 * UnitsPerPoint }, View(game).CanArmorDownAmounts);
             int before = game.Events.Count;
             Assert.False(game.ExecuteAction(ArmigerArmorUp.New(0)));
-            Assert.Equal(8, Unit(game).Armor);
+            Assert.Equal(2 * UnitsPerPoint, Unit(game).Armor);
             Assert.Equal(before, game.Events.Count);
             Assert.True(Unit(game).IsFirstAction);
         }
 
         [Theory]
-        [InlineData(2, 4)]
-        [InlineData(6, 8)]
+        [InlineData(HalfPoint, UnitsPerPoint)]
+        [InlineData(3 * HalfPoint, 2 * UnitsPerPoint)]
         public static void ArmorUp_RestoresPartialArmorToTheNextWholeLayer(int armor, int expected)
         {
             Game game = MakeGame();
@@ -160,8 +161,8 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Game game = MakeGame();
             if (unloadFirst)
             {
-                PrepareArmor(game, 4);
-                Assert.True(game.ExecuteAction(ArmigerArmorDown.New(0, 4)));
+                PrepareArmor(game, UnitsPerPoint);
+                Assert.True(game.ExecuteAction(ArmigerArmorDown.New(0, UnitsPerPoint)));
             }
             else
             {
@@ -178,21 +179,21 @@ namespace MistForest.Core.Tests.Refactored.Roles
 
         [Theory]
         [InlineData(0, 0, false)]
-        [InlineData(0, 4, false)]
-        [InlineData(2, 0, false)]
-        [InlineData(2, 2, true)]
-        [InlineData(2, 4, false)]
-        [InlineData(4, 2, false)]
-        [InlineData(4, 4, true)]
-        [InlineData(6, 2, true)]
-        [InlineData(6, 4, false)]
-        [InlineData(6, 6, true)]
-        [InlineData(8, 2, false)]
-        [InlineData(8, 4, true)]
-        [InlineData(8, 6, false)]
-        [InlineData(8, 8, true)]
-        [InlineData(8, -1, false)]
-        [InlineData(8, int.MaxValue, false)]
+        [InlineData(0, UnitsPerPoint, false)]
+        [InlineData(HalfPoint, 0, false)]
+        [InlineData(HalfPoint, HalfPoint, true)]
+        [InlineData(HalfPoint, UnitsPerPoint, false)]
+        [InlineData(UnitsPerPoint, HalfPoint, false)]
+        [InlineData(UnitsPerPoint, UnitsPerPoint, true)]
+        [InlineData(3 * HalfPoint, HalfPoint, true)]
+        [InlineData(3 * HalfPoint, UnitsPerPoint, false)]
+        [InlineData(3 * HalfPoint, 3 * HalfPoint, true)]
+        [InlineData(2 * UnitsPerPoint, HalfPoint, false)]
+        [InlineData(2 * UnitsPerPoint, UnitsPerPoint, true)]
+        [InlineData(2 * UnitsPerPoint, 3 * HalfPoint, false)]
+        [InlineData(2 * UnitsPerPoint, 2 * UnitsPerPoint, true)]
+        [InlineData(2 * UnitsPerPoint, -1, false)]
+        [InlineData(2 * UnitsPerPoint, int.MaxValue, false)]
         public static void ArmorDown_AcceptsInternalAmountsThatRemoveAnyPartialLayer(
             int armor, int amount, bool allowed)
         {
@@ -226,13 +227,13 @@ namespace MistForest.Core.Tests.Refactored.Roles
         public static void UnloadingAfterMovement_OnlyAddsTheNewRemainingMovementAllowance()
         {
             Game game = MakeGame();
-            PrepareArmor(game, 4);
+            PrepareArmor(game, UnitsPerPoint);
             Assert.True(game.ExecuteAction(GeneralMove.New(0, game.Board.At(3, 2)!.Value)));
             Assert.Empty(View(game).CanMoveGrids);
-            Assert.Equal(new[] { 4 }, View(game).CanArmorDownAmounts);
+            Assert.Equal(new[] { UnitsPerPoint }, View(game).CanArmorDownAmounts);
             Assert.True(Role(game).HasActionLeft(game));
 
-            Assert.True(game.ExecuteAction(ArmigerArmorDown.New(0, 4)));
+            Assert.True(game.ExecuteAction(ArmigerArmorDown.New(0, UnitsPerPoint)));
 
             Assert.All(View(game).CanMoveGrids, entry => Assert.Equal(1, entry.distance));
             Assert.DoesNotContain(View(game).CanMoveGrids, entry => entry.node == game.Board.At(1, 2)!.Value);
@@ -250,7 +251,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
         public static void Unloading_RemainsAvailableWhenOtherActionsAreBlocked()
         {
             Game game = MakeGame();
-            PrepareArmor(game, 8);
+            PrepareArmor(game, 2 * UnitsPerPoint);
             foreach ((int row, int col) in new[] { (2, 3), (4, 3), (3, 2), (3, 4) })
             {
                 game.Board.SetTerrain(game.Board.At(row, col)!.Value, Terrain.Wall);
@@ -261,12 +262,12 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Empty(view.CanBuildWallGrids);
             Assert.Empty(view.CanDemolishGrids);
             Assert.False(view.CanArmorUp);
-            Assert.Equal(new[] { 4, 8 }, view.CanArmorDownAmounts);
+            Assert.Equal(new[] { UnitsPerPoint, 2 * UnitsPerPoint }, view.CanArmorDownAmounts);
             Assert.True(Role(game).HasActionLeft(game));
 
-            Assert.True(game.ExecuteAction(ArmigerArmorDown.New(0, 4)));
+            Assert.True(game.ExecuteAction(ArmigerArmorDown.New(0, UnitsPerPoint)));
             Assert.Equal(0, game.CurrentPlayerId);
-            Assert.True(game.ExecuteAction(ArmigerArmorDown.New(0, 4)));
+            Assert.True(game.ExecuteAction(ArmigerArmorDown.New(0, UnitsPerPoint)));
             Assert.Equal(1, game.CurrentPlayerId);
             Assert.False(Role(game).HasActionLeft(game));
         }
@@ -302,22 +303,22 @@ namespace MistForest.Core.Tests.Refactored.Roles
             }
             Assert.True(View(game).CanArmorUp);
             Assert.True(game.ExecuteAction(ArmigerArmorUp.New(0)));
-            Assert.Equal(4, Unit(game).Armor);
+            Assert.Equal(UnitsPerPoint, Unit(game).Armor);
         }
 
         [Fact]
         public static void ArmorOnlyDamage_StartsLockAndRefreshesInk()
         {
             Game game = MakeGame();
-            PrepareArmor(game, 4);
+            PrepareArmor(game, UnitsPerPoint);
             Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
             int enemy = EnemyId(game);
             Assert.True(game.ExecuteAction(InkDash.New(enemy, game.Board.At(2, 3)!.Value)));
 
             Assert.True(game.ExecuteAction(InkAttack.New(enemy, Unit(game).Position)));
 
-            Assert.Equal(6, Unit(game).Health);
-            Assert.Equal(2, Unit(game).Armor);
+            Assert.Equal(3 * HalfPoint, Unit(game).Health);
+            Assert.Equal(HalfPoint, Unit(game).Armor);
             Assert.Equal(2, Unit(game).ArmorLockRounds);
             Assert.Equal(0, Assert.IsType<Ink>(game.Players[1].Roles[0]).Unit.DashCooldown);
         }
@@ -326,12 +327,12 @@ namespace MistForest.Core.Tests.Refactored.Roles
         public static void BuildingProtection_DoesNotStartLock()
         {
             Game game = MakeGame(firstPlayerId: 1);
-            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(2)!.SetPos(Unit(game).Position)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(HalfPoint)!.SetPos(Unit(game).Position)!);
 
             Assert.True(game.ExecuteAction(InkAttack.New(EnemyId(game), Unit(game).Position)));
 
             Assert.IsType<Building.Rubble>(game.Buildings[0]);
-            Assert.Equal(6, Unit(game).Health);
+            Assert.Equal(3 * HalfPoint, Unit(game).Health);
             Assert.Equal(0, Unit(game).ArmorLockRounds);
             Assert.True(View(game).CanArmorUp);
             Assert.Equal(0, Unit(game).HighestDirectDamage);
@@ -372,7 +373,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.True(game.ExecuteAction(hit));
             Assert.True(game.ExecuteAction(GeneralEnd.New(2)));
 
-            Assert.Equal(stronger ? 2 : 4, unit.Health);
+            Assert.Equal(stronger ? HalfPoint : UnitsPerPoint, unit.Health);
             Assert.Equal(stronger ? 2 : 1, unit.ArmorLockRounds);
         }
 
@@ -410,27 +411,27 @@ namespace MistForest.Core.Tests.Refactored.Roles
         public static void CloneAndView_PreservePartialArmorAndOwnUnloadOptions()
         {
             Game game = MakeGame();
-            PrepareArmor(game, 6);
+            PrepareArmor(game, 3 * HalfPoint);
             Armiger clone = Assert.IsType<Armiger>(Role(game).Clone());
             ArmigerUnitView view = View(game);
             ArmigerUnitView viewClone = Assert.IsType<ArmigerUnitView>(view.Clone());
-            Assert.Equal(6, clone.Unit.Armor);
+            Assert.Equal(3 * HalfPoint, clone.Unit.Armor);
             Assert.Equal(2, clone.Unit.ArmorLockRounds);
-            Assert.Equal(6, viewClone.Armor);
+            Assert.Equal(3 * HalfPoint, viewClone.Armor);
             Assert.Equal(2, viewClone.ArmorLockRounds);
             Assert.False(viewClone.CanArmorUp);
             viewClone.CanArmorDownAmounts[0] = 99;
-            Assert.Equal(new[] { 2, 6 }, view.CanArmorDownAmounts);
-            Assert.Equal(new[] { 2, 6 }, ((ArmigerUnitView)clone.Unit.GetView(game)).CanArmorDownAmounts);
+            Assert.Equal(new[] { HalfPoint, 3 * HalfPoint }, view.CanArmorDownAmounts);
+            Assert.Equal(new[] { HalfPoint, 3 * HalfPoint }, ((ArmigerUnitView)clone.Unit.GetView(game)).CanArmorDownAmounts);
 
-            Assert.True(game.ExecuteAction(ArmigerArmorDown.New(0, 2)));
+            Assert.True(game.ExecuteAction(ArmigerArmorDown.New(0, HalfPoint)));
             clone.Unit.EndRound(game);
 
-            Assert.Equal(4, Unit(game).Armor);
-            Assert.Equal(6, clone.Unit.Armor);
+            Assert.Equal(UnitsPerPoint, Unit(game).Armor);
+            Assert.Equal(3 * HalfPoint, clone.Unit.Armor);
             Assert.Equal(1, clone.Unit.ArmorLockRounds);
             Assert.Equal(2, Unit(game).ArmorLockRounds);
-            Assert.Equal(6, view.Armor);
+            Assert.Equal(3 * HalfPoint, view.Armor);
             Assert.Equal(2, view.ArmorLockRounds);
         }
 
@@ -440,17 +441,17 @@ namespace MistForest.Core.Tests.Refactored.Roles
         public static void EndAndDeath_HideArmorSkills(bool surrender)
         {
             Game game = MakeGame();
-            PrepareArmor(game, 4);
+            PrepareArmor(game, UnitsPerPoint);
             GameAction action = surrender ? GeneralSurrender.New(0) : GeneralEnd.New(0);
             Assert.True(game.ExecuteAction(action));
 
             Assert.False(View(game).CanArmorUp);
             Assert.Empty(View(game).CanArmorDownAmounts);
-            Assert.Equal(surrender ? 0 : 4, View(game).Armor);
+            Assert.Equal(surrender ? 0 : UnitsPerPoint, View(game).Armor);
             Assert.False(Role(game).JudgeAction(ArmigerArmorUp.New(0), game));
-            Assert.False(Role(game).JudgeAction(ArmigerArmorDown.New(0, 4), game));
+            Assert.False(Role(game).JudgeAction(ArmigerArmorDown.New(0, UnitsPerPoint), game));
             Assert.False(game.ExecuteAction(ArmigerArmorUp.New(0)));
-            Assert.False(game.ExecuteAction(ArmigerArmorDown.New(0, 4)));
+            Assert.False(game.ExecuteAction(ArmigerArmorDown.New(0, UnitsPerPoint)));
         }
     }
 }

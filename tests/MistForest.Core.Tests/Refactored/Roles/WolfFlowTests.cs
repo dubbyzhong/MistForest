@@ -5,6 +5,7 @@ using MistForest.Core.GameRefactored.Roles;
 using MistForest.Core.Utils;
 using Xunit;
 using static MistForest.Core.GameRefactored.PlayerBuilder;
+using static MistForest.Core.Consts.CombatConsts;
 
 namespace MistForest.Core.Tests.Refactored.Roles
 {
@@ -69,7 +70,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Game game = MakeWolfGame((3, 3), (7, 7));
             Unit unit = game.GetUnit(0)!;
             Board.Node target = game.Board.At(3, 4)!.Value;
-            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(4)!.SetPos(target)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(UnitsPerPoint)!.SetPos(target)!);
             UnitView view = unit.GetView(game);
             GeneralDemolish demolish = GeneralDemolish.New(unit.Id, target);
 
@@ -79,7 +80,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.False(game.ExecuteAction(demolish));
             Assert.Empty(game.Events);
             Assert.True(unit.IsFirstAction);
-            Assert.Equal(4, game.Buildings[0].Health);
+            Assert.Equal(UnitsPerPoint, game.Buildings[0].Health);
         }
 
         private static Game MakeWolfGameWithAllyOnEnemySquare()
@@ -177,12 +178,12 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Game game = MakeWolfGame((3, 3), (3, 4));
             Unit enemy = game.GetUnit(1)!;
             Board.Node target = enemy.Position;
-            game.AddBuilding(FortBuilder.New().SetOwner(owner)!.SetHealth(2)!.SetPos(target)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(owner)!.SetHealth(HalfPoint)!.SetPos(target)!);
 
             Assert.DoesNotContain(target, ((WolfUnitView)game.GetUnit(0)!.GetView(game)).CanBiteGrids);
             Assert.False(game.ExecuteAction(WolfBite.New(0, target)));
             Assert.Empty(game.Events);
-            Assert.Equal(2, game.Buildings[0].Health);
+            Assert.Equal(HalfPoint, game.Buildings[0].Health);
             Assert.Equal(0, game.Buildings[0].HighestDirectDamage);
             Assert.Equal(WolfConsts.WolfHealth, enemy.Health);
             Assert.Equal(0, game.CurrentPlayerId);
@@ -262,7 +263,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.True(board.SetTerrain(wall, Terrain.Wall));
             Assert.True(board.SetTerrain(whirlpool, Terrain.Whirlpool));
             game.AddBuilding(
-                FortBuilder.New().SetHealth(2)!.SetOwner(1)!.SetPos(fort)!
+                FortBuilder.New().SetHealth(HalfPoint)!.SetOwner(1)!.SetPos(fort)!
             );
 
             WolfUnitView view = Assert.IsType<WolfUnitView>(game.GetUnit(0)!.GetView(game));
@@ -274,7 +275,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.DoesNotContain(beyondRange, view.CanBiteGrids);
             Assert.False(game.ExecuteAction(WolfBite.New(0, fort)));
             Assert.False(game.ExecuteAction(GeneralDemolish.New(0, fort)));
-            Assert.Equal(2, game.Buildings[0].Health);
+            Assert.Equal(HalfPoint, game.Buildings[0].Health);
             Assert.Empty(game.Events);
         }
 
@@ -357,8 +358,8 @@ namespace MistForest.Core.Tests.Refactored.Roles
             {
                 Assert.True(board.SetTerrain(lake, Terrain.Lake));
             }
-            game.AddBuilding(FortBuilder.New().SetHealth(2)!.SetOwner(0)!.SetPos(start)!);
-            game.AddBuilding(FortBuilder.New().SetHealth(2)!.SetOwner(0)!.SetPos(target)!);
+            game.AddBuilding(FortBuilder.New().SetHealth(HalfPoint)!.SetOwner(0)!.SetPos(start)!);
+            game.AddBuilding(FortBuilder.New().SetHealth(HalfPoint)!.SetOwner(0)!.SetPos(target)!);
 
             WolfUnit wolf = Assert.IsType<WolfUnit>(game.GetUnit(0));
             WolfUnitView view = Assert.IsType<WolfUnitView>(wolf.GetView(game));

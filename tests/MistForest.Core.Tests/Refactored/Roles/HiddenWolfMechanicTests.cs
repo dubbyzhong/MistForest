@@ -6,6 +6,7 @@ using MistForest.Core.Utils;
 using Xunit;
 using static MistForest.Core.GameRefactored.PlayerBuilder;
 using GameAction = MistForest.Core.GameRefactored.Action;
+using static MistForest.Core.Consts.CombatConsts;
 
 namespace MistForest.Core.Tests.Refactored.Roles
 {
@@ -111,14 +112,14 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Board.Node target = At(game, 2, 3);
             if (kind == "demolish")
             {
-                game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(4)!.SetPos(target)!);
+                game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(UnitsPerPoint)!.SetPos(target)!);
             }
             Assert.True(game.ExecuteAction(HiddenWolfTransform.New(0)));
             if (returnHuman)
             {
                 NextOwnTurn(game);
                 Assert.True(game.ExecuteAction(HiddenWolfTransform.New(0)));
-                Assert.Equal(2, Role(game).Unit.TemporaryShield);
+                Assert.Equal(HalfPoint, Role(game).Unit.TemporaryShield);
             }
             GameAction action = kind switch
             {
@@ -213,13 +214,13 @@ namespace MistForest.Core.Tests.Refactored.Roles
             NextOwnTurn(game);
             Assert.True(game.ExecuteAction(HiddenWolfTransform.New(0)));
             Assert.Equal(HiddenWolfForm.Human, Role(game).Unit.Form);
-            Assert.Equal(2, View(game).TemporaryShield);
-            Assert.Equal(2, Role(game).Unit.TemporaryShield);
+            Assert.Equal(HalfPoint, View(game).TemporaryShield);
+            Assert.Equal(HalfPoint, Role(game).Unit.TemporaryShield);
             Assert.False(Role(game).Unit.CanBeDetected);
             Assert.Equal(2, Role(game).Unit.AttackRange);
             Assert.All(View(game).CanMoveGrids, entry => Assert.Equal(1, entry.distance));
             Assert.False(game.ExecuteAction(HiddenWolfTransform.New(0)));
-            Assert.Equal(2, Role(game).Unit.TemporaryShield);
+            Assert.Equal(HalfPoint, Role(game).Unit.TemporaryShield);
             Assert.True(game.ExecuteAction(HiddenWolfAttack.New(0, At(game, 3, 5))));
             Assert.Equal(1, game.CurrentPlayerId);
             Assert.Empty(game.Events.OfType<HiddenWolfInstinctEvent>());

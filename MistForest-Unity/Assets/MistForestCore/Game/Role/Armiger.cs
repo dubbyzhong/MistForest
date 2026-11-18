@@ -51,7 +51,7 @@ namespace MistForest.Core.GameRefactored.Roles
     }
 
     /// <summary>
-    /// Requests armor removal in quarter-point units, including any remaining partial layer.
+    /// Requests armor removal in combat units, including any remaining partial layer.
     /// </summary>
     public class ArmigerArmorDown : Action, IArmigerAction
     {
@@ -62,7 +62,7 @@ namespace MistForest.Core.GameRefactored.Roles
     }
 
     /// <summary>
-    /// Records armor before and after restoration in quarter-point units.
+    /// Records armor before and after restoration in combat units.
     /// </summary>
     public class ArmigerArmorUpEvent : Event
     {
@@ -82,7 +82,7 @@ namespace MistForest.Core.GameRefactored.Roles
     }
 
     /// <summary>
-    /// Records armor before and after unloading in quarter-point units.
+    /// Records armor before and after unloading in combat units.
     /// </summary>
     public class ArmigerArmorDownEvent : Event
     {
@@ -143,9 +143,6 @@ namespace MistForest.Core.GameRefactored.Roles
             Unit.StartExecuteAction();
             switch (action)
             {
-                case GeneralMove move:
-                    Unit.GeneralMove(move, game);
-                    break;
                 case ArmigerThrust thrust:
                     Unit.Thrust(thrust, game);
                     break;
@@ -415,7 +412,7 @@ namespace MistForest.Core.GameRefactored.Roles
     }
 
     /// <summary>
-    /// Exposes available actions and an armor snapshot in quarter-point units.
+    /// Exposes available actions and an armor snapshot in combat units.
     /// </summary>
     public class ArmigerUnitView : UnitView
     {

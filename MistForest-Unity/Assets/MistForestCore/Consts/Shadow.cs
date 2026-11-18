@@ -1,6 +1,6 @@
 namespace MistForest.Core.Consts
 {
-    /// <summary>Defines Shadow's base values. Health uses quarter-point units.</summary>
+    /// <summary>Defines Shadow's base values. Health uses combat units.</summary>
     public class ShadowConsts
     {
         public const int ShadowHealth = CombatConsts.UnitsPerPoint + CombatConsts.HalfPoint;

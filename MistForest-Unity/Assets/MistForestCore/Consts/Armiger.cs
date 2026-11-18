@@ -1,7 +1,7 @@
 namespace MistForest.Core.Consts
 {
     /// <summary>
-    /// Defines Armiger's base values. Health, armor and damage use quarter-point units.
+    /// Defines Armiger's base values. Health, armor and damage use combat units.
     /// </summary>
     public class ArmigerConsts
     {

@@ -9,7 +9,7 @@ namespace MistForest.Core.GameMap
         public int Id;
         public Node Pos;
         public int Owner;
-        /// <summary>Remaining health in quarter-point units (four units per point).</summary>
+        /// <summary>Remaining health in combat units (120 per displayed point).</summary>
         public int Health;
         public int HighestDirectDamage { get; private set; }
 
@@ -74,7 +74,15 @@ namespace MistForest.Core.GameMap
             }
         }
 
-        public class GreatWall : Building { }
+        public class GreatWall : Building
+        {
+            public static GreatWall New(int id, Node pos, int owner, int health)
+            {
+                GreatWall greatWall = new() { Health = health };
+                NewBase(greatWall, id, pos, owner);
+                return greatWall;
+            }
+        }
 
         public class Rubble : Building
         {
@@ -148,7 +156,7 @@ namespace MistForest.Core.GameMap
             return this;
         }
 
-        /// <summary>Sets health in quarter-point units (four units per point).</summary>
+        /// <summary>Sets health in combat units (120 per displayed point).</summary>
         public BuildingBuilder? SetHealth(int health)
         {
             if (_health is not null)
@@ -197,6 +205,25 @@ namespace MistForest.Core.GameMap
                 return null;
             }
             return Building.Wall.New(id, pos, owner, health);
+        }
+    }
+
+    public class GreatWallBuilder : BuildingBuilder
+    {
+        public static GreatWallBuilder New() => new();
+
+        public override Building? Build()
+        {
+            if (
+                _id is not int id
+                || _pos is not Node pos
+                || _owner is not int owner
+                || _health is not int health
+            )
+            {
+                return null;
+            }
+            return Building.GreatWall.New(id, pos, owner, health);
         }
     }
 }

@@ -6,6 +6,7 @@ using MistForest.Core.Utils;
 using Xunit;
 using static MistForest.Core.GameMap.Board;
 using static MistForest.Core.GameRefactored.PlayerBuilder;
+using static MistForest.Core.Consts.CombatConsts;
 
 namespace MistForest.Core.Tests.Refactored.Roles
 {
@@ -142,8 +143,8 @@ namespace MistForest.Core.Tests.Refactored.Roles
                     break;
                 case "diagonal-buildings":
                     target = game.Board.At(4, 4)!.Value;
-                    game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(6)!.SetPos(game.Board.At(3, 4)!.Value)!);
-                    game.AddBuilding(WallBuilder.New().SetOwner(1)!.SetHealth(6)!.SetPos(game.Board.At(4, 3)!.Value)!);
+                    game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(3 * HalfPoint)!.SetPos(game.Board.At(3, 4)!.Value)!);
+                    game.AddBuilding(WallBuilder.New().SetOwner(1)!.SetHealth(3 * HalfPoint)!.SetPos(game.Board.At(4, 3)!.Value)!);
                     break;
                 case "diagonal-line-walls":
                     target = game.Board.At(4, 4)!.Value;
@@ -179,7 +180,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Node target = game.Board.At(4, 4)!.Value;
             if (building)
             {
-                game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(6)!.SetPos(corner)!);
+                game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(3 * HalfPoint)!.SetPos(corner)!);
             }
             else
             {
@@ -200,7 +201,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             for (int shot = 0; shot < 3; ++shot)
             {
                 Assert.True(game.ExecuteAction(InkAttack.New(0, enemy.Position)));
-                Assert.Equal(4, enemy.Health);
+                Assert.Equal(UnitsPerPoint, enemy.Health);
                 Assert.Equal(shot + 1, View(game).AttackUsed);
             }
 
@@ -245,7 +246,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.True(game.ExecuteAction(InkAttack.New(0, enemy)));
             Assert.Equal(3, View(game).AttackUsed);
             Assert.Equal(moveTarget, GetInk(game).Unit.Position);
-            Assert.Equal(4, game.GetUnit(1)!.Health);
+            Assert.Equal(UnitsPerPoint, game.GetUnit(1)!.Health);
             Assert.Equal(0, game.CurrentPlayerId);
             Assert.NotEmpty(View(game).CanDashGrids);
             Assert.Equal(3, game.Events.OfType<InkAttackEvent>().Count());
@@ -274,8 +275,8 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.True(game.ExecuteAction(InkAttack.New(0, game.GetUnit(1)!.Position)));
             Assert.True(game.ExecuteAction(InkAttack.New(0, game.GetUnit(2)!.Position)));
 
-            Assert.Equal(4, game.GetUnit(1)!.Health);
-            Assert.Equal(4, game.GetUnit(2)!.Health);
+            Assert.Equal(UnitsPerPoint, game.GetUnit(1)!.Health);
+            Assert.Equal(UnitsPerPoint, game.GetUnit(2)!.Health);
             Assert.Equal(2, View(game).AttackUsed);
             Assert.Equal(2, game.Events.Count);
         }
@@ -296,7 +297,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Equal(0, GetInk(game).Unit.HighestDirectDamage);
             Assert.Equal(WolfConsts.WolfHealth, ally.Health);
             Assert.Equal(0, ally.HighestDirectDamage);
-            Assert.Equal(4, enemy.Health);
+            Assert.Equal(UnitsPerPoint, enemy.Health);
             InkAttackEvent attack = Assert.IsType<InkAttackEvent>(Assert.Single(game.Events));
             Assert.Equal(new[] { enemy.Id }, attack.UnitIds);
             Assert.Equal(target, attack.Target);
@@ -321,14 +322,14 @@ namespace MistForest.Core.Tests.Refactored.Roles
         }
 
         [Theory]
-        [InlineData(false, 2, 0)]
-        [InlineData(false, 10, 0)]
-        [InlineData(true, 2, 0)]
-        [InlineData(true, 10, 0)]
-        [InlineData(false, 2, 1)]
-        [InlineData(false, 10, 1)]
-        [InlineData(true, 2, 1)]
-        [InlineData(true, 10, 1)]
+        [InlineData(false, HalfPoint, 0)]
+        [InlineData(false, 5 * HalfPoint, 0)]
+        [InlineData(true, HalfPoint, 0)]
+        [InlineData(true, 5 * HalfPoint, 0)]
+        [InlineData(false, HalfPoint, 1)]
+        [InlineData(false, 5 * HalfPoint, 1)]
+        [InlineData(true, HalfPoint, 1)]
+        [InlineData(true, 5 * HalfPoint, 1)]
         public static void Attack_BuildingOfEitherOwner_TakesDoubleDamageAndShieldsUnits(bool wall, int health, int owner)
         {
             Game game = MakeGame();
@@ -364,16 +365,16 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Game game = MakeGame();
             Unit enemy = game.GetUnit(1)!;
             Node target = enemy.Position;
-            game.AddBuilding(FortBuilder.New().SetOwner(owner)!.SetHealth(2)!.SetPos(target)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(owner)!.SetHealth(HalfPoint)!.SetPos(target)!);
 
             Assert.True(game.ExecuteAction(InkAttack.New(0, target)));
             Assert.IsType<Building.Rubble>(game.Buildings[0]);
             Assert.Equal(WolfConsts.WolfHealth, enemy.Health);
             Assert.Equal(0, enemy.HighestDirectDamage);
             Assert.True(game.ExecuteAction(InkAttack.New(0, target)));
-            Assert.Equal(4, enemy.Health);
+            Assert.Equal(UnitsPerPoint, enemy.Health);
             Assert.True(game.ExecuteAction(InkAttack.New(0, target)));
-            Assert.Equal(4, enemy.Health);
+            Assert.Equal(UnitsPerPoint, enemy.Health);
 
             InkAttackEvent[] attacks = game.Events.OfType<InkAttackEvent>().ToArray();
             Assert.Equal(3, attacks.Length);
@@ -389,7 +390,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
         {
             Game game = MakeGame(withAlly: true);
             Unit ally = game.GetUnit(1)!;
-            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(4)!.SetPos(ally.Position)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(UnitsPerPoint)!.SetPos(ally.Position)!);
 
             Assert.True(game.ExecuteAction(InkAttack.New(0, ally.Position)));
 
@@ -406,12 +407,12 @@ namespace MistForest.Core.Tests.Refactored.Roles
         {
             Game game = MakeGame();
             Unit enemy = game.GetUnit(1)!;
-            game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(2)!.SetPos(enemy.Position)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(HalfPoint)!.SetPos(enemy.Position)!);
             game.Buildings[0].Destroyed(game, 1);
 
             Assert.True(game.ExecuteAction(InkAttack.New(0, enemy.Position)));
 
-            Assert.Equal(4, enemy.Health);
+            Assert.Equal(UnitsPerPoint, enemy.Health);
             InkAttackEvent attack = Assert.IsType<InkAttackEvent>(Assert.Single(game.Events));
             Assert.Null(attack.BuildingId);
             Assert.Equal(new[] { enemy.Id }, attack.UnitIds);
@@ -424,11 +425,11 @@ namespace MistForest.Core.Tests.Refactored.Roles
         {
             Game game = MakeGame();
             Node target = game.GetUnit(1)!.Position;
-            game.AddBuilding(FortBuilder.New().SetOwner(owner)!.SetHealth(10)!.SetPos(target)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(owner)!.SetHealth(5 * HalfPoint)!.SetPos(target)!);
             for (int shot = 0; shot < 3; ++shot)
             {
                 Assert.True(game.ExecuteAction(InkAttack.New(0, target)));
-                Assert.Equal(6, game.Buildings[0].Health);
+                Assert.Equal(3 * HalfPoint, game.Buildings[0].Health);
             }
             Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
             Assert.True(game.ExecuteAction(GeneralEnd.New(1)));
@@ -438,7 +439,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
 
             Assert.True(game.ExecuteAction(InkAttack.New(0, target)));
 
-            Assert.Equal(2, game.Buildings[0].Health);
+            Assert.Equal(HalfPoint, game.Buildings[0].Health);
             Assert.Equal(WolfConsts.WolfHealth, game.GetUnit(1)!.Health);
         }
 
@@ -450,11 +451,11 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.True(game.ExecuteAction(WolfBite.New(2, enemy.Position)));
             Assert.True(game.ExecuteAction(GeneralEnd.New(2)));
             Assert.Equal(0, game.CurrentPlayerId);
-            Assert.Equal(2, enemy.Health);
+            Assert.Equal(HalfPoint, enemy.Health);
 
             Assert.True(game.ExecuteAction(InkAttack.New(0, enemy.Position)));
 
-            Assert.Equal(2, enemy.Health);
+            Assert.Equal(HalfPoint, enemy.Health);
             Assert.Equal(WolfConsts.WolfBiteDamage, enemy.HighestDirectDamage);
             Assert.Equal(1, View(game).AttackUsed);
         }
@@ -491,7 +492,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Game game = MakeGame();
             Node allied = game.Board.At(2, 3)!.Value;
             Node empty = game.Board.At(3, 2)!.Value;
-            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(4)!.SetPos(allied)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(UnitsPerPoint)!.SetPos(allied)!);
             Assert.True(game.ExecuteAction(InkAttack.New(0, game.GetUnit(1)!.Position)));
 
             Assert.False(game.ExecuteAction(GeneralBuildFort.New(0, empty)));

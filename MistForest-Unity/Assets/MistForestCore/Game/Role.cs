@@ -118,13 +118,13 @@ namespace MistForest.Core.GameRefactored
     {
         public int Id { get; internal set; }
         public int RoleId { get; internal set; }
-        /// <summary>Remaining health in quarter-point units (four units per point).</summary>
+        /// <summary>Remaining health in combat units (120 per displayed point).</summary>
         public virtual int Health { get; protected set; }
         /// <summary>
-        /// Gets remaining armor absorption in quarter-point units. Four units equal one armor layer.
+        /// Gets remaining armor absorption in combat units. 120 units equal one armor layer.
         /// </summary>
         public int Armor { get; protected set; }
-        /// <summary>Quarter-point absorption that expires at the owner's next turn start.</summary>
+        /// <summary>Temporary absorption in combat units, expiring at the owner's next turn start.</summary>
         public int TemporaryShield { get; protected set; }
         public Node Position { get; set; }
         protected (Node node, int distance, Node? lastNode)[]? _lastMoveEntries;
@@ -143,7 +143,7 @@ namespace MistForest.Core.GameRefactored
         public int WhirlpoolImmuneExpire { get; protected set; }
         public bool End { get; protected set; }
         public bool IsFirstAction { get; protected set; } = true;
-        /// <summary>Highest direct strength after reduction this round, in quarter-point units.</summary>
+        /// <summary>Highest direct strength after reduction this round, in combat units.</summary>
         public int HighestDirectDamage { get; private set; }
 
         protected Unit() { }
@@ -232,12 +232,12 @@ namespace MistForest.Core.GameRefactored
             return true;
         }
 
-        protected Node[] FarAttackNodes(Game game)
+        protected Node[] FarAttackNodes(Game game, int? range = null)
         {
             return game
                 .Board.GetNodesWithinDistance(
                     Position,
-                    AttackRange,
+                    range ?? AttackRange,
                     moveDirs: MapConsts.MoveManhattan,
                     predicate: _ => true
                 )
@@ -295,7 +295,7 @@ namespace MistForest.Core.GameRefactored
                 .ToArray();
         }
 
-        private bool CanBuildCommon(Game game)
+        protected bool CanBuildCommon(Game game)
         {
             if (!IsFirstAction)
             {
@@ -601,14 +601,23 @@ namespace MistForest.Core.GameRefactored
             Armor -= armorDamage;
             int shieldDamage = System.Math.Min(TemporaryShield, damage - armorDamage);
             TemporaryShield -= shieldDamage;
-            int healthDamage = System.Math.Min(Health, damage - armorDamage - shieldDamage);
-            Health -= healthDamage;
+            int remaining = damage - armorDamage - shieldDamage;
+            int healthDamage = remaining > 0 ? ApplyDirectHealthDamage(remaining, game) : 0;
+            return new DamageResult(armorDamage, shieldDamage, healthDamage);
+        }
 
+        protected virtual int ApplyDirectHealthDamage(int damage, Game game)
+            => ApplyHealthDamage(damage, game);
+
+        protected int ApplyHealthDamage(int damage, Game game)
+        {
+            int healthDamage = System.Math.Min(Health, damage);
+            Health -= healthDamage;
             if (Health == 0)
             {
                 Killed(game);
             }
-            return new DamageResult(armorDamage, shieldDamage, healthDamage);
+            return healthDamage;
         }
 
         /// <summary>Called for every living unit of the player whose turn is starting.</summary>

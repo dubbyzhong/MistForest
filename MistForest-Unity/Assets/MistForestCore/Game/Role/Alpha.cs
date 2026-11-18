@@ -126,9 +126,6 @@ namespace MistForest.Core.GameRefactored.Roles
             Unit.StartExecuteAction();
             switch (action)
             {
-                case GeneralMove move:
-                    Unit.GeneralMove(move, game);
-                    break;
                 case AlphaAttack attack:
                     Unit.AlphaAttack(attack, game);
                     break;

@@ -6,11 +6,11 @@ namespace MistForest.Core.Consts
         public const int WhirlpoolImmuneExpire = 1;
         public const bool DiagonalBlocked = true;
         /// <summary>
-        /// Default fort health in quarter-point units, equivalent to one displayed health point.
+        /// Default fort health in combat units, equivalent to one displayed health point.
         /// </summary>
         public const int FortHealth = CombatConsts.UnitsPerPoint;
         /// <summary>
-        /// Default wall health in quarter-point units, equivalent to one displayed health point.
+        /// Default wall health in combat units, equivalent to one displayed health point.
         /// </summary>
         public const int WallHealth = CombatConsts.UnitsPerPoint;
         public const int RubbleExpireRound = 1;
