@@ -38,7 +38,7 @@ namespace MistForest.Core.GameRefactored
                 .All(unit => unit.HasActionLeft(game) is false);
         }
 
-        public virtual void GeneralSurrender(Game game)
+        public virtual void GeneralSurrender(GeneralSurrender surrender, Game game)
         {
             foreach (Role role in game.Players[PlayerId].Roles.AsValueEnumerable())
             {
@@ -47,7 +47,64 @@ namespace MistForest.Core.GameRefactored
                     unit.Killed(game);
                 }
             }
-            game.Events.Add(GeneralSurrenderEvent.New(unitId: Id));
+            game.Events.Add(GeneralSurrenderEvent.New(surrender.CallerUnitId));
+        }
+
+        protected Unit? GetCallerUnit(Action action)
+        {
+            foreach (Unit unit in GetUnits())
+            {
+                if (unit.Id == action.CallerUnitId)
+                {
+                    return unit;
+                }
+            }
+            return null;
+        }
+
+        protected bool JudgeGeneralAction(Action action, Game game)
+        {
+            return GetCallerUnit(action) is Unit caller
+                && caller.HasAction(action)
+                && action switch
+                {
+                    GeneralMove move => caller.CanMove(move, game),
+                    GeneralEnd _ => caller.CanEnd(),
+                    GeneralSurrender _ => caller.CanSurrender(),
+                    GeneralBuildFort fort => caller.CanBuildFort(fort, game),
+                    GeneralBuildWall wall => caller.CanBuildWall(wall, game),
+                    GeneralDemolish demolish => caller.CanDemolish(demolish, game),
+                    _ => false,
+                };
+        }
+
+        protected void ExecuteGeneralAction(Action action, Game game)
+        {
+            if (GetCallerUnit(action) is not Unit caller || !caller.HasAction(action))
+            {
+                return;
+            }
+            switch (action)
+            {
+                case GeneralMove move:
+                    caller.GeneralMove(move, game);
+                    break;
+                case GeneralEnd end:
+                    caller.GeneralEnd(end, game);
+                    break;
+                case GeneralSurrender surrender:
+                    GeneralSurrender(surrender, game);
+                    break;
+                case GeneralBuildFort fort:
+                    caller.GeneralBuildFort(fort, game);
+                    break;
+                case GeneralBuildWall wall:
+                    caller.GeneralBuildWall(wall, game);
+                    break;
+                case GeneralDemolish demolish:
+                    caller.GeneralDemolish(demolish, game);
+                    break;
+            }
         }
 
         public abstract Role Clone();

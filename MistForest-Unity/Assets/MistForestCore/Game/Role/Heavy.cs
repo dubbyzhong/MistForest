@@ -61,21 +61,15 @@ namespace MistForest.Core.GameRefactored.Roles
                 return action switch
                 {
                     HeavyChargeContinue charge => Unit.CanChargeContinue(charge, game),
-                    GeneralEnd _ => Unit.CanEnd(),
-                    GeneralSurrender _ => Unit.CanSurrender(),
+                    GeneralEnd _ => JudgeGeneralAction(action, game),
+                    GeneralSurrender _ => JudgeGeneralAction(action, game),
                     _ => false,
                 };
             }
             return action switch
             {
-                GeneralMove move => Unit.CanMove(move, game),
                 HeavyChargeStart charge => Unit.CanChargeStart(charge, game),
-                GeneralEnd _ => Unit.CanEnd(),
-                GeneralSurrender _ => Unit.CanSurrender(),
-                GeneralBuildFort buildFort => Unit.CanBuildFort(buildFort, game),
-                GeneralBuildWall buildWall => Unit.CanBuildWall(buildWall, game),
-                GeneralDemolish demolish => Unit.CanDemolish(demolish, game),
-                _ => false,
+                _ => JudgeGeneralAction(action, game),
             };
         }
 
@@ -84,30 +78,18 @@ namespace MistForest.Core.GameRefactored.Roles
             Unit.StartExecuteAction();
             switch (action)
             {
-                case GeneralMove move:
-                    Unit.GeneralMove(move, game);
-                    break;
                 case HeavyChargeStart charge:
                     Unit.ChargeStart(charge, game);
                     break;
                 case HeavyChargeContinue charge:
                     Unit.ChargeContinue(charge, game);
                     break;
-                case GeneralEnd end:
-                    Unit.GeneralEnd(end, game);
-                    break;
-                case GeneralSurrender _:
+                case GeneralSurrender surrender:
                     Unit.StopCharge(game);
-                    GeneralSurrender(game);
+                    GeneralSurrender(surrender, game);
                     break;
-                case GeneralBuildFort buildFort:
-                    Unit.GeneralBuildFort(buildFort, game);
-                    break;
-                case GeneralBuildWall buildWall:
-                    Unit.GeneralBuildWall(buildWall, game);
-                    break;
-                case GeneralDemolish demolish:
-                    Unit.GeneralDemolish(demolish, game);
+                default:
+                    ExecuteGeneralAction(action, game);
                     break;
             }
         }

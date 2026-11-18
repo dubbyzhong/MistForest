@@ -95,12 +95,7 @@ namespace MistForest.Core.GameRefactored.Roles
                 KnightCleave cleave => Array.IndexOf(Unit.CleaveNodes(game), cleave.Target) >= 0,
                 KnightCleaveRush rush => Array.IndexOf(Unit.CleaveRushNodes(game), rush.Target) >= 0,
                 KnightSecretLeap leap => Array.IndexOf(Unit.SecretLeapNodes(game), leap.Target) >= 0,
-                GeneralEnd _ => Unit.CanEnd(),
-                GeneralSurrender _ => Unit.CanSurrender(),
-                GeneralBuildFort fort => Unit.CanBuildFort(fort, game),
-                GeneralBuildWall wall => Unit.CanBuildWall(wall, game),
-                GeneralDemolish demolish => Unit.CanDemolish(demolish, game),
-                _ => false,
+                _ => JudgeGeneralAction(action, game),
             };
         }
 
@@ -115,11 +110,9 @@ namespace MistForest.Core.GameRefactored.Roles
                 case KnightCleave cleave: Unit.Cleave(cleave.Target, false, game); break;
                 case KnightCleaveRush rush: Unit.Cleave(rush.Target, true, game); break;
                 case KnightSecretLeap leap: Unit.SecretLeap(leap, game); break;
-                case GeneralEnd end: Unit.GeneralEnd(end, game); break;
-                case GeneralSurrender _: GeneralSurrender(game); break;
-                case GeneralBuildFort fort: Unit.GeneralBuildFort(fort, game); break;
-                case GeneralBuildWall wall: Unit.GeneralBuildWall(wall, game); break;
-                case GeneralDemolish demolish: Unit.GeneralDemolish(demolish, game); break;
+                default:
+                    ExecuteGeneralAction(action, game);
+                    break;
             }
         }
 

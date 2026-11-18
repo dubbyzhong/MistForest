@@ -83,15 +83,9 @@ namespace MistForest.Core.GameRefactored.Roles
             }
             return action switch
             {
-                GeneralMove move => Unit.CanMove(move, game),
                 InkAttack attack => Unit.CanAttack(attack, game),
                 InkDash dash => Unit.CanDash(dash, game),
-                GeneralEnd _ => Unit.CanEnd(),
-                GeneralSurrender _ => Unit.CanSurrender(),
-                GeneralBuildFort buildFort => Unit.CanBuildFort(buildFort, game),
-                GeneralBuildWall buildWall => Unit.CanBuildWall(buildWall, game),
-                GeneralDemolish demolish => Unit.CanDemolish(demolish, game),
-                _ => false,
+                _ => JudgeGeneralAction(action, game),
             };
         }
 
@@ -100,29 +94,14 @@ namespace MistForest.Core.GameRefactored.Roles
             Unit.StartExecuteAction();
             switch (action)
             {
-                case GeneralMove move:
-                    Unit.GeneralMove(move, game);
-                    break;
                 case InkAttack attack:
                     Unit.InkAttack(attack, game);
                     break;
                 case InkDash _:
                     Unit.InkDash(game);
                     break;
-                case GeneralEnd end:
-                    Unit.GeneralEnd(end, game);
-                    break;
-                case GeneralSurrender _:
-                    GeneralSurrender(game);
-                    break;
-                case GeneralBuildFort buildFort:
-                    Unit.GeneralBuildFort(buildFort, game);
-                    break;
-                case GeneralBuildWall buildWall:
-                    Unit.GeneralBuildWall(buildWall, game);
-                    break;
-                case GeneralDemolish demolish:
-                    Unit.GeneralDemolish(demolish, game);
+                default:
+                    ExecuteGeneralAction(action, game);
                     break;
             }
         }

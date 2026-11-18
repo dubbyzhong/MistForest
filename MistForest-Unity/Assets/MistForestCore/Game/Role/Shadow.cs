@@ -57,16 +57,10 @@ namespace MistForest.Core.GameRefactored.Roles
             }
             return action switch
             {
-                GeneralMove move => Unit.CanMove(move, game),
                 ShadowAttack attack => Unit.CanAttack(attack, game),
                 ShadowFollow follow => Unit.CanSelectLink(follow.TargetUnitId, game),
                 ShadowDrag drag => Unit.CanSelectLink(drag.TargetUnitId, game),
-                GeneralEnd _ => Unit.CanEnd(),
-                GeneralSurrender _ => Unit.CanSurrender(),
-                GeneralBuildFort buildFort => Unit.CanBuildFort(buildFort, game),
-                GeneralBuildWall buildWall => Unit.CanBuildWall(buildWall, game),
-                GeneralDemolish demolish => Unit.CanDemolish(demolish, game),
-                _ => false,
+                _ => JudgeGeneralAction(action, game),
             };
         }
 
@@ -85,26 +79,11 @@ namespace MistForest.Core.GameRefactored.Roles
             Unit.StartExecuteAction();
             switch (action)
             {
-                case GeneralMove move:
-                    Unit.GeneralMove(move, game);
-                    break;
                 case ShadowAttack attack:
                     Unit.ShadowAttack(attack, game);
                     break;
-                case GeneralEnd end:
-                    Unit.GeneralEnd(end, game);
-                    break;
-                case GeneralSurrender _:
-                    GeneralSurrender(game);
-                    break;
-                case GeneralBuildFort buildFort:
-                    Unit.GeneralBuildFort(buildFort, game);
-                    break;
-                case GeneralBuildWall buildWall:
-                    Unit.GeneralBuildWall(buildWall, game);
-                    break;
-                case GeneralDemolish demolish:
-                    Unit.GeneralDemolish(demolish, game);
+                default:
+                    ExecuteGeneralAction(action, game);
                     break;
             }
         }

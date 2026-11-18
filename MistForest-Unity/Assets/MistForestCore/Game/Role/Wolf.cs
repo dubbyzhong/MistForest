@@ -51,11 +51,8 @@ namespace MistForest.Core.GameRefactored.Roles
 
             return action switch
             {
-                GeneralMove move => Unit.CanMove(move, game),
-                GeneralEnd _ => Unit.CanEnd(),
-                GeneralSurrender _ => Unit.CanSurrender(),
                 WolfBite bite => Unit.CanBite(bite, game),
-                _ => false,
+                _ => JudgeGeneralAction(action, game),
             };
         }
 
@@ -64,17 +61,11 @@ namespace MistForest.Core.GameRefactored.Roles
             Unit.StartExecuteAction();
             switch (action)
             {
-                case GeneralMove move:
-                    Unit.GeneralMove(move, game);
-                    break;
-                case GeneralEnd end:
-                    Unit.GeneralEnd(end, game);
-                    break;
-                case GeneralSurrender _:
-                    GeneralSurrender(game);
-                    break;
                 case WolfBite bite:
                     Unit.WolfBite(bite, game);
+                    break;
+                default:
+                    ExecuteGeneralAction(action, game);
                     break;
             }
         }
