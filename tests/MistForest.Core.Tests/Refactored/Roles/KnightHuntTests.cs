@@ -112,7 +112,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
                 2 => KnightCleave.New(0, At(game, 4, 3)),
                 _ => (MistForest.Core.GameRefactored.Action)KnightSecretLeap.New(0, At(game, 6, 5)),
             }));
-            Assert.Equal(first, Role(game).Unit.LastOption);
+            Assert.Equal((KnightOption)first, Role(game).Unit.LastOption);
             Assert.Equal(1, Role(game).Unit.OptionsUsed);
             Assert.False(Role(game).JudgeAction(KnightSilence.New(0), game));
             if (first < 3)
@@ -229,7 +229,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             KnightUnitView viewClone = Assert.IsType<KnightUnitView>(snapshot.Clone());
             Assert.True(clone.Unit.IsHunting);
             Assert.Equal(1, clone.Unit.OptionsUsed);
-            Assert.Equal(1, clone.Unit.LastOption);
+            Assert.Equal(KnightOption.Silence, clone.Unit.LastOption);
             Assert.Equal(2, clone.Unit.SilenceCooldown);
             Assert.Equal(2, viewClone.SilenceCooldown);
             Assert.False(viewClone.CanSilence);

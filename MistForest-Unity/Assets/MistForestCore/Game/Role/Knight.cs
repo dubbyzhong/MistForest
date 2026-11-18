@@ -11,6 +11,18 @@ namespace MistForest.Core.GameRefactored.Roles
 {
     public interface IKnightAction { }
 
+    /// <summary>
+    /// Follow-up options available while hunting. The numeric order is meaningful:
+    /// each choice must be greater than the previous one.
+    /// </summary>
+    public enum KnightOption
+    {
+        None = 0,
+        Silence = 1,
+        Cleave = 2,
+        SecretLeap = 3,
+    }
+
     public class KnightLeap : Action, IKnightAction
     {
         public Node Target { get; private set; }
@@ -122,7 +134,7 @@ namespace MistForest.Core.GameRefactored.Roles
         public bool IsHunting { get; private set; }
         public Node HuntOrigin { get; private set; }
         public int OptionsUsed { get; private set; }
-        public int LastOption { get; private set; }
+        public KnightOption LastOption { get; private set; }
         public int SilenceCooldown { get; private set; }
         public int CleaveCooldown { get; private set; }
         public int SecretLeapCooldown { get; private set; }
@@ -217,15 +229,15 @@ namespace MistForest.Core.GameRefactored.Roles
             return JumpNodes(game).Prepend(Position).ToArray();
         }
 
-        private bool CanUseOption(int option, int cooldown)
+        private bool CanUseOption(KnightOption option, int cooldown)
             => Alive && !End && !IsSilenced && IsHunting && OptionsUsed < KnightConsts.KnightMaxOptions
-                && LastOption < option && cooldown == 0;
+                && (int)LastOption < (int)option && cooldown == 0;
 
-        internal bool CanSilence => CanUseOption(1, SilenceCooldown);
+        internal bool CanSilence => CanUseOption(KnightOption.Silence, SilenceCooldown);
 
         internal Node[] CleaveNodes(Game game)
         {
-            if (!CanUseOption(2, CleaveCooldown)) return Array.Empty<Node>();
+            if (!CanUseOption(KnightOption.Cleave, CleaveCooldown)) return Array.Empty<Node>();
             return game.Board.GetNodesWithinDistance(Position, KnightConsts.KnightCleaveRange,
                 MapConsts.MoveManhattan, _ => true)
                 .Where(entry => game.Board.GetGrid(entry.node)!.Terrain is Terrain.Ground or Terrain.Whirlpool
@@ -247,7 +259,7 @@ namespace MistForest.Core.GameRefactored.Roles
         }
 
         internal Node[] SecretLeapNodes(Game game)
-            => CanUseOption(3, SecretLeapCooldown) ? JumpNodes(game) : Array.Empty<Node>();
+            => CanUseOption(KnightOption.SecretLeap, SecretLeapCooldown) ? JumpNodes(game) : Array.Empty<Node>();
 
         internal void Hunt(KnightHunt hunt, Game game)
         {
@@ -257,7 +269,7 @@ namespace MistForest.Core.GameRefactored.Roles
             ResolveAttack(Position, true, game);
         }
 
-        private void UseOption(int option)
+        private void UseOption(KnightOption option)
         {
             LastOption = option;
             ++OptionsUsed;
@@ -265,7 +277,7 @@ namespace MistForest.Core.GameRefactored.Roles
 
         internal void Silence(Game game)
         {
-            UseOption(1);
+            UseOption(KnightOption.Silence);
             SilenceCooldown = KnightConsts.KnightOptionCooldownTurns + 1;
             int playerId = game.PlayerIdFromUnitId(Id);
             bool hit = false;
@@ -285,7 +297,7 @@ namespace MistForest.Core.GameRefactored.Roles
 
         internal void Cleave(Node target, bool rush, Game game)
         {
-            UseOption(2);
+            UseOption(KnightOption.Cleave);
             CleaveCooldown = KnightConsts.KnightOptionCooldownTurns + 1;
             Node from = Position;
             ResolveAttack(target, false, game);
@@ -298,7 +310,7 @@ namespace MistForest.Core.GameRefactored.Roles
 
         internal void SecretLeap(KnightSecretLeap leap, Game game)
         {
-            UseOption(3);
+            UseOption(KnightOption.SecretLeap);
             SecretLeapCooldown = KnightConsts.KnightOptionCooldownTurns + 1;
             Node from = Position;
             ChangePos(leap.Target, game);
@@ -341,7 +353,8 @@ namespace MistForest.Core.GameRefactored.Roles
         {
             base.EndRound(game);
             IsHunting = false;
-            OptionsUsed = LastOption = 0;
+            OptionsUsed = 0;
+            LastOption = KnightOption.None;
         }
 
         public override void GeneralEnd(GeneralEnd end, Game game)
