@@ -244,6 +244,9 @@ namespace MistForest.Core.GameRefactored
 
         private void EndTurn()
         {
+            foreach (Role role in Players[CurrentPlayerId].Roles)
+                foreach (Unit unit in role.GetUnits())
+                    if (unit.Alive) unit.EndTurn(this);
             ShadowAttachment.EndTurn(CurrentPlayerId, this);
             ++_turnCount;
             _roundActed[CurrentPlayerId] = true;

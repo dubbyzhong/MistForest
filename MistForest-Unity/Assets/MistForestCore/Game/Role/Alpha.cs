@@ -197,7 +197,7 @@ namespace MistForest.Core.GameRefactored.Roles
 
         public override bool HasAction(Action action) => action is IAlphaAction;
 
-        internal bool CanBlood() => Alive && !End && IsFirstAction && BloodCooldown == 0;
+        internal bool CanBlood() => Alive && !End && !IsSilenced && IsFirstAction && BloodCooldown == 0;
 
         internal void AlphaBlood(Game game)
         {

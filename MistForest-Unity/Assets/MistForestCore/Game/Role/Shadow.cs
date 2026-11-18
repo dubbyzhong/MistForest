@@ -115,11 +115,9 @@ namespace MistForest.Core.GameRefactored.Roles
     }
 
     /// <summary>Resolves Shadow's boundary-wrapping movement and melee attacks.</summary>
-    /// <remarks>
-    /// TODO: Integrate skill availability and link suspension with the shared silence system.
-    /// </remarks>
     public class ShadowUnit : Unit
     {
+        protected override bool SilenceEndsAtTurnStart => true;
         protected override int MoveDistance => ShadowConsts.ShadowMoveDistance;
         public override int AttackRange => ShadowConsts.ShadowAttackRange;
         public ShadowLinkMode LinkMode { get; private set; }
@@ -149,7 +147,7 @@ namespace MistForest.Core.GameRefactored.Roles
 
         public override bool HasAction(Action action) => action is IShadowAction;
 
-        private bool CanSelectLinkGeneral => Alive && !End && IsFirstAction && !HasSelectedLinkThisTurn;
+        private bool CanSelectLinkGeneral => Alive && !End && !IsSilenced && IsFirstAction && !HasSelectedLinkThisTurn;
 
         internal bool CanSelectLink(int targetUnitId, Game game)
             => CanSelectLinkGeneral && targetUnitId != Id

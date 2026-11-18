@@ -79,6 +79,10 @@ namespace MistForest.Core.GameRefactored
         public virtual bool CanBeDetected => true;
         /// <summary>Whether attachment may currently copy movement to or from this unit.</summary>
         public virtual bool CanBeAttached => true;
+        public bool IsSilenced { get; private set; }
+        public bool SilenceProtected { get; private set; }
+        public virtual bool ReportsSilence => true;
+        protected virtual bool SilenceEndsAtTurnStart => false;
         public int WhirlpoolImmuneExpire { get; protected set; }
         public bool End { get; protected set; }
         public bool IsFirstAction { get; protected set; } = true;
@@ -100,6 +104,8 @@ namespace MistForest.Core.GameRefactored
             target.WhirlpoolImmuneExpire = 0;
             target.HighestDirectDamage = 0;
             target.TemporaryShield = 0;
+            target.IsSilenced = false;
+            target.SilenceProtected = false;
             return target;
         }
 
@@ -112,6 +118,8 @@ namespace MistForest.Core.GameRefactored
             target.Health = Health;
             target.Armor = Armor;
             target.TemporaryShield = TemporaryShield;
+            target.IsSilenced = IsSilenced;
+            target.SilenceProtected = SilenceProtected;
             target.Position = Position;
             target._lastMoveEntries = null;
             target.MoveUsed = MoveUsed;
@@ -520,6 +528,27 @@ namespace MistForest.Core.GameRefactored
         public virtual void PrepareTurn(Game game)
         {
             TemporaryShield = 0;
+            if (SilenceEndsAtTurnStart)
+            {
+                SilenceProtected = IsSilenced;
+                IsSilenced = false;
+            }
+        }
+
+        internal bool TrySilence()
+        {
+            if (!Alive || SilenceProtected) return false;
+            IsSilenced = true;
+            return true;
+        }
+
+        public virtual void EndTurn(Game game)
+        {
+            if (!SilenceEndsAtTurnStart)
+            {
+                SilenceProtected = IsSilenced;
+                IsSilenced = false;
+            }
         }
 
         private void WhirlpoolAttach(Game game)

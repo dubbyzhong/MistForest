@@ -25,6 +25,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
                 "hidden" => HiddenWolfBuilder.New(new UnitBuilder[] { new HiddenWolfUnitBuilder() }, position)!,
                 "shadow" => ShadowBuilder.New(new UnitBuilder[] { new ShadowUnitBuilder() }, position)!,
                 "sniper" => SniperBuilder.New(new UnitBuilder[] { new SniperUnitBuilder() }, position)!,
+                "knight" => KnightBuilder.New(new UnitBuilder[] { new KnightUnitBuilder() }, position)!,
                 _ => WolfBuilder.New(new UnitBuilder[] { new WolfUnitBuilder() }, position)!,
             };
             List<PlayerBuilder> players = new()
@@ -62,6 +63,142 @@ namespace MistForest.Core.Tests.Refactored.Roles
         private static ShadowUnitView View(Game game) => Assert.IsType<ShadowUnitView>(Shadow(game).Unit.GetView(game));
         private static Board.Node At(Game game, int row, int col) => game.Board.At(row, col)!.Value;
         private static GameAction Link(bool drag, int target = 2) => drag ? ShadowDrag.New(0, target) : ShadowFollow.New(0, target);
+
+        [Theory]
+        [InlineData(2, 1)]
+        [InlineData(2, -1)]
+        [InlineData(-2, 1)]
+        [InlineData(-2, -1)]
+        [InlineData(1, 2)]
+        [InlineData(1, -2)]
+        [InlineData(-1, 2)]
+        [InlineData(-1, -2)]
+        public static void FollowKnight_CopiesAllEightJumpDirectionsWithoutRecursiveMovement(int dx, int dy)
+        {
+            Game game = MakeGame("knight");
+            Board.Node from = Shadow(game).Unit.Position;
+            Board.Node target = game.Board.Move(game.GetUnit(2)!.Position, dx, dy)!.Value;
+            Board.Node expected = game.Board.Move(from, dx, dy)!.Value;
+            Assert.True(game.ExecuteAction(ShadowFollow.New(0, 2)));
+            Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
+            Shadow clone = Assert.IsType<Shadow>(Shadow(game).Clone());
+            Assert.True(game.ExecuteAction(KnightLeap.New(2, target)));
+            Assert.Equal(target, game.GetUnit(2)!.Position);
+            Assert.Equal(expected, Shadow(game).Unit.Position);
+            Assert.Equal(from, clone.Unit.Position);
+            ShadowCopyMoveEvent copied = Assert.Single(game.Events.OfType<ShadowCopyMoveEvent>());
+            Assert.Equal(new[] { from, expected }, copied.Path);
+            Assert.Equal(0, copied.UnitId);
+            Assert.False(Assert.Single(game.Events.OfType<ShadowAttachmentEvent>()).Blocked);
+            Assert.Equal(6, Shadow(game).Unit.Health);
+        }
+
+        [Theory]
+        [InlineData("leap")]
+        [InlineData("hunt")]
+        [InlineData("secret")]
+        public static void FollowKnight_UsesTheSameJumpRulesForEveryJumpAction(string kind)
+        {
+            Game game = MakeGame("knight");
+            Assert.True(game.ExecuteAction(ShadowFollow.New(0, 2)));
+            Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
+            Board.Node target = At(game, 6, 5);
+            if (kind == "secret")
+                Assert.True(game.ExecuteAction(KnightHunt.New(2, game.GetUnit(2)!.Position)));
+            Assert.Empty(game.Events.OfType<ShadowCopyMoveEvent>());
+            GameAction action = kind switch
+            {
+                "leap" => KnightLeap.New(2, target),
+                "hunt" => KnightHunt.New(2, target),
+                _ => KnightSecretLeap.New(2, target),
+            };
+            Assert.True(game.ExecuteAction(action));
+            Assert.Equal(At(game, 5, 4), Shadow(game).Unit.Position);
+            Assert.Single(game.Events.OfType<ShadowCopyMoveEvent>());
+        }
+
+        [Theory]
+        [InlineData("leg-wall", false)]
+        [InlineData("leg-edge", false)]
+        [InlineData("leg-lake", true)]
+        [InlineData("leg-building", true)]
+        [InlineData("landing-wall", false)]
+        [InlineData("landing-lake", false)]
+        [InlineData("enemy-fort", false)]
+        [InlineData("own-fort", true)]
+        [InlineData("intermediate-wall", true)]
+        [InlineData("later-edge", true)]
+        public static void FollowKnight_ChecksItsOwnLegAndLandingWithoutBlockingTheKnight(string obstacle, bool allowed)
+        {
+            Game game = MakeGame("knight", targetRow: 5, targetCol: 5);
+            Board.Node from = Shadow(game).Unit.Position;
+            Board.Node leg = At(game, 2, 3);
+            Board.Node landing = At(game, 1, 4);
+            switch (obstacle)
+            {
+                case "leg-wall": game.Board.SetTerrain(leg, Terrain.Wall); break;
+                case "leg-lake": game.Board.SetTerrain(leg, Terrain.Lake); break;
+                case "leg-building": game.AddBuilding(WallBuilder.New().SetOwner(1)!.SetHealth(4)!.SetPos(leg)!); break;
+                case "leg-edge":
+                    int edge = game.Board.HWallAt(leg)!.Value;
+                    game.Board.HorizontalWalls.SetInner(edge / 64, 1ul << (edge % 64), out _); break;
+                case "landing-wall": game.Board.SetTerrain(landing, Terrain.Wall); break;
+                case "landing-lake": game.Board.SetTerrain(landing, Terrain.Lake); break;
+                case "enemy-fort":
+                case "own-fort":
+                    game.AddBuilding(FortBuilder.New().SetOwner(obstacle == "own-fort" ? 0 : 1)!
+                        .SetHealth(4)!.SetPos(landing)!); break;
+                case "intermediate-wall": game.Board.SetTerrain(At(game, 1, 3), Terrain.Wall); break;
+                case "later-edge":
+                    edge = game.Board.HWallAt(At(game, 1, 3))!.Value;
+                    game.Board.HorizontalWalls.SetInner(edge / 64, 1ul << (edge % 64), out _); break;
+            }
+            Assert.True(game.ExecuteAction(ShadowFollow.New(0, 2)));
+            Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
+            Assert.True(game.ExecuteAction(KnightLeap.New(2, At(game, 3, 6))));
+            Assert.Equal(At(game, 3, 6), game.GetUnit(2)!.Position);
+            Assert.Equal(allowed ? landing : from, Shadow(game).Unit.Position);
+            Assert.Equal(!allowed, Assert.Single(game.Events.OfType<ShadowAttachmentEvent>()).Blocked);
+            Assert.Equal(allowed ? 1 : 0, game.Events.OfType<ShadowCopyMoveEvent>().Count());
+        }
+
+        [Theory]
+        [InlineData(7, 7, 2, 1, "clear", true)]
+        [InlineData(1, 1, -2, -1, "clear", true)]
+        [InlineData(7, 7, 2, 1, "leg-wall", false)]
+        [InlineData(6, 7, 2, 1, "leg-edge", false)]
+        public static void FollowKnight_WrapsTheJumpAndChecksTheLegAtTheWrappedBoundary(
+            int row, int col, int dx, int dy, string obstacle, bool allowed)
+        {
+            Game game = MakeGame("knight", sourceRow: row, sourceCol: col);
+            Board.Node from = Shadow(game).Unit.Position;
+            if (obstacle == "leg-wall") game.Board.SetTerrain(At(game, 1, 7), Terrain.Wall);
+            if (obstacle == "leg-edge")
+            {
+                int edge = game.Board.HWallAt(from)!.Value;
+                game.Board.HorizontalWalls.SetInner(edge / 64, 1ul << (edge % 64), out _);
+            }
+            Assert.True(game.ExecuteAction(ShadowFollow.New(0, 2)));
+            Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
+            Assert.True(game.ExecuteAction(KnightLeap.New(2,
+                game.Board.Move(game.GetUnit(2)!.Position, dx, dy)!.Value)));
+            Board.Node expected = At(game, (row - 1 + dx + 7) % 7 + 1, (col - 1 + dy + 7) % 7 + 1);
+            Assert.Equal(allowed ? expected : from, Shadow(game).Unit.Position);
+            Assert.Equal(!allowed, Assert.Single(game.Events.OfType<ShadowAttachmentEvent>()).Blocked);
+        }
+
+        [Fact]
+        public static void FollowKnight_SilenceStillPausesCopiedJumps()
+        {
+            Game game = MakeGame("knight");
+            Assert.True(game.ExecuteAction(ShadowFollow.New(0, 2)));
+            Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
+            Assert.True(KnightHuntTests.ApplySilence(Shadow(game).Unit));
+            Assert.True(game.ExecuteAction(KnightLeap.New(2, At(game, 6, 5))));
+            Assert.Equal(At(game, 3, 3), Shadow(game).Unit.Position);
+            Assert.Empty(game.Events.OfType<ShadowCopyMoveEvent>());
+            Assert.Empty(game.Events.OfType<ShadowAttachmentEvent>());
+        }
 
         [Theory]
         [InlineData(false, 1)]

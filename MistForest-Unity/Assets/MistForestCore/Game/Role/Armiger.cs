@@ -129,7 +129,6 @@ namespace MistForest.Core.GameRefactored.Roles
             {
                 return false;
             }
-            // TODO: Integrate skill availability with the shared silence system when it is migrated.
             return action switch
             {
                 GeneralMove move => Unit.CanMove(move, game),
@@ -330,10 +329,10 @@ namespace MistForest.Core.GameRefactored.Roles
         }
 
         internal bool CanArmorUp()
-            => Alive && !End && IsFirstAction && ArmorLockRounds == 0
+            => Alive && !End && !IsSilenced && IsFirstAction && ArmorLockRounds == 0
                 && Armor < ArmigerConsts.ArmigerMaxArmor;
 
-        private bool CanArmorDownGeneral() => Alive && !End && AttackUsed == 0 && Armor > 0;
+        private bool CanArmorDownGeneral() => Alive && !End && !IsSilenced && AttackUsed == 0 && Armor > 0;
 
         internal bool CanArmorDown(ArmigerArmorDown action)
             => CanArmorDownGeneral() && action.Amount > 0 && action.Amount <= Armor
