@@ -197,7 +197,7 @@ namespace MistForest.Core.GameRefactored.Roles
 
         public override bool HasAction(Action action) => action is IAlphaAction;
 
-        internal bool CanBlood() => Alive && !End && IsFirstAction && BloodCooldown == 0;
+        internal bool CanBlood() => Alive && !End && !IsSilenced && IsFirstAction && BloodCooldown == 0;
 
         internal void AlphaBlood(Game game)
         {
@@ -259,13 +259,12 @@ namespace MistForest.Core.GameRefactored.Roles
             return AttackUsed == 0 && base.CanMove(move, game);
         }
 
-        internal Node[] AttackNodes(Game game)
-        {
-            return FarAttackNodes(game)
-                .AsValueEnumerable()
-                .Where(node => node != Position)
-                .ToArray();
-        }
+        /// <summary>
+        /// Ordinary attacks may target the attacker's own grid, as in the reference implementation:
+        /// enemies sharing that grid are resolved normally and the attacker never damages itself.
+        /// Whether an action remains is decided by the action budget, not by this list.
+        /// </summary>
+        internal Node[] AttackNodes(Game game) => FarAttackNodes(game);
 
         internal bool CanAttackImpl(AlphaAttack attack, Game game)
         {

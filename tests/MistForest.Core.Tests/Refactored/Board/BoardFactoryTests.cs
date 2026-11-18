@@ -1,5 +1,6 @@
 using MistForest.Core.Consts;
 using MistForest.Core.GameMap;
+using MistForest.Core.Utils;
 using Xunit;
 
 namespace MistForest.Core.Tests.Refactored.Mapping
@@ -89,6 +90,55 @@ namespace MistForest.Core.Tests.Refactored.Mapping
                     Assert.Equal(y, board.ColOf(node));
                 }
             }
+        }
+
+        [Theory]
+        [InlineData(0, 0)]
+        [InlineData(0, 5)]
+        [InlineData(5, 0)]
+        [InlineData(10, 9)]
+        [InlineData(9, 10)]
+        [InlineData(-1, 3)]
+        public static void FromMode_SelfDefine_RejectsInvalidSize(int height, int width)
+        {
+            Board board = Board.FromMode(GameMode.SelfDefine.New(height, width), out string? error)!;
+
+            Assert.Null(board);
+            Assert.False(string.IsNullOrEmpty(error));
+        }
+
+        [Fact]
+        public static void FromMode_SelfDefine_AcceptsBoundarySizes()
+        {
+            foreach ((int height, int width) in new[] { (1, 1), (1, 9), (9, 1), (9, 9) })
+            {
+                Board board = Board.FromMode(GameMode.SelfDefine.New(height, width), out string? error)!;
+
+                Assert.NotNull(board);
+                Assert.True(string.IsNullOrEmpty(error));
+                Assert.Equal(height, board.Height);
+                Assert.Equal(width, board.Width);
+            }
+        }
+
+        [Fact]
+        public static void FromCode_RejectsInvalidSizeAndBoardWithoutStandableGrid()
+        {
+            byte[] zeroWidth = Board.New(3, 3).IntoCode();
+            zeroWidth[0] = 0;
+            zeroWidth[1] = 0;
+            zeroWidth[2] = 0;
+            zeroWidth[3] = 0;
+            Assert.Null(Board.FromCode(Box.New(zeroWidth), out string? sizeError));
+            Assert.False(string.IsNullOrEmpty(sizeError));
+
+            Board allWall = Board.New(3, 3);
+            for (int i = 0; i < allWall.Grids.Length; ++i)
+            {
+                allWall.Grids[i] = Grid.New().WithOriginalBuilding(Terrain.Wall);
+            }
+            Assert.Null(Board.FromCode(Box.New(allWall.IntoCode()), out string? standError));
+            Assert.False(string.IsNullOrEmpty(standError));
         }
 
         [Fact]

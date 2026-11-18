@@ -254,7 +254,7 @@ namespace MistForest.Core.GameRefactored.Roles
                 .ToArray();
         }
 
-        private bool CanDashGeneral() => Alive && !End && DashCooldown == 0;
+        private bool CanDashGeneral() => Alive && !End && !IsSilenced && DashCooldown == 0;
 
         internal bool CanDash(InkDash dash, Game game)
         {

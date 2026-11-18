@@ -82,7 +82,7 @@ namespace MistForest.Core.GameRefactored.Roles
         public static ShadowCopyMoveEvent New(int unitId, Node[] path) => new(unitId, path);
     }
 
-    /// <summary>Resolves attachment once per original cardinal step, without recursive copies.</summary>
+    /// <summary>Copies cardinal steps and Knight jumps once, without recursive copies.</summary>
     internal static class ShadowAttachment
     {
         private static ShadowUnit[] Shadows(Game game)
@@ -114,15 +114,17 @@ namespace MistForest.Core.GameRefactored.Roles
                     return;
                 }
             }
-            // Teleports need their own displacement rules when those roles are migrated.
-            if (Math.Abs(dx) + Math.Abs(dy) != 1)
+            bool knightJump = actor is KnightUnit && Math.Abs(dx) * Math.Abs(dy)
+                == KnightConsts.KnightLeapLongOffset * KnightConsts.KnightLeapShortOffset;
+            // Other teleport displacement rules are defined when those roles are migrated.
+            if (!knightJump && Math.Abs(dx) + Math.Abs(dy) != 1)
             {
                 return;
             }
             Dictionary<int, bool> outcomes = new();
             foreach (ShadowUnit shadow in Shadows(game))
             {
-                if (!shadow.Alive || shadow.TargetUnitId is not int targetId)
+                if (!shadow.Alive || shadow.IsSilenced || shadow.TargetUnitId is not int targetId)
                 {
                     continue;
                 }
@@ -143,7 +145,9 @@ namespace MistForest.Core.GameRefactored.Roles
                     continue;
                 }
                 Node origin = moved.Position;
-                Node? destination = ShadowUnit.Step(origin, dx, dy, game);
+                Node? destination = knightJump
+                    ? KnightUnit.JumpTarget(origin, dx, dy, game.PlayerIdFromUnitId(moved.Id), game, wrap: true)
+                    : ShadowUnit.Step(origin, dx, dy, game);
                 bool allowed = destination is Node target && target != origin
                     && game.Board.GetGrid(target)!.CanStay(game.PlayerIdFromUnitId(moved.Id), game);
                 if (allowed)

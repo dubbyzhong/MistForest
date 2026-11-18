@@ -22,6 +22,10 @@ namespace MistForest.Core.GameRefactored
         public List<Event> Events;
         private readonly GameCount _gameCount;
         public int CurrentPlayerId { get; private set; }
+        /// <summary>Global turn index; incremented at the end of every player's turn.</summary>
+        public int TurnCount => _turnCount;
+        /// <summary>Global round index; incremented when every player has finished a turn.</summary>
+        public int RoundCount => _roundCount;
         private Bitset _roundActed;
         private int _turnCount;
         private int _roundCount;
@@ -244,6 +248,9 @@ namespace MistForest.Core.GameRefactored
 
         private void EndTurn()
         {
+            foreach (Role role in Players[CurrentPlayerId].Roles)
+                foreach (Unit unit in role.GetUnits())
+                    if (unit.Alive) unit.EndTurn(this);
             ShadowAttachment.EndTurn(CurrentPlayerId, this);
             ++_turnCount;
             _roundActed[CurrentPlayerId] = true;
@@ -302,19 +309,11 @@ namespace MistForest.Core.GameRefactored
                     }
                 }
             }
-            for (int i = 1; i <= Board.Height; ++i)
+            foreach (Building building in Buildings)
             {
-                for (int j = 1; j <= Board.Width; ++j)
+                if (building is Building.Rubble rubble)
                 {
-                    Grid grid = Board.GetGrid(Board.At(i, j)!.Value)!;
-                    if (
-                        grid.GridBuilding is int buildingId
-                        && Buildings[buildingId] is Building.Rubble rubble
-                        && rubble.Owner == CurrentPlayerId
-                    )
-                    {
-                        rubble.PrepareTurn(this);
-                    }
+                    rubble.PrepareTurn(this);
                 }
             }
         }

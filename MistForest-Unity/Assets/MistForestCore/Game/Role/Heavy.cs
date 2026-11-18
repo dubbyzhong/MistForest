@@ -153,7 +153,7 @@ namespace MistForest.Core.GameRefactored.Roles
         internal override bool CanMove(GeneralMove move, Game game)
             => !IsCharging && base.CanMove(move, game);
 
-        private bool CanStartCharge => Alive && !End && !IsCharging && MoveUsed == 0 && AttackUsed == 0;
+        private bool CanStartCharge => Alive && !End && !IsSilenced && !IsCharging && MoveUsed == 0 && AttackUsed == 0;
 
         private static bool CanCrossEdge(Node from, Node to, Game game)
             => game.Board.CanLineShot(from, to, MapConsts.DiagonalBlocked, predicate: _ => true);
@@ -265,7 +265,7 @@ namespace MistForest.Core.GameRefactored.Roles
 
         internal Node[] ChargeContinueNodes(Game game)
         {
-            if (!IsCharging)
+            if (!IsCharging || IsSilenced)
             {
                 return Array.Empty<Node>();
             }

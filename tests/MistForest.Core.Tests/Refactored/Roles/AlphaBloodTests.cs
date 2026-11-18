@@ -226,7 +226,9 @@ namespace MistForest.Core.Tests.Refactored.Roles
             }
             AlphaUnitView view = (AlphaUnitView)Alpha(game).GetView(game);
             Assert.Empty(view.CanMoveGrids);
-            Assert.Empty(view.CanAttackGrids);
+            // 自身格仍可作为攻击目标(规则与旧实现一致),算不上"没动作"。
+            Assert.Single(view.CanAttackGrids);
+            Assert.Contains(Alpha(game).Position, view.CanAttackGrids);
             Assert.Empty(view.CanBuildFortGrids);
             Assert.True(view.CanBlood);
             Assert.True(game.Roles[0].HasActionLeft(game));
@@ -236,7 +238,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
         [Theory]
         [InlineData(false)]
         [InlineData(true)]
-        public static void HasActionLeft_WhenTrappedAndBloodIsCoolingDown_DependsOnDemolition(bool withAlliedFort)
+        public static void HasActionLeft_WhenTrappedAndBloodIsCoolingDown_StaysTrueBecauseOwnGridIsAttackable(bool withAlliedFort)
         {
             Game game = MakeGame(false, (7, 7, true, true));
             Assert.True(game.ExecuteAction(AlphaBlood.New(0)));
@@ -254,15 +256,18 @@ namespace MistForest.Core.Tests.Refactored.Roles
             AlphaUnitView view = (AlphaUnitView)alpha.GetView(game);
             Assert.False(view.CanBlood);
             Assert.Empty(view.CanMoveGrids);
-            Assert.Empty(view.CanAttackGrids);
-            Assert.Empty(view.CanAttackRushGrids);
+            // 旧实现口径:被围死时只要攻击额度还在就算还有动作(可以打自己所在格)。
+            Assert.Single(view.CanAttackGrids);
+            Assert.Contains(alpha.Position, view.CanAttackGrids);
+            Assert.Single(view.CanAttackRushGrids);
+            Assert.Contains(alpha.Position, view.CanAttackRushGrids);
             Assert.Empty(view.CanBuildFortGrids);
             Assert.Empty(view.CanBuildWallGrids);
             GeneralDemolish demolish = GeneralDemolish.New(alpha.Id, alpha.Position);
             Assert.Equal(withAlliedFort, game.Roles[0].JudgeAction(demolish, game));
             Assert.Equal(withAlliedFort, view.CanDemolishGrids.Contains(alpha.Position));
 
-            Assert.Equal(withAlliedFort, game.Roles[0].HasActionLeft(game));
+            Assert.True(game.Roles[0].HasActionLeft(game));
             if (withAlliedFort)
             {
                 Assert.True(game.ExecuteAction(demolish));

@@ -11,7 +11,8 @@ namespace MistForest.Core.Tests.Refactored.Roles
     {
         public static IEnumerable<object[]> ConstructionCases()
         {
-            foreach (string role in new[] { "Alpha", "Armiger", "Ink", "Sniper", "Wolf" })
+            // 规则:座狼不能建造,也不作拆除,所以只列出有建造能力的角色。
+            foreach (string role in new[] { "Alpha", "Armiger", "Ink", "Sniper" })
             foreach (int wallSegments in new[] { 0, 1, 2 })
                 yield return new object[] { role, wallSegments };
         }
@@ -30,7 +31,6 @@ namespace MistForest.Core.Tests.Refactored.Roles
                 "Armiger" => ArmigerBuilder.New(new UnitBuilder[] { new ArmigerUnitBuilder() }, start)!,
                 "Ink" => InkBuilder.New(new UnitBuilder[] { new InkUnitBuilder() }, start)!,
                 "Sniper" => SniperBuilder.New(new UnitBuilder[] { new SniperUnitBuilder() }, start)!,
-                "Wolf" => WolfBuilder.New(new UnitBuilder[] { new WolfUnitBuilder() }, start)!,
                 _ => throw new ArgumentException("Unsupported role", nameof(roleName)),
             };
             GameBuilder builder = new();

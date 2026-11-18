@@ -48,8 +48,27 @@ namespace MistForest.Core.Utils
 
             public readonly T First(Func<T, bool> predicate)
             {
-                return FirstOrDefault(predicate)
-                    ?? throw new InvalidOperationException("Sequence contains no elements");
+                return TryFirst(predicate, out T value)
+                    ? value
+                    : throw new InvalidOperationException("Sequence contains no elements");
+            }
+
+            /// <summary>
+            /// Same as <see cref="First"/>, but reports failure instead of throwing when nothing matches.
+            /// <see cref="First"/> cannot test the result with <c>?? throw</c> because value type elements are never null.
+            /// </summary>
+            public readonly bool TryFirst(Func<T, bool> predicate, out T value)
+            {
+                foreach (T item in this)
+                {
+                    if (predicate(item))
+                    {
+                        value = item;
+                        return true;
+                    }
+                }
+                value = default!;
+                return false;
             }
 
             public readonly bool Any(Func<T, bool> predicate)

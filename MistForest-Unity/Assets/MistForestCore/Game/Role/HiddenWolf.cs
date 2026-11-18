@@ -155,9 +155,8 @@ namespace MistForest.Core.GameRefactored.Roles
 
         public override bool HasAction(Action action) => action is IHiddenWolfAction;
 
-        // TODO: Integrate shared silence: prevent transformation while silenced. Human form
-        // still receives silence, but must not give the caster a silence-success response.
-        internal bool CanTransform() => Alive && !End && IsFirstAction && !HasTransformedThisTurn;
+        public override bool ReportsSilence => Form != HiddenWolfForm.Human;
+        internal bool CanTransform() => Alive && !End && !IsSilenced && IsFirstAction && !HasTransformedThisTurn;
 
         internal void Transform(Game game)
         {
