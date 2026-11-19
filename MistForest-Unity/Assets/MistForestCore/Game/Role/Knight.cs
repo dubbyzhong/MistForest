@@ -316,25 +316,9 @@ namespace MistForest.Core.GameRefactored.Roles
 
         private void ResolveAttack(Node target, bool hunt, Game game)
         {
-            Grid grid = game.Board.GetGrid(target)!;
-            int playerId = game.PlayerIdFromUnitId(Id);
-            int? buildingId = null;
-            Unit[] enemies = Array.Empty<Unit>();
-            if (grid.HasBlockingBuilding(game))
-            {
-                Building building = game.Buildings[grid.GridBuilding!.Value];
-                buildingId = building.Id;
-                building.ReceiveDirectDamage(KnightConsts.KnightAttackDamage, game, playerId);
-            }
-            else
-            {
-                enemies = grid.Units.Select(id => game.GetUnit(id)!)
-                    .Where(unit => unit.Alive && !game.IsPlayerAllied(playerId, game.PlayerIdFromUnitId(unit.Id)))
-                    .ToArray();
-                foreach (Unit unit in enemies)
-                    unit.ReceiveDirectDamage(KnightConsts.KnightAttackDamage, game, DamageType.Melee);
-            }
-            game.Events.Add(KnightAttackEvent.New(Id, enemies.Select(unit => unit.Id).ToArray(), buildingId, target, hunt));
+            var (unitIds, buildingId) = ResolveSingleGridAttack(
+                target, KnightConsts.KnightAttackDamage, DamageType.Melee, game);
+            game.Events.Add(KnightAttackEvent.New(Id, unitIds, buildingId, target, hunt));
         }
 
         public override void PrepareTurn(Game game)
