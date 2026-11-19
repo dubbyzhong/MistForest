@@ -131,10 +131,7 @@ namespace MistForest.Core.GameRefactored.Roles
                 return false;
             }
 
-            return base.HasActionLeft(game)
-                && AttackUsed + MoveUsed < MaxAction
-                && GetView(game) is WolfUnitView view
-                && (view.CanBiteGrids.Length > 0 || view.CanMoveGrids.Length > 0);
+            return AttackUsed + MoveUsed < MaxAction;
         }
 
         public override UnitView GetView(Game game)
@@ -144,7 +141,7 @@ namespace MistForest.Core.GameRefactored.Roles
                 canBiteGrids: Box.New(BiteNodes(game)),
                 canBuildFortGrids: Box.New(Array.Empty<Node>()),
                 canBuildWallGrids: Box.New(Array.Empty<Node>()),
-                canDemolishGrids: Box.New(DemolishNodes(game))
+                canDemolishGrids: Box.New(Array.Empty<Node>())
             )!;
         }
 
@@ -172,11 +169,6 @@ namespace MistForest.Core.GameRefactored.Roles
                 unitIds: enemies.AsValueEnumerable().Select(unit => unit.Id).ToArray(),
                 buildingId: null,
                 target: bite.Target));
-        }
-
-        public override void EndRound(Game game)
-        {
-            base.EndRound(game);
         }
     }
 

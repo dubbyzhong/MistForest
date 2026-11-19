@@ -121,8 +121,8 @@ namespace MistForest.Core.GameRefactored.Roles
         public int MaxAttackAction => InkConsts.InkMaxAttackAction;
         public int AttackDamage => InkConsts.InkAttackDamage;
         public int BuildingAttackDamage => InkConsts.InkBuildingAttackDamage;
-        public int DashCooldown { get; private set; }
-        private bool _dashUsedThisRound;
+        public int DashCooldown => _dashCooldown.Remaining;
+        private Cooldown _dashCooldown;
         private Node[]? _lastDashPath;
 
         private InkUnit() { }
@@ -138,8 +138,7 @@ namespace MistForest.Core.GameRefactored.Roles
         {
             InkUnit target = new()
             {
-                DashCooldown = DashCooldown,
-                _dashUsedThisRound = _dashUsedThisRound,
+                _dashCooldown = _dashCooldown,
             };
             CloneBase(target);
             return target;
@@ -205,7 +204,7 @@ namespace MistForest.Core.GameRefactored.Roles
                     DamageResult result = enemy.ReceiveDirectDamage(AttackDamage, game, DamageType.Ranged);
                     if (result.TotalDamage > 0)
                     {
-                        DashCooldown = 0;
+                        _dashCooldown = Cooldown.None;
                     }
                 }
             }
@@ -233,7 +232,7 @@ namespace MistForest.Core.GameRefactored.Roles
                 .ToArray();
         }
 
-        private bool CanDashGeneral() => Alive && !End && !IsSilenced && DashCooldown == 0;
+        private bool CanDashGeneral() => Alive && !End && !IsSilenced && _dashCooldown.IsReady;
 
         internal bool CanDash(InkDash dash, Game game)
         {
@@ -256,8 +255,7 @@ namespace MistForest.Core.GameRefactored.Roles
         internal void InkDash(Game game)
         {
             Node[] path = _lastDashPath!;
-            DashCooldown = InkConsts.InkDashCooldownRounds;
-            _dashUsedThisRound = true;
+            _dashCooldown = _dashCooldown.Use(InkConsts.InkDashCooldownRounds);
             for (int step = 1; step < path.Length; ++step)
             {
                 ChangePos(path[step], game);
@@ -266,14 +264,15 @@ namespace MistForest.Core.GameRefactored.Roles
             game.Events.Add(GeneralMoveEvent.New(Id, path));
         }
 
+        public override void PrepareTurn(Game game)
+        {
+            base.PrepareTurn(game);
+            _dashCooldown = _dashCooldown.Tick();
+        }
+
         public override void EndRound(Game game)
         {
             base.EndRound(game);
-            if (!_dashUsedThisRound && DashCooldown > 0)
-            {
-                --DashCooldown;
-            }
-            _dashUsedThisRound = false;
             _lastDashPath = null;
         }
 
@@ -283,13 +282,10 @@ namespace MistForest.Core.GameRefactored.Roles
             {
                 return false;
             }
-            InkUnitView view = (InkUnitView)GetView(game);
-            return view.CanMoveGrids.Length > 0
-                || view.CanAttackGrids.Length > 0
-                || view.CanDashGrids.Length > 0
-                || view.CanBuildFortGrids.Length > 0
-                || view.CanBuildWallGrids.Length > 0
-                || view.CanDemolishGrids.Length > 0;
+            return CanAttackGeneral()
+                || CanDashGeneral()
+                || MoveUsed < MoveDistance
+                || HasBuildOrDemolishTarget(game);
         }
 
         public override UnitView GetView(Game game)

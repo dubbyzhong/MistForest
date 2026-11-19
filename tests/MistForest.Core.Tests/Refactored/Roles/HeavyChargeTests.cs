@@ -348,7 +348,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
         }
 
         [Fact]
-        public static void EndWhileTrappedAfterFirstStep_DoesNotPrematurelySwitchPlayer()
+        public static void EndWhileTrappedAfterFirstStep_ResolvesTheChargeAndSwitchesPlayer()
         {
             Game game = MakeGame();
             foreach (var point in new[] { (3, 4), (5, 4), (4, 5) })
@@ -357,9 +357,8 @@ namespace MistForest.Core.Tests.Refactored.Roles
             }
             Start(game);
             Assert.Empty(View(game).CanChargeContinueGrids);
-            Assert.Equal(0, game.CurrentPlayerId);
-            Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
             Assert.Equal(1, game.CurrentPlayerId);
+            Assert.Single(game.Events.OfType<HeavyChargeEvent>());
         }
 
         [Theory]

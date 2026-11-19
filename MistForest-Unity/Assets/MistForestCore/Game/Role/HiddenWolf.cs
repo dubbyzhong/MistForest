@@ -184,12 +184,10 @@ namespace MistForest.Core.GameRefactored.Roles
             {
                 return false;
             }
-            HiddenWolfUnitView view = (HiddenWolfUnitView)GetView(game);
-            return view.CanTransform || view.CanMoveGrids.Length > 0
-                || view.CanAttackGrids.Length > 0
-                || view.CanBuildFortGrids.Length > 0
-                || view.CanBuildWallGrids.Length > 0
-                || view.CanDemolishGrids.Length > 0;
+            return CanTransform()
+                || CanMoveGeneral
+                || CanAttackGeneral
+                || HasBuildOrDemolishTarget(game);
         }
 
         public override UnitView GetView(Game game)

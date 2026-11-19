@@ -212,7 +212,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Contains(result, game.GetEventsForPlayer(0));
             Assert.DoesNotContain(result, game.GetEventsForPlayer(1));
             Assert.Single(game.Events.OfType<KnightSecretLeapEvent>());
-            Assert.Equal(2, Role(game).Unit.SecretLeapCooldown);
+            Assert.Equal(1, Role(game).Unit.SecretLeapCooldown);
         }
 
         [Fact]
@@ -231,8 +231,8 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.True(clone.Unit.IsHunting);
             Assert.Equal(1, clone.Unit.OptionsUsed);
             Assert.Equal(KnightOption.Silence, clone.Unit.LastOption);
-            Assert.Equal(2, clone.Unit.SilenceCooldown);
-            Assert.Equal(2, viewClone.SilenceCooldown);
+            Assert.Equal(1, clone.Unit.SilenceCooldown);
+            Assert.Equal(1, viewClone.SilenceCooldown);
             Assert.False(viewClone.CanSilence);
             viewClone.CanCleaveGrids[0] = At(game, 7, 7);
             viewClone.CanCleaveRushGrids[0] = At(game, 7, 7);
@@ -245,7 +245,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.True(clone.HasActionLeft(game));
             NextRound(game);
             Assert.Equal(1, Role(game).Unit.SilenceCooldown);
-            Assert.Equal(2, clone.Unit.SilenceCooldown);
+            Assert.Equal(1, clone.Unit.SilenceCooldown);
         }
 
         [Fact]

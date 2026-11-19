@@ -193,7 +193,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
         }
 
         [Fact]
-        public static void WolfAttack_AutomaticallyEndsWhenExtraMovementIsBlocked()
+        public static void WolfAttack_KeepsTheTurnWhenOnlyTheExtraMovementIsBlocked()
         {
             Game game = MakeGame();
             Assert.True(game.ExecuteAction(HiddenWolfTransform.New(0)));
@@ -202,8 +202,11 @@ namespace MistForest.Core.Tests.Refactored.Roles
                 game.Board.SetTerrain(At(game, row, col), Terrain.Wall);
             }
             Assert.True(game.ExecuteAction(HiddenWolfAttack.New(0, Role(game).Unit.Position)));
+            Assert.Empty(View(game).CanMoveGrids);
+            Assert.Equal(0, game.CurrentPlayerId);
+            Assert.True(Role(game).HasActionLeft(game));
+            Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
             Assert.Equal(1, game.CurrentPlayerId);
-            Assert.False(Role(game).HasActionLeft(game));
         }
 
         [Fact]

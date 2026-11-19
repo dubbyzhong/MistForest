@@ -128,9 +128,12 @@ namespace MistForest.Core.GameRefactored.Roles
         public Node HuntOrigin { get; private set; }
         public int OptionsUsed { get; private set; }
         public KnightOption LastOption { get; private set; }
-        public int SilenceCooldown { get; private set; }
-        public int CleaveCooldown { get; private set; }
-        public int SecretLeapCooldown { get; private set; }
+        public int SilenceCooldown => _silenceCooldown.Remaining;
+        public int CleaveCooldown => _cleaveCooldown.Remaining;
+        public int SecretLeapCooldown => _secretLeapCooldown.Remaining;
+        private Cooldown _silenceCooldown;
+        private Cooldown _cleaveCooldown;
+        private Cooldown _secretLeapCooldown;
 
         private KnightUnit() { }
 
@@ -146,8 +149,8 @@ namespace MistForest.Core.GameRefactored.Roles
             KnightUnit target = new()
             {
                 IsHunting = IsHunting, HuntOrigin = HuntOrigin, OptionsUsed = OptionsUsed,
-                LastOption = LastOption, SilenceCooldown = SilenceCooldown,
-                CleaveCooldown = CleaveCooldown, SecretLeapCooldown = SecretLeapCooldown,
+                LastOption = LastOption, _silenceCooldown = _silenceCooldown,
+                _cleaveCooldown = _cleaveCooldown, _secretLeapCooldown = _secretLeapCooldown,
             };
             CloneBase(target);
             return target;
@@ -222,15 +225,15 @@ namespace MistForest.Core.GameRefactored.Roles
             return JumpNodes(game).Prepend(Position).ToArray();
         }
 
-        private bool CanUseOption(KnightOption option, int cooldown)
+        private bool CanUseOption(KnightOption option, Cooldown cooldown)
             => Alive && !End && !IsSilenced && IsHunting && OptionsUsed < KnightConsts.KnightMaxOptions
-                && (int)LastOption < (int)option && cooldown == 0;
+                && (int)LastOption < (int)option && cooldown.IsReady;
 
-        internal bool CanSilence => CanUseOption(KnightOption.Silence, SilenceCooldown);
+        internal bool CanSilence => CanUseOption(KnightOption.Silence, _silenceCooldown);
 
         internal Node[] CleaveNodes(Game game)
         {
-            if (!CanUseOption(KnightOption.Cleave, CleaveCooldown)) return Array.Empty<Node>();
+            if (!CanUseOption(KnightOption.Cleave, _cleaveCooldown)) return Array.Empty<Node>();
             return game.Board.GetNodesWithinDistance(Position, KnightConsts.KnightCleaveRange,
                 MapConsts.MoveManhattan, _ => true)
                 .Where(entry => game.Board.GetGrid(entry.node)!.Terrain is Terrain.Ground or Terrain.Whirlpool
@@ -252,7 +255,7 @@ namespace MistForest.Core.GameRefactored.Roles
         }
 
         internal Node[] SecretLeapNodes(Game game)
-            => CanUseOption(KnightOption.SecretLeap, SecretLeapCooldown) ? JumpNodes(game) : Array.Empty<Node>();
+            => CanUseOption(KnightOption.SecretLeap, _secretLeapCooldown) ? JumpNodes(game) : Array.Empty<Node>();
 
         internal void Hunt(KnightHunt hunt, Game game)
         {
@@ -271,7 +274,7 @@ namespace MistForest.Core.GameRefactored.Roles
         internal void Silence(Game game)
         {
             UseOption(KnightOption.Silence);
-            SilenceCooldown = KnightConsts.KnightOptionCooldownTurns + 1;
+            _silenceCooldown = _silenceCooldown.Use(KnightConsts.KnightOptionCooldownTurns);
             int playerId = game.PlayerIdFromUnitId(Id);
             bool hit = false;
             foreach (Role role in game.Roles)
@@ -291,7 +294,7 @@ namespace MistForest.Core.GameRefactored.Roles
         internal void Cleave(Node target, bool rush, Game game)
         {
             UseOption(KnightOption.Cleave);
-            CleaveCooldown = KnightConsts.KnightOptionCooldownTurns + 1;
+            _cleaveCooldown = _cleaveCooldown.Use(KnightConsts.KnightOptionCooldownTurns);
             Node from = Position;
             ResolveAttack(target, false, game);
             if (rush && Alive)
@@ -304,7 +307,7 @@ namespace MistForest.Core.GameRefactored.Roles
         internal void SecretLeap(KnightSecretLeap leap, Game game)
         {
             UseOption(KnightOption.SecretLeap);
-            SecretLeapCooldown = KnightConsts.KnightOptionCooldownTurns + 1;
+            _secretLeapCooldown = _secretLeapCooldown.Use(KnightConsts.KnightOptionCooldownTurns);
             Node from = Position;
             ChangePos(leap.Target, game);
             game.Events.Add(KnightSecretLeapEvent.New(Id));
@@ -337,9 +340,9 @@ namespace MistForest.Core.GameRefactored.Roles
         public override void PrepareTurn(Game game)
         {
             base.PrepareTurn(game);
-            SilenceCooldown = Math.Max(0, SilenceCooldown - 1);
-            CleaveCooldown = Math.Max(0, CleaveCooldown - 1);
-            SecretLeapCooldown = Math.Max(0, SecretLeapCooldown - 1);
+            _silenceCooldown = _silenceCooldown.Tick();
+            _cleaveCooldown = _cleaveCooldown.Tick();
+            _secretLeapCooldown = _secretLeapCooldown.Tick();
         }
 
         public override void EndRound(Game game)
@@ -362,10 +365,24 @@ namespace MistForest.Core.GameRefactored.Roles
             {
                 return false;
             }
-            KnightUnitView view = (KnightUnitView)GetView(game);
-            return view.CanSilence || view.CanHuntGrids.Length > 0 || view.CanCleaveGrids.Length > 0
-                || view.CanSecretLeapGrids.Length > 0 || view.CanLeapGrids.Length > 0 || view.CanBuildFortGrids.Length > 0
-                || view.CanBuildWallGrids.Length > 0 || view.CanDemolishGrids.Length > 0;
+            return !IsSilenced && IsFirstAction
+                || HasOptionLeft
+                || HasBuildOrDemolishTarget(game);
+        }
+
+        private bool HasOptionLeft
+        {
+            get
+            {
+                if (!IsHunting || IsSilenced || OptionsUsed >= KnightConsts.KnightMaxOptions)
+                {
+                    return false;
+                }
+
+                return LastOption < KnightOption.Silence && _silenceCooldown.IsReady
+                    || LastOption < KnightOption.Cleave && _cleaveCooldown.IsReady
+                    || LastOption < KnightOption.SecretLeap && _secretLeapCooldown.IsReady;
+            }
         }
 
         public override UnitView GetView(Game game)

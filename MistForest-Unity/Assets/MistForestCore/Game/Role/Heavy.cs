@@ -108,6 +108,8 @@ namespace MistForest.Core.GameRefactored.Roles
         private Node? _lastChargeTarget;
         private Node? _lastChargeFrom;
         public bool IsCharging => Alive && !End && _chargeDirection is not null;
+        /// <summary>Charge actions taken this turn, counted as in the reference implementation.</summary>
+        public int ChargeUsed { get; private set; }
 
         private HeavyUnit() { }
 
@@ -125,7 +127,7 @@ namespace MistForest.Core.GameRefactored.Roles
         public override Unit Clone()
         {
             // Copy the ongoing charge, but require fresh validation on the clone.
-            HeavyUnit target = new() { _chargeDirection = _chargeDirection };
+            HeavyUnit target = new() { _chargeDirection = _chargeDirection, ChargeUsed = ChargeUsed };
             CloneBase(target);
             return target;
         }
@@ -170,6 +172,7 @@ namespace MistForest.Core.GameRefactored.Roles
             _chargeDirection = (
                 game.Board.RowOf(charge.Target)!.Value - game.Board.RowOf(from)!.Value,
                 game.Board.ColOf(charge.Target)!.Value - game.Board.ColOf(from)!.Value);
+            ++ChargeUsed;
             ChangePos(charge.Target, game);
             game.Events.Add(HeavyChargeMoveEvent.New(game.PlayerIdFromUnitId(Id), Id,
                 new[] { from, Position }));
@@ -282,6 +285,7 @@ namespace MistForest.Core.GameRefactored.Roles
                 throw new InvalidOperationException("Charge continuation must be validated before execution.");
             }
             int playerId = game.PlayerIdFromUnitId(Id);
+            ++ChargeUsed;
             List<Node> moved = new() { Position };
             List<Node> hits = new();
             foreach (Node next in path)
@@ -344,10 +348,18 @@ namespace MistForest.Core.GameRefactored.Roles
             base.GeneralEnd(end, game);
         }
 
+        public override void EndTurn(Game game)
+        {
+            // An automatic end skips GeneralEnd, so resolve the charge here as well.
+            StopCharge(game);
+            base.EndTurn(game);
+        }
+
         public override void EndRound(Game game)
         {
             ClearChargePath();
             _chargeDirection = null;
+            ChargeUsed = 0;
             base.EndRound(game);
         }
 
@@ -357,16 +369,16 @@ namespace MistForest.Core.GameRefactored.Roles
             {
                 return false;
             }
-            // While choosing the second stage, the owner can always choose End.
+
             if (IsCharging)
             {
-                return true;
+                return ChargeUsed < HeavyConsts.HeavyChargeMaxDistance
+                    && ChargeContinueNodes(game).Length > 0;
             }
-            UnitView view = GetView(game);
-            return view.CanMoveGrids.Length > 0
-                || view.CanBuildFortGrids.Length > 0
-                || view.CanBuildWallGrids.Length > 0
-                || view.CanDemolishGrids.Length > 0;
+
+            return CanStartCharge
+                || MoveUsed < MoveDistance
+                || HasBuildOrDemolishTarget(game);
         }
 
         public override UnitView GetView(Game game)
