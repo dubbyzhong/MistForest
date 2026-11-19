@@ -268,6 +268,10 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.True(game.ExecuteAction(ArmigerArmorDown.New(0, UnitsPerPoint)));
             Assert.Equal(0, game.CurrentPlayerId);
             Assert.True(game.ExecuteAction(ArmigerArmorDown.New(0, UnitsPerPoint)));
+            Assert.Equal(0, game.CurrentPlayerId);
+            Assert.Empty(View(game).CanThrustGrids);
+            Assert.True(Role(game).HasActionLeft(game));
+            Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
             Assert.Equal(1, game.CurrentPlayerId);
             Assert.False(Role(game).HasActionLeft(game));
         }
@@ -420,7 +424,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Equal(new[] { HalfPoint, 3 * HalfPoint }, ((ArmigerUnitView)clone.Unit.GetView(game)).CanArmorDownAmounts);
 
             Assert.True(game.ExecuteAction(ArmigerArmorDown.New(0, HalfPoint)));
-            clone.Unit.EndRound(game);
+            clone.Unit.PrepareTurn(game);
 
             Assert.Equal(UnitsPerPoint, Unit(game).Armor);
             Assert.Equal(3 * HalfPoint, clone.Unit.Armor);
