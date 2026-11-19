@@ -5,6 +5,7 @@ using MistForest.Core.Utils;
 using Xunit;
 using static MistForest.Core.GameMap.Board;
 using static MistForest.Core.GameRefactored.PlayerBuilder;
+using static MistForest.Core.Consts.CombatConsts;
 
 namespace MistForest.Core.Tests.Refactored.Roles
 {
@@ -62,8 +63,8 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Empty(game.Board.GetGrid(origin)!.Units);
             Assert.Empty(game.Board.GetGrid(middle)!.Units);
             Assert.Equal(new[] { 0, 1 }, game.Board.GetGrid(target)!.Units.OrderBy(id => id));
-            Assert.Equal(6, Unit(game).Health);
-            Assert.Equal(6, game.GetUnit(1)!.Health);
+            Assert.Equal(3 * HalfPoint, Unit(game).Health);
+            Assert.Equal(3 * HalfPoint, game.GetUnit(1)!.Health);
             Assert.Equal(0, game.GetUnit(1)!.HighestDirectDamage);
             Assert.Equal(0, View(game).AttackUsed);
             Assert.NotEmpty(View(game).CanMoveGrids);
@@ -111,14 +112,14 @@ namespace MistForest.Core.Tests.Refactored.Roles
                 case "lake": game.Board.GetGrid(target)!.Terrain = Terrain.Lake; break;
                 case "terrain-wall": game.Board.GetGrid(target)!.Terrain = Terrain.Wall; break;
                 case "enemy-fort":
-                    game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(2)!.SetPos(target)!);
+                    game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(HalfPoint)!.SetPos(target)!);
                     break;
                 case "allied-wall":
-                    game.AddBuilding(WallBuilder.New().SetOwner(0)!.SetHealth(2)!.SetPos(target)!);
+                    game.AddBuilding(WallBuilder.New().SetOwner(0)!.SetHealth(HalfPoint)!.SetPos(target)!);
                     break;
                 case "middle-wall": game.Board.GetGrid(middle)!.Terrain = Terrain.Wall; break;
                 case "middle-fort":
-                    game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(2)!.SetPos(middle)!);
+                    game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(HalfPoint)!.SetPos(middle)!);
                     break;
                 case "first-line-wall":
                 case "second-line-wall":
@@ -143,7 +144,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Empty(game.Events);
             Assert.All(game.Buildings, building =>
             {
-                Assert.Equal(2, building.Health);
+                Assert.Equal(HalfPoint, building.Health);
                 Assert.Equal(0, building.HighestDirectDamage);
             });
         }
@@ -167,12 +168,12 @@ namespace MistForest.Core.Tests.Refactored.Roles
             };
             if (kind == "allied-forts")
             {
-                game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(6)!.SetPos(game.Board.At(3, 4)!.Value)!);
-                game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(6)!.SetPos(target)!);
+                game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(3 * HalfPoint)!.SetPos(game.Board.At(3, 4)!.Value)!);
+                game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(3 * HalfPoint)!.SetPos(target)!);
             }
             if (kind == "rubble")
             {
-                game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(2)!.SetPos(game.Board.At(3, 4)!.Value)!);
+                game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(HalfPoint)!.SetPos(game.Board.At(3, 4)!.Value)!);
                 game.Buildings[0].Destroyed(game, 0);
             }
             if (kind == "whirlpool")
@@ -202,7 +203,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Equal(target, Unit(game).Position);
             if (kind == "allied-forts")
             {
-                Assert.All(game.Buildings, building => Assert.Equal(6, building.Health));
+                Assert.All(game.Buildings, building => Assert.Equal(3 * HalfPoint, building.Health));
             }
         }
 
@@ -224,7 +225,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
 
             Assert.Equal(1, View(game).AttackUsed);
             Assert.Equal(2, Unit(game).DashCooldown);
-            Assert.Equal(4, game.GetUnit(1)!.Health);
+            Assert.Equal(UnitsPerPoint, game.GetUnit(1)!.Health);
             Assert.Empty(View(game).CanMoveGrids);
             Assert.DoesNotContain(enemy, View(game).CanAttackGrids);
             Assert.Equal(3, game.Events.OfType<GeneralMoveEvent>().Count());
@@ -246,7 +247,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Equal(0, Unit(game).DashCooldown);
             Assert.True(game.ExecuteAction(InkDash.New(0, game.Board.At(5, 5)!.Value)));
             Assert.True(game.ExecuteAction(InkAttack.New(0, first)));
-            Assert.Equal(4, game.GetUnit(2)!.Health);
+            Assert.Equal(UnitsPerPoint, game.GetUnit(2)!.Health);
             Assert.Equal(2, Unit(game).DashCooldown);
             Assert.False(game.ExecuteAction(InkDash.New(0, game.Board.At(5, 3)!.Value)));
             Assert.True(game.ExecuteAction(InkAttack.New(0, second)));
@@ -255,7 +256,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
 
             Assert.Equal(3, View(game).AttackUsed);
             Assert.Equal(2, Unit(game).DashCooldown);
-            Assert.Equal(4, game.GetUnit(3)!.Health);
+            Assert.Equal(UnitsPerPoint, game.GetUnit(3)!.Health);
             Assert.Equal(3, game.Events.OfType<GeneralMoveEvent>().Count());
             Assert.Equal(3, game.Events.OfType<InkAttackEvent>().Count());
         }
@@ -280,13 +281,13 @@ namespace MistForest.Core.Tests.Refactored.Roles
             if (kind is "enemy-fort" or "allied-fort" or "enemy-wall" or "allied-wall")
             {
                 BuildingBuilder builder = kind.EndsWith("wall") ? WallBuilder.New() : FortBuilder.New();
-                game.AddBuilding(builder.SetOwner(kind.StartsWith("allied") ? 0 : 1)!.SetHealth(6)!.SetPos(target)!);
+                game.AddBuilding(builder.SetOwner(kind.StartsWith("allied") ? 0 : 1)!.SetHealth(3 * HalfPoint)!.SetPos(target)!);
             }
             if (kind == "protected-enemy")
             {
                 target = game.Board.At(4, 5)!.Value;
                 PlaceUnit(game, game.GetUnit(2)!, target);
-                game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(2)!.SetPos(target)!);
+                game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(HalfPoint)!.SetPos(target)!);
             }
 
             Assert.True(game.ExecuteAction(InkAttack.New(0, target)));
@@ -294,8 +295,8 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Equal(2, Unit(game).DashCooldown);
             Assert.Equal(1, View(game).AttackUsed);
             Assert.Empty(View(game).CanDashGrids);
-            Assert.Equal(6, game.GetUnit(1)!.Health);
-            Assert.Equal(6, game.GetUnit(2)!.Health);
+            Assert.Equal(3 * HalfPoint, game.GetUnit(1)!.Health);
+            Assert.Equal(3 * HalfPoint, game.GetUnit(2)!.Health);
             Assert.False(game.ExecuteAction(InkDash.New(0, game.Board.At(5, 5)!.Value)));
             Assert.Equal(2, game.Events.Count);
         }
@@ -407,7 +408,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
         {
             Game game = MakeGame(firstPlayerId: 1);
             Node target = game.Board.At(3, 5)!.Value;
-            game.AddBuilding(FortBuilder.New().SetOwner(fortOwner)!.SetHealth(6)!
+            game.AddBuilding(FortBuilder.New().SetOwner(fortOwner)!.SetHealth(3 * HalfPoint)!
                 .SetPos(game.Board.At(3, 4)!.Value)!);
 
             Assert.Equal(canDash, View(game).CanDashGrids.Contains(target));

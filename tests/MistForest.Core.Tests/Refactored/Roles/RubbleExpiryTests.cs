@@ -4,6 +4,7 @@ using MistForest.Core.GameRefactored.Roles;
 using MistForest.Core.Utils;
 using Xunit;
 using static MistForest.Core.GameRefactored.PlayerBuilder;
+using static MistForest.Core.Consts.CombatConsts;
 
 namespace MistForest.Core.Tests.Refactored.Roles
 {
@@ -53,7 +54,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Board board = Board.FromMode(mode, out _)!;
             Game game = MakeGame(board);
             Board.Node fortPos = board.At(2, 3)!.Value;
-            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(4)!.SetPos(fortPos)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(UnitsPerPoint)!.SetPos(fortPos)!);
             Unit sniper = game.Players[0].Roles[0].GetUnits()[0];
             Unit wolf1 = game.Players[1].Roles[0].GetUnits()[0];
             Unit wolf2 = game.Players[2].Roles[0].GetUnits()[0];
@@ -91,6 +92,31 @@ namespace MistForest.Core.Tests.Refactored.Roles
 
             Assert.Null(board.GetGrid(fortPos)!.GridBuilding);
             Assert.True(board.GetGrid(fortPos)!.CanBuild());
+        }
+
+        [Fact]
+        public static void ExpiredRubble_LeavesRebuiltFortInPlace()
+        {
+            GameMode mode = GameMode.SelfDefine.New(7, 7);
+            Board board = Board.FromMode(mode, out _)!;
+            Game game = MakeGame(board);
+            Board.Node fortPos = board.At(2, 3)!.Value;
+            Grid grid = board.GetGrid(fortPos)!;
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(UnitsPerPoint)!.SetPos(fortPos)!);
+            int sniperId = game.Players[0].Roles[0].GetUnits()[0].Id;
+            int firstWolfId = game.Players[1].Roles[0].GetUnits()[0].Id;
+            int secondWolfId = game.Players[2].Roles[0].GetUnits()[0].Id;
+
+            Assert.True(game.ExecuteAction(GeneralDemolish.New(sniperId, fortPos)));
+            Assert.True(game.ExecuteAction(GeneralEnd.New(firstWolfId)));
+            Assert.True(game.ExecuteAction(GeneralEnd.New(secondWolfId)));
+            Assert.Null(grid.GridBuilding);
+
+            Assert.True(game.ExecuteAction(GeneralBuildFort.New(sniperId, fortPos)));
+            Assert.Equal(1, game.CurrentPlayerId);
+            Building.Fort rebuilt = Assert.IsType<Building.Fort>(game.Buildings[1]);
+            Assert.Equal(rebuilt.Id, grid.GridBuilding);
+            Assert.False(grid.CanBuild());
         }
     }
 }

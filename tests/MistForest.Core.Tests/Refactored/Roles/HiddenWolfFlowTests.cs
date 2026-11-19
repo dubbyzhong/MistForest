@@ -6,6 +6,7 @@ using MistForest.Core.Utils;
 using Xunit;
 using static MistForest.Core.GameRefactored.PlayerBuilder;
 using GameAction = MistForest.Core.GameRefactored.Action;
+using static MistForest.Core.Consts.CombatConsts;
 
 namespace MistForest.Core.Tests.Refactored.Roles
 {
@@ -66,10 +67,10 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Equal(0, role.PlayerId);
             Assert.Equal(role.Id, role.Unit.RoleId);
             Assert.Equal(0, role.Unit.Id);
-            Assert.Equal(6, role.Unit.Health);
+            Assert.Equal(3 * HalfPoint, role.Unit.Health);
             Assert.Equal(0, role.Unit.Armor);
             Assert.Equal(2, role.Unit.AttackRange);
-            Assert.Equal(4, role.Unit.AttackDamage);
+            Assert.Equal(UnitsPerPoint, role.Unit.AttackDamage);
             Assert.False(role.Unit.CanBeDetected);
             Assert.Equal(game.Board.At(3, 3)!.Value, role.Unit.Position);
             Assert.Same(role.Unit, Assert.Single(role.GetUnits().ToArray()));
@@ -189,10 +190,10 @@ namespace MistForest.Core.Tests.Refactored.Roles
                     Assert.True(game.Board.VerticalWalls.SetInner(wall / 64, 1ul << (wall % 64), out _));
                     break;
                 case "enemy-fort":
-                    game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(4)!.SetPos(target)!);
+                    game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(UnitsPerPoint)!.SetPos(target)!);
                     break;
                 case "allied-wall":
-                    game.AddBuilding(WallBuilder.New().SetOwner(0)!.SetHealth(4)!.SetPos(target)!);
+                    game.AddBuilding(WallBuilder.New().SetOwner(0)!.SetHealth(UnitsPerPoint)!.SetPos(target)!);
                     break;
                 case "out-of-board": target = Board.New(8, 8).At(8, 8)!.Value; break;
             }
@@ -212,8 +213,8 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Wolf enemy = Assert.IsType<Wolf>(game.Roles[1]);
             Board.Node from = role.Unit.Position;
             Assert.True(game.ExecuteAction(HiddenWolfAttack.New(0, enemy.Unit.Position)));
-            Assert.Equal(2, enemy.Unit.Health);
-            Assert.Equal(4, enemy.Unit.HighestDirectDamage);
+            Assert.Equal(HalfPoint, enemy.Unit.Health);
+            Assert.Equal(UnitsPerPoint, enemy.Unit.HighestDirectDamage);
             Assert.Equal(from, role.Unit.Position);
             Assert.False(role.HasActionLeft(game));
             Assert.False(role.IsFirstAction);
@@ -254,7 +255,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
                 case "lake-target": game.Board.SetTerrain(target, Terrain.Lake); break;
                 case "middle-wall": game.Board.SetTerrain(middle, Terrain.Wall); break;
                 case "middle-fort":
-                    game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(4)!.SetPos(middle)!);
+                    game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(UnitsPerPoint)!.SetPos(middle)!);
                     break;
                 case "line-wall":
                     int wall = game.Board.VWallAt(role.Unit.Position)!.Value;
@@ -266,7 +267,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.False(game.ExecuteAction(HiddenWolfAttack.New(0, target)));
             Assert.True(role.IsFirstAction);
             Assert.Empty(game.Events);
-            Assert.Equal(6, Assert.IsType<Wolf>(game.Roles[1]).Unit.Health);
+            Assert.Equal(3 * HalfPoint, Assert.IsType<Wolf>(game.Roles[1]).Unit.Health);
             Assert.Equal(0, game.CurrentPlayerId);
         }
 
@@ -287,9 +288,9 @@ namespace MistForest.Core.Tests.Refactored.Roles
         }
 
         [Theory]
-        [InlineData(0, 4)]
-        [InlineData(1, 4)]
-        [InlineData(1, 8)]
+        [InlineData(0, UnitsPerPoint)]
+        [InlineData(1, UnitsPerPoint)]
+        [InlineData(1, 2 * UnitsPerPoint)]
         public static void HumanAttack_HitsBuildingAndProtectsItsOccupants(int owner, int health)
         {
             Game game = MakeGame();
@@ -297,15 +298,15 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Board.Node target = enemy.Unit.Position;
             game.AddBuilding(FortBuilder.New().SetOwner(owner)!.SetHealth(health)!.SetPos(target)!);
             Assert.True(game.ExecuteAction(HiddenWolfAttack.New(0, target)));
-            Assert.Equal(6, enemy.Unit.Health);
+            Assert.Equal(3 * HalfPoint, enemy.Unit.Health);
             Assert.Equal(0, enemy.Unit.HighestDirectDamage);
-            if (health == 4)
+            if (health == UnitsPerPoint)
             {
                 Assert.IsType<Building.Rubble>(game.Buildings[0]);
             }
             else
             {
-                Assert.Equal(health - 4, Assert.IsType<Building.Fort>(game.Buildings[0]).Health);
+                Assert.Equal(health - UnitsPerPoint, Assert.IsType<Building.Fort>(game.Buildings[0]).Health);
             }
             HiddenWolfAttackEvent attack = Assert.IsType<HiddenWolfAttackEvent>(Assert.Single(game.Events));
             Assert.Empty(attack.UnitIds);
@@ -318,7 +319,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Game game = MakeGame();
             HiddenWolf role = Role(game);
             Assert.True(game.ExecuteAction(HiddenWolfAttack.New(0, role.Unit.Position)));
-            Assert.Equal(6, role.Unit.Health);
+            Assert.Equal(3 * HalfPoint, role.Unit.Health);
             Assert.Equal(0, role.Unit.HighestDirectDamage);
             Assert.Empty(Assert.IsType<HiddenWolfAttackEvent>(Assert.Single(game.Events)).UnitIds);
         }
@@ -347,8 +348,8 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Game game = MakeGame();
             Board.Node allied = game.Board.At(2, 3)!.Value;
             Board.Node enemy = game.Board.At(3, 4)!.Value;
-            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(4)!.SetPos(allied)!);
-            game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(4)!.SetPos(enemy)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(UnitsPerPoint)!.SetPos(allied)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(UnitsPerPoint)!.SetPos(enemy)!);
             HiddenWolfUnitView view = Assert.IsType<HiddenWolfUnitView>(Role(game).Unit.GetView(game));
             Assert.Contains(allied, view.CanDemolishGrids);
             Assert.DoesNotContain(enemy, view.CanDemolishGrids);

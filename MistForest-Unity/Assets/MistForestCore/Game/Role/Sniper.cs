@@ -37,15 +37,9 @@ namespace MistForest.Core.GameRefactored.Roles
         {
             return action switch
             {
-                GeneralMove move => Unit.CanMove(move, game),
-                GeneralEnd _ => Unit.CanEnd(),
-                GeneralSurrender _ => Unit.CanSurrender(),
-                GeneralBuildFort buildFort => Unit.CanBuildFort(buildFort, game),
-                GeneralBuildWall buildWall => Unit.CanBuildWall(buildWall, game),
-                GeneralDemolish demolish => Unit.CanDemolish(demolish, game),
                 SniperExecute execute => Unit.CanExecute(execute, game),
                 SniperScout scout => Unit.CanScout(scout, game),
-                _ => false,
+                _ => JudgeGeneralAction(action, game),
             };
         }
 
@@ -54,29 +48,14 @@ namespace MistForest.Core.GameRefactored.Roles
             Unit.StartExecuteAction();
             switch (action)
             {
-                case GeneralMove move:
-                    Unit.GeneralMove(move, game);
-                    break;
-                case GeneralEnd end:
-                    Unit.GeneralEnd(end, game);
-                    break;
-                case GeneralSurrender _:
-                    GeneralSurrender(game);
-                    break;
-                case GeneralBuildFort buildFort:
-                    Unit.GeneralBuildFort(buildFort, game);
-                    break;
-                case GeneralBuildWall buildWall:
-                    Unit.GeneralBuildWall(buildWall, game);
-                    break;
-                case GeneralDemolish demolish:
-                    Unit.GeneralDemolish(demolish, game);
-                    break;
                 case SniperExecute execute:
                     Unit.SniperExecute(execute, game);
                     break;
                 case SniperScout scout:
                     Unit.SniperScout(scout, game);
+                    break;
+                default:
+                    ExecuteGeneralAction(action, game);
                     break;
             }
         }

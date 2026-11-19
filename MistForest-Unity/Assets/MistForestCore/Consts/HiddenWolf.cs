@@ -2,7 +2,7 @@ namespace MistForest.Core.Consts
 {
     public class HiddenWolfConsts
     {
-        // Health and damage use quarter-point units.
+        // Health and damage use combat units.
         public const int HiddenWolfHealth = 3 * CombatConsts.HalfPoint;
         public const int HiddenWolfHumanMoveDistance = 1;
         public const int HiddenWolfHumanAttackRange = 2;

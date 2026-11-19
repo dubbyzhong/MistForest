@@ -4,6 +4,7 @@ using MistForest.Core.GameRefactored.Roles;
 using MistForest.Core.Utils;
 using Xunit;
 using static MistForest.Core.GameRefactored.PlayerBuilder;
+using static MistForest.Core.Consts.CombatConsts;
 
 namespace MistForest.Core.Tests.Refactored.Roles
 {
@@ -59,7 +60,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.All(game.Buildings, building =>
             {
                 Assert.Equal(wallSegments == 0 ? typeof(Building.Fort) : typeof(Building.Wall), building.GetType());
-                Assert.Equal(4, building.Health);
+                Assert.Equal(UnitsPerPoint, building.Health);
                 Assert.Equal(0, building.HighestDirectDamage);
                 Assert.Equal(0, building.Owner);
                 Assert.Contains(building.Pos, targets);

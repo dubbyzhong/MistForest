@@ -5,12 +5,13 @@ using MistForest.Core.Utils;
 using Xunit;
 using static MistForest.Core.GameRefactored.PlayerBuilder;
 using GameAction = MistForest.Core.GameRefactored.Action;
+using static MistForest.Core.Consts.CombatConsts;
 
 namespace MistForest.Core.Tests.Refactored.Roles
 {
     public class UnitArmorTests
     {
-        private static Game MakeGame(string attacker = "ink", int armor = 0, int health = 6,
+        private static Game MakeGame(string attacker = "ink", int armor = 0, int health = 3 * HalfPoint,
             bool withSecondAttacker = false)
         {
             GameMode mode = GameMode.SelfDefine.New(7, 7);
@@ -61,18 +62,18 @@ namespace MistForest.Core.Tests.Refactored.Roles
         }
 
         [Theory]
-        [InlineData("ink", 0, 0, 4)]
-        [InlineData("ink", 2, 0, 6)]
-        [InlineData("ink", 4, 2, 6)]
-        [InlineData("ink", 8, 6, 6)]
-        [InlineData("ink", 1, 0, 5)]
-        [InlineData("ink", 3, 1, 6)]
-        [InlineData("wolf", 0, 0, 2)]
-        [InlineData("wolf", 2, 0, 4)]
-        [InlineData("wolf", 4, 0, 6)]
-        [InlineData("wolf", 12, 8, 6)]
-        [InlineData("wolf", 1, 0, 3)]
-        [InlineData("alpha", 2, 0, 4)]
+        [InlineData("ink", 0, 0, UnitsPerPoint)]
+        [InlineData("ink", HalfPoint, 0, 3 * HalfPoint)]
+        [InlineData("ink", UnitsPerPoint, HalfPoint, 3 * HalfPoint)]
+        [InlineData("ink", 2 * UnitsPerPoint, 3 * HalfPoint, 3 * HalfPoint)]
+        [InlineData("ink", QuarterPoint, 0, 5 * QuarterPoint)]
+        [InlineData("ink", 3 * QuarterPoint, QuarterPoint, 3 * HalfPoint)]
+        [InlineData("wolf", 0, 0, HalfPoint)]
+        [InlineData("wolf", HalfPoint, 0, UnitsPerPoint)]
+        [InlineData("wolf", UnitsPerPoint, 0, 3 * HalfPoint)]
+        [InlineData("wolf", 3 * UnitsPerPoint, 2 * UnitsPerPoint, 3 * HalfPoint)]
+        [InlineData("wolf", QuarterPoint, 0, 3 * QuarterPoint)]
+        [InlineData("alpha", HalfPoint, 0, UnitsPerPoint)]
         public static void DirectAttack_AbsorbsArmorBeforeDamagingHealth(
             string attacker, int armor, int expectedArmor, int expectedHealth)
         {
@@ -83,7 +84,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
 
             Assert.Equal(expectedArmor, target.Armor);
             Assert.Equal(expectedHealth, target.Health);
-            Assert.Equal(attacker == "ink" ? 2 : 4, target.HighestDirectDamage);
+            Assert.Equal(attacker == "ink" ? HalfPoint : UnitsPerPoint, target.HighestDirectDamage);
             AttackEvent attacked = Assert.IsAssignableFrom<AttackEvent>(Assert.Single(game.Events));
             Assert.Equal(new[] { target.Id }, attacked.UnitIds);
             Assert.Null(attacked.BuildingId);
@@ -91,10 +92,10 @@ namespace MistForest.Core.Tests.Refactored.Roles
 
         [Theory]
         [InlineData(0)]
-        [InlineData(2)]
+        [InlineData(HalfPoint)]
         public static void LethalDamage_ClampsHealthAndRemovesUnitFromGrid(int armor)
         {
-            Game game = MakeGame("wolf", armor, health: 2);
+            Game game = MakeGame("wolf", armor, health: HalfPoint);
             ArmoredUnit target = Target(game);
             Board.Node position = target.Position;
 
@@ -107,24 +108,24 @@ namespace MistForest.Core.Tests.Refactored.Roles
         }
 
         [Theory]
-        [InlineData("ink", 6)]
-        [InlineData("wolf", 4)]
+        [InlineData("ink", 3 * HalfPoint)]
+        [InlineData("wolf", UnitsPerPoint)]
         public static void EqualStrengthAttacks_DoNotSpendArmorAgain(string attacker, int expectedArmor)
         {
-            Game game = MakeGame(attacker, armor: 8);
+            Game game = MakeGame(attacker, armor: 2 * UnitsPerPoint);
             ArmoredUnit target = Target(game);
             for (int shot = 0; shot < 3; ++shot)
             {
                 Assert.True(game.ExecuteAction(Attack(attacker, 0, target.Position)));
                 Assert.Equal(expectedArmor, target.Armor);
-                Assert.Equal(6, target.Health);
+                Assert.Equal(3 * HalfPoint, target.Health);
             }
         }
 
         [Theory]
-        [InlineData(0, 0, 2)]
-        [InlineData(2, 0, 4)]
-        [InlineData(6, 2, 6)]
+        [InlineData(0, 0, HalfPoint)]
+        [InlineData(HalfPoint, 0, UnitsPerPoint)]
+        [InlineData(3 * HalfPoint, HalfPoint, 3 * HalfPoint)]
         public static void StrongerAttackFromAnotherPlayer_OnlyDealsTheUncoveredDifference(
             int armor, int expectedArmor, int expectedHealth)
         {
@@ -138,7 +139,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
 
             Assert.Equal(expectedArmor, target.Armor);
             Assert.Equal(expectedHealth, target.Health);
-            Assert.Equal(4, target.HighestDirectDamage);
+            Assert.Equal(UnitsPerPoint, target.HighestDirectDamage);
             Assert.True(game.ExecuteAction(WolfBite.New(1, target.Position)));
             Assert.Equal(expectedArmor, target.Armor);
             Assert.Equal(expectedHealth, target.Health);
@@ -147,76 +148,76 @@ namespace MistForest.Core.Tests.Refactored.Roles
         [Fact]
         public static void EndRound_PreservesArmorAndResetsHighestDamage()
         {
-            Game game = MakeGame(armor: 8);
+            Game game = MakeGame(armor: 2 * UnitsPerPoint);
             ArmoredUnit target = Target(game);
             Assert.True(game.ExecuteAction(InkAttack.New(0, target.Position)));
-            Assert.Equal(6, target.Armor);
-            Assert.Equal(2, target.HighestDirectDamage);
+            Assert.Equal(3 * HalfPoint, target.Armor);
+            Assert.Equal(HalfPoint, target.HighestDirectDamage);
             Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
 
             Assert.True(game.ExecuteAction(GeneralEnd.New(target.Id)));
 
-            Assert.Equal(6, target.Armor);
-            Assert.Equal(6, target.Health);
+            Assert.Equal(3 * HalfPoint, target.Armor);
+            Assert.Equal(3 * HalfPoint, target.Health);
             Assert.Equal(0, target.HighestDirectDamage);
             Assert.True(game.ExecuteAction(InkAttack.New(0, target.Position)));
-            Assert.Equal(4, target.Armor);
-            Assert.Equal(6, target.Health);
+            Assert.Equal(UnitsPerPoint, target.Armor);
+            Assert.Equal(3 * HalfPoint, target.Health);
         }
 
         [Fact]
         public static void QuarterPointArmor_PreservesRemainderAcrossCloningAndRoundReset()
         {
             // 0.75 armor minus a 0.5 pellet leaves exactly 0.25 armor.
-            Game game = MakeGame(armor: 3);
+            Game game = MakeGame(armor: 3 * QuarterPoint);
             ArmoredUnit target = Target(game);
             Assert.True(game.ExecuteAction(InkAttack.New(0, target.Position)));
-            Assert.Equal(1, target.Armor);
-            Assert.Equal(6, target.Health);
+            Assert.Equal(QuarterPoint, target.Armor);
+            Assert.Equal(3 * HalfPoint, target.Health);
             ArmoredUnit clone = Assert.IsType<ArmoredUnit>(target.Clone());
 
             Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
             Assert.True(game.ExecuteAction(GeneralEnd.New(target.Id)));
-            Assert.Equal(1, target.Armor);
+            Assert.Equal(QuarterPoint, target.Armor);
             Assert.Equal(0, target.HighestDirectDamage);
 
             // The next 0.5 pellet absorbs 0.25 armor and deals 0.25 health damage.
             Assert.True(game.ExecuteAction(InkAttack.New(0, target.Position)));
             Assert.Equal(0, target.Armor);
-            Assert.Equal(5, target.Health);
-            Assert.Equal(1, clone.Armor);
-            Assert.Equal(6, clone.Health);
-            Assert.Equal(2, clone.HighestDirectDamage);
+            Assert.Equal(5 * QuarterPoint, target.Health);
+            Assert.Equal(QuarterPoint, clone.Armor);
+            Assert.Equal(3 * HalfPoint, clone.Health);
+            Assert.Equal(HalfPoint, clone.HighestDirectDamage);
         }
 
         [Fact]
         public static void Clone_PreservesArmorAndDamageHistoryWithoutSharingState()
         {
-            Game game = MakeGame("wolf", armor: 6);
+            Game game = MakeGame("wolf", armor: 3 * HalfPoint);
             ArmoredUnit original = Target(game);
             Assert.True(game.ExecuteAction(WolfBite.New(0, original.Position)));
 
             ArmoredUnit unitClone = Assert.IsType<ArmoredUnit>(original.Clone());
             ArmoredRole roleClone = Assert.IsType<ArmoredRole>(game.Roles[1].Clone());
             ArmoredUnit roleUnitClone = Assert.IsType<ArmoredUnit>(Assert.Single(roleClone.GetUnits().ToArray()));
-            original.RestoreArmor(8);
+            original.RestoreArmor(2 * UnitsPerPoint);
             foreach (ArmoredUnit clone in new[] { unitClone, roleUnitClone })
             {
                 Assert.NotSame(original, clone);
-                Assert.Equal(2, clone.Armor);
-                Assert.Equal(6, clone.Health);
-                Assert.Equal(4, clone.HighestDirectDamage);
+                Assert.Equal(HalfPoint, clone.Armor);
+                Assert.Equal(3 * HalfPoint, clone.Health);
+                Assert.Equal(UnitsPerPoint, clone.HighestDirectDamage);
                 clone.EndRound(game);
-                Assert.Equal(2, clone.Armor);
+                Assert.Equal(HalfPoint, clone.Armor);
                 Assert.Equal(0, clone.HighestDirectDamage);
             }
-            Assert.Equal(8, original.Armor);
-            Assert.Equal(4, original.HighestDirectDamage);
+            Assert.Equal(2 * UnitsPerPoint, original.Armor);
+            Assert.Equal(UnitsPerPoint, original.HighestDirectDamage);
         }
 
         [Theory]
-        [InlineData(2)]
-        [InlineData(4)]
+        [InlineData(HalfPoint)]
+        [InlineData(UnitsPerPoint)]
         public static void Ink_ArmorOnlyDamageRefreshesDashButCoveredDamageDoesNot(int armor)
         {
             Game game = MakeGame(armor: armor);
@@ -227,13 +228,13 @@ namespace MistForest.Core.Tests.Refactored.Roles
 
             Assert.True(game.ExecuteAction(InkAttack.New(0, target.Position)));
 
-            Assert.Equal(6, target.Health);
-            Assert.Equal(armor - 2, target.Armor);
+            Assert.Equal(3 * HalfPoint, target.Health);
+            Assert.Equal(armor - HalfPoint, target.Armor);
             Assert.Equal(0, InkUnit(game).DashCooldown);
             Assert.True(game.ExecuteAction(InkDash.New(0, start)));
             Assert.True(game.ExecuteAction(InkAttack.New(0, target.Position)));
-            Assert.Equal(6, target.Health);
-            Assert.Equal(armor - 2, target.Armor);
+            Assert.Equal(3 * HalfPoint, target.Health);
+            Assert.Equal(armor - HalfPoint, target.Armor);
             Assert.Equal(2, InkUnit(game).DashCooldown);
         }
 
@@ -243,14 +244,14 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Game game = MakeGame();
             ArmoredUnit target = Target(game);
             Assert.True(game.ExecuteAction(InkAttack.New(0, target.Position)));
-            target.RestoreArmor(4);
+            target.RestoreArmor(UnitsPerPoint);
             Assert.True(game.ExecuteAction(InkDash.New(0, game.Board.At(3, 5)!.Value)));
 
             Assert.True(game.ExecuteAction(InkAttack.New(0, target.Position)));
 
-            Assert.Equal(4, target.Armor);
-            Assert.Equal(4, target.Health);
-            Assert.Equal(2, target.HighestDirectDamage);
+            Assert.Equal(UnitsPerPoint, target.Armor);
+            Assert.Equal(UnitsPerPoint, target.Health);
+            Assert.Equal(HalfPoint, target.HighestDirectDamage);
             Assert.Equal(2, InkUnit(game).DashCooldown);
         }
 
@@ -259,16 +260,16 @@ namespace MistForest.Core.Tests.Refactored.Roles
         [InlineData(1)]
         public static void Building_ShieldsArmorAndDoesNotRefreshInkUntilNextPellet(int buildingOwner)
         {
-            Game game = MakeGame(armor: 8);
+            Game game = MakeGame(armor: 2 * UnitsPerPoint);
             ArmoredUnit target = Target(game);
-            game.AddBuilding(FortBuilder.New().SetOwner(buildingOwner)!.SetHealth(2)!.SetPos(target.Position)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(buildingOwner)!.SetHealth(HalfPoint)!.SetPos(target.Position)!);
             Assert.True(game.ExecuteAction(InkDash.New(0, game.Board.At(2, 4)!.Value)));
 
             Assert.True(game.ExecuteAction(InkAttack.New(0, target.Position)));
 
             Assert.IsType<Building.Rubble>(game.Buildings[0]);
-            Assert.Equal(8, target.Armor);
-            Assert.Equal(6, target.Health);
+            Assert.Equal(2 * UnitsPerPoint, target.Armor);
+            Assert.Equal(3 * HalfPoint, target.Health);
             Assert.Equal(0, target.HighestDirectDamage);
             Assert.Equal(2, InkUnit(game).DashCooldown);
             InkAttackEvent buildingHit = Assert.Single(game.Events.OfType<InkAttackEvent>());
@@ -276,15 +277,15 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Equal(0, buildingHit.BuildingId);
 
             Assert.True(game.ExecuteAction(InkAttack.New(0, target.Position)));
-            Assert.Equal(6, target.Armor);
-            Assert.Equal(6, target.Health);
+            Assert.Equal(3 * HalfPoint, target.Armor);
+            Assert.Equal(3 * HalfPoint, target.Health);
             Assert.Equal(0, InkUnit(game).DashCooldown);
         }
 
         [Theory]
-        [InlineData(2)]
-        [InlineData(8)]
-        [InlineData(12)]
+        [InlineData(HalfPoint)]
+        [InlineData(2 * UnitsPerPoint)]
+        [InlineData(3 * UnitsPerPoint)]
         public static void SniperExecution_BypassesAndClearsArmor(int armor)
         {
             Game game = MakeGame("sniper", armor);

@@ -6,6 +6,7 @@ using MistForest.Core.Utils;
 using Xunit;
 using static MistForest.Core.GameRefactored.PlayerBuilder;
 using GameAction = MistForest.Core.GameRefactored.Action;
+using static MistForest.Core.Consts.CombatConsts;
 
 namespace MistForest.Core.Tests.Refactored.Roles
 {
@@ -72,20 +73,20 @@ namespace MistForest.Core.Tests.Refactored.Roles
             => typeof(Unit).GetProperty(property)!.SetValue(unit, value);
 
         [Theory]
-        [InlineData("ink", false, 5)]
-        [InlineData("ink", true, 4)]
-        [InlineData("wolf", false, 2)]
-        [InlineData("wolf", true, 4)]
-        [InlineData("alpha", false, 2)]
-        [InlineData("alpha", true, 4)]
-        [InlineData("armiger", false, 2)]
-        [InlineData("armiger", true, 4)]
-        [InlineData("heavy", false, 2)]
-        [InlineData("heavy", true, 4)]
-        [InlineData("hidden-human", false, 4)]
-        [InlineData("hidden-human", true, 2)]
-        [InlineData("hidden-wolf", false, 2)]
-        [InlineData("hidden-wolf", true, 4)]
+        [InlineData("ink", false, 5 * QuarterPoint)]
+        [InlineData("ink", true, UnitsPerPoint)]
+        [InlineData("wolf", false, HalfPoint)]
+        [InlineData("wolf", true, UnitsPerPoint)]
+        [InlineData("alpha", false, HalfPoint)]
+        [InlineData("alpha", true, UnitsPerPoint)]
+        [InlineData("armiger", false, HalfPoint)]
+        [InlineData("armiger", true, UnitsPerPoint)]
+        [InlineData("heavy", false, HalfPoint)]
+        [InlineData("heavy", true, UnitsPerPoint)]
+        [InlineData("hidden-human", false, UnitsPerPoint)]
+        [InlineData("hidden-human", true, HalfPoint)]
+        [InlineData("hidden-wolf", false, HalfPoint)]
+        [InlineData("hidden-wolf", true, UnitsPerPoint)]
         public static void GameEntry_ClassifiesAttacksAndAppliesTheCurrentFormsReduction(
             string attacker, bool wolf, int health)
         {
@@ -111,7 +112,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             };
             Assert.True(game.ExecuteAction(attack));
             Assert.Equal(health, Unit(game).Health);
-            Assert.Equal(6 - health, Unit(game).HighestDirectDamage);
+            Assert.Equal(3 * HalfPoint - health, Unit(game).HighestDirectDamage);
         }
 
         [Theory]
@@ -121,45 +122,45 @@ namespace MistForest.Core.Tests.Refactored.Roles
         {
             Game game = MakeGame();
             HiddenWolfUnit unit = Unit(game);
-            SetDefense(unit, nameof(HiddenWolfUnit.Health), 40);
+            SetDefense(unit, nameof(HiddenWolfUnit.Health), 10 * UnitsPerPoint);
             DamageResult first = reducedFirst
-                ? Hit(unit, game, 12, DamageType.Ranged) // 3 points reduced to 1.5.
-                : Hit(unit, game, 8, DamageType.Melee);  // 2 points without reduction.
-            Assert.Equal(reducedFirst ? 6 : 8, first.HealthDamage);
-            Assert.Equal(reducedFirst ? 6 : 8, unit.HighestDirectDamage);
+                ? Hit(unit, game, 3 * UnitsPerPoint, DamageType.Ranged) // 3 points reduced to 1.5.
+                : Hit(unit, game, 2 * UnitsPerPoint, DamageType.Melee);  // 2 points without reduction.
+            Assert.Equal(reducedFirst ? 3 * HalfPoint : 2 * UnitsPerPoint, first.HealthDamage);
+            Assert.Equal(reducedFirst ? 3 * HalfPoint : 2 * UnitsPerPoint, unit.HighestDirectDamage);
             DamageResult second = reducedFirst
-                ? Hit(unit, game, 8, DamageType.Melee)
-                : Hit(unit, game, 12, DamageType.Ranged);
-            Assert.Equal(reducedFirst ? 2 : 0, second.TotalDamage);
-            Assert.Equal(32, unit.Health);
-            Assert.Equal(8, unit.HighestDirectDamage);
-            Assert.Equal(0, Hit(unit, game, 12, DamageType.Ranged).TotalDamage);
-            Assert.Equal(32, unit.Health);
+                ? Hit(unit, game, 2 * UnitsPerPoint, DamageType.Melee)
+                : Hit(unit, game, 3 * UnitsPerPoint, DamageType.Ranged);
+            Assert.Equal(reducedFirst ? HalfPoint : 0, second.TotalDamage);
+            Assert.Equal(8 * UnitsPerPoint, unit.Health);
+            Assert.Equal(2 * UnitsPerPoint, unit.HighestDirectDamage);
+            Assert.Equal(0, Hit(unit, game, 3 * UnitsPerPoint, DamageType.Ranged).TotalDamage);
+            Assert.Equal(8 * UnitsPerPoint, unit.Health);
         }
 
         [Fact]
         public static void Reduction_UsesTheFormAtImpactWithoutRewritingPreviousDamage()
         {
             Game game = MakeGame();
-            Assert.Equal(1, Hit(Unit(game), game, 2, DamageType.Ranged).HealthDamage);
-            Assert.Equal(1, Unit(game).HighestDirectDamage);
+            Assert.Equal(QuarterPoint, Hit(Unit(game), game, HalfPoint, DamageType.Ranged).HealthDamage);
+            Assert.Equal(QuarterPoint, Unit(game).HighestDirectDamage);
             Assert.True(game.ExecuteAction(HiddenWolfTransform.New(0)));
-            Assert.Equal(1, Hit(Unit(game), game, 4, DamageType.Melee).HealthDamage);
-            Assert.Equal(2, Unit(game).HighestDirectDamage);
-            Assert.Equal(0, Hit(Unit(game), game, 2, DamageType.Ranged).TotalDamage);
-            Assert.Equal(4, Unit(game).Health);
+            Assert.Equal(QuarterPoint, Hit(Unit(game), game, UnitsPerPoint, DamageType.Melee).HealthDamage);
+            Assert.Equal(HalfPoint, Unit(game).HighestDirectDamage);
+            Assert.Equal(0, Hit(Unit(game), game, HalfPoint, DamageType.Ranged).TotalDamage);
+            Assert.Equal(UnitsPerPoint, Unit(game).Health);
         }
 
         [Theory]
-        [InlineData(1, 1, 0, 0, 6)]
-        [InlineData(3, 2, 1, 0, 6)]
-        [InlineData(7, 2, 2, 3, 3)]
-        [InlineData(12, 2, 2, 6, 0)]
+        [InlineData(QuarterPoint, QuarterPoint, 0, 0, 3 * HalfPoint)]
+        [InlineData(3 * QuarterPoint, HalfPoint, QuarterPoint, 0, 3 * HalfPoint)]
+        [InlineData(7 * QuarterPoint, HalfPoint, HalfPoint, 3 * QuarterPoint, 3 * QuarterPoint)]
+        [InlineData(3 * UnitsPerPoint, HalfPoint, HalfPoint, 3 * HalfPoint, 0)]
         public static void Shield_ResolvesAfterArmorBeforeHealthAndReportsActualLoss(
             int strength, int armorDamage, int shieldDamage, int healthDamage, int health)
         {
             Game game = MakeGame(shield: true);
-            SetDefense(Unit(game), nameof(HiddenWolfUnit.Armor), 2);
+            SetDefense(Unit(game), nameof(HiddenWolfUnit.Armor), HalfPoint);
             DamageResult result = Hit(Unit(game), game, strength, DamageType.Melee);
             Assert.Equal(armorDamage, result.ArmorDamage);
             Assert.Equal(shieldDamage, result.ShieldDamage);
@@ -175,8 +176,8 @@ namespace MistForest.Core.Tests.Refactored.Roles
             }
             else
             {
-                Assert.Equal(2 - armorDamage, Unit(game).Armor);
-                Assert.Equal(2 - shieldDamage, Unit(game).TemporaryShield);
+                Assert.Equal(HalfPoint - armorDamage, Unit(game).Armor);
+                Assert.Equal(HalfPoint - shieldDamage, Unit(game).TemporaryShield);
             }
         }
 
@@ -184,14 +185,14 @@ namespace MistForest.Core.Tests.Refactored.Roles
         public static void Shield_ReductionAndHighestStrengthPreventRepeatedShieldConsumption()
         {
             Game game = MakeGame(shield: true);
-            Assert.Equal(1, Hit(Unit(game), game, 2, DamageType.Ranged).ShieldDamage);
-            Assert.Equal(1, Unit(game).TemporaryShield);
-            Assert.Equal(1, Unit(game).HighestDirectDamage);
-            Assert.Equal(0, Hit(Unit(game), game, 2, DamageType.Ranged).TotalDamage);
-            Assert.Equal(1, Hit(Unit(game), game, 4, DamageType.Ranged).ShieldDamage);
+            Assert.Equal(QuarterPoint, Hit(Unit(game), game, HalfPoint, DamageType.Ranged).ShieldDamage);
+            Assert.Equal(QuarterPoint, Unit(game).TemporaryShield);
+            Assert.Equal(QuarterPoint, Unit(game).HighestDirectDamage);
+            Assert.Equal(0, Hit(Unit(game), game, HalfPoint, DamageType.Ranged).TotalDamage);
+            Assert.Equal(QuarterPoint, Hit(Unit(game), game, UnitsPerPoint, DamageType.Ranged).ShieldDamage);
             Assert.Equal(0, Unit(game).TemporaryShield);
-            Assert.Equal(6, Unit(game).Health);
-            Assert.Equal(2, Unit(game).HighestDirectDamage);
+            Assert.Equal(3 * HalfPoint, Unit(game).Health);
+            Assert.Equal(HalfPoint, Unit(game).HighestDirectDamage);
         }
 
         [Theory]
@@ -201,8 +202,8 @@ namespace MistForest.Core.Tests.Refactored.Roles
         {
             Game game = MakeGame(shield: true);
             Assert.Equal(0, Hit(Unit(game), game, strength, DamageType.Melee).TotalDamage);
-            Assert.Equal(2, Unit(game).TemporaryShield);
-            Assert.Equal(6, Unit(game).Health);
+            Assert.Equal(HalfPoint, Unit(game).TemporaryShield);
+            Assert.Equal(3 * HalfPoint, Unit(game).Health);
             Assert.Equal(0, Unit(game).HighestDirectDamage);
         }
 
@@ -210,23 +211,23 @@ namespace MistForest.Core.Tests.Refactored.Roles
         public static void ShieldClone_PreservesPartialShieldAndEffectiveDamageWithoutSharingState()
         {
             Game game = MakeGame(shield: true);
-            Hit(Unit(game), game, 2, DamageType.Ranged);
+            Hit(Unit(game), game, HalfPoint, DamageType.Ranged);
             HiddenWolf clone = Assert.IsType<HiddenWolf>(Role(game).Clone());
             HiddenWolfUnitView snapshot = Assert.IsType<HiddenWolfUnitView>(Unit(game).GetView(game));
             HiddenWolfUnitView viewClone = Assert.IsType<HiddenWolfUnitView>(snapshot.Clone());
-            Hit(Unit(game), game, 4, DamageType.Melee);
+            Hit(Unit(game), game, UnitsPerPoint, DamageType.Melee);
             Assert.Equal(0, Unit(game).TemporaryShield);
-            Assert.Equal(4, Unit(game).Health);
-            Assert.Equal(1, clone.Unit.TemporaryShield);
-            Assert.Equal(6, clone.Unit.Health);
-            Assert.Equal(1, clone.Unit.HighestDirectDamage);
-            Assert.Equal(1, snapshot.TemporaryShield);
-            Assert.Equal(1, viewClone.TemporaryShield);
+            Assert.Equal(UnitsPerPoint, Unit(game).Health);
+            Assert.Equal(QuarterPoint, clone.Unit.TemporaryShield);
+            Assert.Equal(3 * HalfPoint, clone.Unit.Health);
+            Assert.Equal(QuarterPoint, clone.Unit.HighestDirectDamage);
+            Assert.Equal(QuarterPoint, snapshot.TemporaryShield);
+            Assert.Equal(QuarterPoint, viewClone.TemporaryShield);
             Assert.Equal(HiddenWolfForm.Human, clone.Unit.Form);
             Assert.True(clone.HasStartedTurn);
             Assert.True(clone.IsFirstAction);
             clone.Unit.EndRound(game);
-            Assert.Equal(1, clone.Unit.TemporaryShield);
+            Assert.Equal(QuarterPoint, clone.Unit.TemporaryShield);
             Assert.Equal(0, clone.Unit.HighestDirectDamage);
             clone.Unit.PrepareTurn(game);
             Assert.Equal(0, clone.Unit.TemporaryShield);
@@ -244,13 +245,13 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Equal(2, attacker.DashCooldown);
             Assert.True(game.ExecuteAction(InkAttack.New(1, Unit(game).Position)));
             Assert.Equal(0, attacker.DashCooldown);
-            Assert.Equal(6, Unit(game).Health);
-            Assert.Equal(1, Unit(game).TemporaryShield);
+            Assert.Equal(3 * HalfPoint, Unit(game).Health);
+            Assert.Equal(QuarterPoint, Unit(game).TemporaryShield);
             Assert.True(game.ExecuteAction(InkDash.New(1, from)));
             Assert.True(game.ExecuteAction(InkAttack.New(1, Unit(game).Position)));
             Assert.Equal(2, attacker.DashCooldown);
-            Assert.Equal(1, Unit(game).TemporaryShield);
-            Assert.Equal(6, Unit(game).Health);
+            Assert.Equal(QuarterPoint, Unit(game).TemporaryShield);
+            Assert.Equal(3 * HalfPoint, Unit(game).Health);
         }
 
         [Fact]
@@ -282,12 +283,12 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.True(game.ExecuteAction(GeneralEnd.New(2)));
             Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
             Assert.True(game.ExecuteAction(HiddenWolfTransform.New(1)));
-            Assert.Equal(2, hidden.TemporaryShield);
+            Assert.Equal(HalfPoint, hidden.TemporaryShield);
             Assert.True(game.ExecuteAction(GeneralEnd.New(1)));
-            Assert.Equal(2, hidden.TemporaryShield);
+            Assert.Equal(HalfPoint, hidden.TemporaryShield);
             Assert.True(game.ExecuteAction(GeneralEnd.New(2)));
             Assert.Equal(0, game.CurrentPlayerId);
-            Assert.Equal(2, hidden.TemporaryShield);
+            Assert.Equal(HalfPoint, hidden.TemporaryShield);
             Assert.True(hidden.HasTransformedThisTurn);
             Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
             Assert.Equal(1, game.CurrentPlayerId);

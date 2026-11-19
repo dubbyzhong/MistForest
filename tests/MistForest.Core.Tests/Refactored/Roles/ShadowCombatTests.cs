@@ -5,6 +5,7 @@ using MistForest.Core.GameRefactored.Roles;
 using MistForest.Core.Utils;
 using Xunit;
 using static MistForest.Core.GameRefactored.PlayerBuilder;
+using static MistForest.Core.Consts.CombatConsts;
 
 namespace MistForest.Core.Tests.Refactored.Roles
 {
@@ -220,9 +221,9 @@ namespace MistForest.Core.Tests.Refactored.Roles
         }
 
         [Theory]
-        [InlineData("wolf", 2, 0)]
-        [InlineData("heavy", 8, 0)]
-        [InlineData("hidden", 2, 0)]
+        [InlineData("wolf", HalfPoint, 0)]
+        [InlineData("heavy", 2 * UnitsPerPoint, 0)]
+        [InlineData("hidden", HalfPoint, 0)]
         public static void Attack_UsesSharedMeleeDamageAndArmor(string victim, int health, int armor)
         {
             Game game = MakeGame(victim: victim);
@@ -240,19 +241,19 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Game game = MakeGame(victim: "sniper", allyAtTarget: true, twoVictims: true);
             Board.Node target = game.Board.At(1, 7)!.Value;
             Assert.True(game.ExecuteAction(ShadowAttack.New(0, target)));
-            Assert.Equal(6, game.GetUnit(1)!.Health);
+            Assert.Equal(3 * HalfPoint, game.GetUnit(1)!.Health);
             Assert.False(game.GetUnit(2)!.Alive);
-            Assert.Equal(2, game.GetUnit(3)!.Health);
+            Assert.Equal(HalfPoint, game.GetUnit(3)!.Health);
             Assert.Equal(new[] { 1, 3 }, game.Board.GetGrid(target)!.Units);
             Assert.Equal(new[] { 2, 3 }, Assert.IsType<ShadowAttackEvent>(Assert.Single(game.Events)).UnitIds);
         }
 
         [Theory]
-        [InlineData(false, 0, 4)]
-        [InlineData(false, 1, 4)]
-        [InlineData(true, 0, 4)]
-        [InlineData(true, 1, 4)]
-        [InlineData(false, 1, 8)]
+        [InlineData(false, 0, UnitsPerPoint)]
+        [InlineData(false, 1, UnitsPerPoint)]
+        [InlineData(true, 0, UnitsPerPoint)]
+        [InlineData(true, 1, UnitsPerPoint)]
+        [InlineData(false, 1, 2 * UnitsPerPoint)]
         public static void Attack_DamagesAlliedAndEnemyBuildingsWithoutSpilling(bool wall, int owner, int health)
         {
             Game game = MakeGame();
@@ -262,12 +263,12 @@ namespace MistForest.Core.Tests.Refactored.Roles
             else
                 game.AddBuilding(FortBuilder.New().SetOwner(owner)!.SetHealth(health)!.SetPos(target)!);
             Assert.True(game.ExecuteAction(ShadowAttack.New(0, target)));
-            Assert.Equal(6, game.GetUnit(1)!.Health);
+            Assert.Equal(3 * HalfPoint, game.GetUnit(1)!.Health);
             Assert.Equal(0, game.GetUnit(1)!.HighestDirectDamage);
-            if (health == 4)
+            if (health == UnitsPerPoint)
                 Assert.IsType<Building.Rubble>(game.Buildings[0]);
             else
-                Assert.Equal(4, game.Buildings[0].Health);
+                Assert.Equal(UnitsPerPoint, game.Buildings[0].Health);
             ShadowAttackEvent result = Assert.IsType<ShadowAttackEvent>(Assert.Single(game.Events));
             Assert.Equal(0, result.BuildingId);
             Assert.Empty(result.UnitIds);
@@ -291,10 +292,10 @@ namespace MistForest.Core.Tests.Refactored.Roles
             builder.SetFirstPlayerId(0);
             Game game = builder.Build()!;
             Assert.True(game.ExecuteAction(ShadowAttack.New(0, target)));
-            Assert.Equal(2, game.GetUnit(2)!.Health);
+            Assert.Equal(HalfPoint, game.GetUnit(2)!.Health);
             Assert.True(game.ExecuteAction(ShadowAttack.New(1, target)));
-            Assert.Equal(2, game.GetUnit(2)!.Health);
-            Assert.Equal(4, game.GetUnit(2)!.HighestDirectDamage);
+            Assert.Equal(HalfPoint, game.GetUnit(2)!.Health);
+            Assert.Equal(UnitsPerPoint, game.GetUnit(2)!.HighestDirectDamage);
         }
 
         [Fact]

@@ -6,6 +6,7 @@ using MistForest.Core.Utils;
 using Xunit;
 using static MistForest.Core.GameRefactored.PlayerBuilder;
 using GameAction = MistForest.Core.GameRefactored.Action;
+using static MistForest.Core.Consts.CombatConsts;
 
 namespace MistForest.Core.Tests.Refactored.Roles
 {
@@ -58,7 +59,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Equal(0, role.PlayerId);
             Assert.Equal(role.Id, role.Unit.RoleId);
             Assert.Equal(0, role.Unit.Id);
-            Assert.Equal(6, role.Unit.Health);
+            Assert.Equal(3 * HalfPoint, role.Unit.Health);
             Assert.Equal(0, role.Unit.Armor);
             Assert.Equal(0, role.Unit.TemporaryShield);
             Assert.Equal(1, role.Unit.AttackRange);

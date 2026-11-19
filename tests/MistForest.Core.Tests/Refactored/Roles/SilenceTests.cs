@@ -2,6 +2,7 @@ using MistForest.Core.GameMap;
 using MistForest.Core.GameRefactored;
 using MistForest.Core.GameRefactored.Roles;
 using Xunit;
+using static MistForest.Core.Consts.CombatConsts;
 
 namespace MistForest.Core.Tests.Refactored.Roles
 {
@@ -91,7 +92,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Game game = KnightHuntTests.MakeGame(kind);
             Role role = game.Roles[1];
             Unit target = game.GetUnit(1)!;
-            if (kind == "armiger") typeof(Unit).GetProperty(nameof(Unit.Armor))!.SetValue(target, 4);
+            if (kind == "armiger") typeof(Unit).GetProperty(nameof(Unit.Armor))!.SetValue(target, UnitsPerPoint);
             Silence(game);
             Assert.True(target.IsSilenced);
             Assert.True(role.JudgeAction(GeneralEnd.New(1), game));
@@ -109,7 +110,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
                     break;
                 case "armiger":
                     Assert.False(role.JudgeAction(ArmigerArmorUp.New(1), game));
-                    Assert.False(role.JudgeAction(ArmigerArmorDown.New(1, 4), game));
+                    Assert.False(role.JudgeAction(ArmigerArmorDown.New(1, UnitsPerPoint), game));
                     ArmigerUnitView armor = Assert.IsType<ArmigerUnitView>(target.GetView(game));
                     Assert.False(armor.CanArmorUp);
                     Assert.Empty(armor.CanArmorDownAmounts);
@@ -146,7 +147,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
         {
             Game game = KnightHuntTests.MakeGame();
             Unit enemy = game.GetUnit(1)!;
-            game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(4)!.SetPos(enemy.Position)!);
+            game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(UnitsPerPoint)!.SetPos(enemy.Position)!);
             int index = game.Board.VWallAt(game.GetUnit(0)!.Position)!.Value;
             game.Board.VerticalWalls.SetInner(index / 64, 1ul << (index % 64), out _);
             Silence(game);

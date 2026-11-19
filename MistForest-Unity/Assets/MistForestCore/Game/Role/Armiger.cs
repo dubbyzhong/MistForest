@@ -51,7 +51,7 @@ namespace MistForest.Core.GameRefactored.Roles
     }
 
     /// <summary>
-    /// Requests armor removal in quarter-point units, including any remaining partial layer.
+    /// Requests armor removal in combat units, including any remaining partial layer.
     /// </summary>
     public class ArmigerArmorDown : Action, IArmigerAction
     {
@@ -62,7 +62,7 @@ namespace MistForest.Core.GameRefactored.Roles
     }
 
     /// <summary>
-    /// Records armor before and after restoration in quarter-point units.
+    /// Records armor before and after restoration in combat units.
     /// </summary>
     public class ArmigerArmorUpEvent : Event
     {
@@ -82,7 +82,7 @@ namespace MistForest.Core.GameRefactored.Roles
     }
 
     /// <summary>
-    /// Records armor before and after unloading in quarter-point units.
+    /// Records armor before and after unloading in combat units.
     /// </summary>
     public class ArmigerArmorDownEvent : Event
     {
@@ -131,16 +131,10 @@ namespace MistForest.Core.GameRefactored.Roles
             }
             return action switch
             {
-                GeneralMove move => Unit.CanMove(move, game),
                 ArmigerThrust thrust => Unit.CanThrust(thrust, game),
                 ArmigerArmorUp _ => Unit.CanArmorUp(),
                 ArmigerArmorDown armorDown => Unit.CanArmorDown(armorDown),
-                GeneralEnd _ => Unit.CanEnd(),
-                GeneralSurrender _ => Unit.CanSurrender(),
-                GeneralBuildFort buildFort => Unit.CanBuildFort(buildFort, game),
-                GeneralBuildWall buildWall => Unit.CanBuildWall(buildWall, game),
-                GeneralDemolish demolish => Unit.CanDemolish(demolish, game),
-                _ => false,
+                _ => JudgeGeneralAction(action, game),
             };
         }
 
@@ -149,9 +143,6 @@ namespace MistForest.Core.GameRefactored.Roles
             Unit.StartExecuteAction();
             switch (action)
             {
-                case GeneralMove move:
-                    Unit.GeneralMove(move, game);
-                    break;
                 case ArmigerThrust thrust:
                     Unit.Thrust(thrust, game);
                     break;
@@ -161,20 +152,8 @@ namespace MistForest.Core.GameRefactored.Roles
                 case ArmigerArmorDown armorDown:
                     Unit.ArmorDown(armorDown, game);
                     break;
-                case GeneralEnd end:
-                    Unit.GeneralEnd(end, game);
-                    break;
-                case GeneralSurrender _:
-                    GeneralSurrender(game);
-                    break;
-                case GeneralBuildFort buildFort:
-                    Unit.GeneralBuildFort(buildFort, game);
-                    break;
-                case GeneralBuildWall buildWall:
-                    Unit.GeneralBuildWall(buildWall, game);
-                    break;
-                case GeneralDemolish demolish:
-                    Unit.GeneralDemolish(demolish, game);
+                default:
+                    ExecuteGeneralAction(action, game);
                     break;
             }
         }
@@ -429,7 +408,7 @@ namespace MistForest.Core.GameRefactored.Roles
     }
 
     /// <summary>
-    /// Exposes available actions and an armor snapshot in quarter-point units.
+    /// Exposes available actions and an armor snapshot in combat units.
     /// </summary>
     public class ArmigerUnitView : UnitView
     {

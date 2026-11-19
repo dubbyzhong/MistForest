@@ -18,7 +18,7 @@ namespace MistForest.Core.GameRefactored
 
     public interface IScoutOnlyAction: IScoutAction { }
 
-    public class GeneralMove : Action, IScoutAction, ISniperAction, IWolfAction, IAlphaAction, IInkAction, IArmigerAction, IHeavyAction, IHiddenWolfAction, IShadowAction
+    public class GeneralMove : Action, IScoutAction, ISniperAction, IWolfAction, IAlphaAction, IInkAction, IArmigerAction, IHeavyAction, IHiddenWolfAction, IShadowAction, IWallGuardAction
     {
         public Node Target { get; private set; }
 
@@ -30,7 +30,7 @@ namespace MistForest.Core.GameRefactored
         }
     }
 
-    public class GeneralEnd : Action, IScoutAction, ISniperAction, IWolfAction, IAlphaAction, IInkAction, IArmigerAction, IHeavyAction, IHiddenWolfAction, IShadowAction, IKnightAction
+    public class GeneralEnd : Action, IScoutAction, ISniperAction, IWolfAction, IAlphaAction, IInkAction, IArmigerAction, IHeavyAction, IHiddenWolfAction, IShadowAction, IKnightAction, IWallGuardAction
     {
         public static GeneralEnd New(int callerUnitId)
         {
@@ -40,7 +40,7 @@ namespace MistForest.Core.GameRefactored
         }
     }
 
-    public class GeneralSurrender : Action, IScoutAction, ISniperAction, IWolfAction, IAlphaAction, IInkAction, IArmigerAction, IHeavyAction, IHiddenWolfAction, IShadowAction, IKnightAction
+    public class GeneralSurrender : Action, IScoutAction, ISniperAction, IWolfAction, IAlphaAction, IInkAction, IArmigerAction, IHeavyAction, IHiddenWolfAction, IShadowAction, IKnightAction, IWallGuardAction
     {
         public static GeneralSurrender New(int callerUnitId)
         {
@@ -84,7 +84,7 @@ namespace MistForest.Core.GameRefactored
         }
     }
 
-    public class GeneralDemolish : Action, ISniperAction, IAlphaAction, IInkAction, IArmigerAction, IHeavyAction, IHiddenWolfAction, IShadowAction, IKnightAction
+    public class GeneralDemolish : Action, ISniperAction, IAlphaAction, IInkAction, IArmigerAction, IHeavyAction, IHiddenWolfAction, IShadowAction, IKnightAction, IWallGuardAction
     {
         public Node Target { get; private set; }
 

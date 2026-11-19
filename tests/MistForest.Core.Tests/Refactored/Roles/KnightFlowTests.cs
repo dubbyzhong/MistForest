@@ -5,6 +5,7 @@ using MistForest.Core.Utils;
 using Xunit;
 using static MistForest.Core.GameRefactored.PlayerBuilder;
 using GameAction = MistForest.Core.GameRefactored.Action;
+using static MistForest.Core.Consts.CombatConsts;
 
 namespace MistForest.Core.Tests.Refactored.Roles
 {
@@ -53,7 +54,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Knight role = Assert.IsType<Knight>(builder.Build());
             Assert.Same(role, builder.Build());
             Assert.Same(role.Unit, unit.Build());
-            Assert.Equal(6, role.Unit.Health);
+            Assert.Equal(3 * HalfPoint, role.Unit.Health);
             Assert.Equal(0, role.Unit.AttackRange);
             Assert.Equal(position, role.Unit.Position);
             Assert.Same(role.Unit, Assert.Single(role.GetUnits().ToArray()));
@@ -109,7 +110,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Empty(View(game).CanBuildFortGrids);
             Assert.Empty(View(game).CanBuildWallGrids);
             Assert.Empty(View(game).CanDemolishGrids);
-            Assert.Equal(6, game.GetUnit(1)!.Health);
+            Assert.Equal(3 * HalfPoint, game.GetUnit(1)!.Health);
             Assert.Equal(from, originalClone.Unit.Position);
             Assert.False(originalClone.Unit.End);
             Assert.Single(game.GetEventsForPlayer(1));
@@ -171,7 +172,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             {
                 case "lake-leg": game.Board.SetTerrain(leg, Terrain.Lake); break;
                 case "building-leg":
-                    game.AddBuilding(WallBuilder.New().SetOwner(1)!.SetHealth(4)!.SetPos(leg)!); break;
+                    game.AddBuilding(WallBuilder.New().SetOwner(1)!.SetHealth(UnitsPerPoint)!.SetPos(leg)!); break;
                 case "intermediate-wall": game.Board.SetTerrain(At(game, 6, 4), Terrain.Wall); break;
                 case "later-edge":
                     int index = game.Board.HWallAt(leg)!.Value;
@@ -201,13 +202,13 @@ namespace MistForest.Core.Tests.Refactored.Roles
                 game.Board.SetTerrain(target, landing == "lake" ? Terrain.Lake : landing == "wall" ? Terrain.Wall : Terrain.Whirlpool);
             if (landing.Contains("fort") || landing == "rubble")
             {
-                game.AddBuilding(FortBuilder.New().SetOwner(landing == "enemy-fort" ? 1 : 0)!.SetHealth(4)!.SetPos(target)!);
+                game.AddBuilding(FortBuilder.New().SetOwner(landing == "enemy-fort" ? 1 : 0)!.SetHealth(UnitsPerPoint)!.SetPos(target)!);
                 if (landing == "rubble") game.Buildings[0].Destroyed(game, 0);
             }
-            if (landing == "own-wall") game.AddBuilding(WallBuilder.New().SetOwner(0)!.SetHealth(4)!.SetPos(target)!);
+            if (landing == "own-wall") game.AddBuilding(WallBuilder.New().SetOwner(0)!.SetHealth(UnitsPerPoint)!.SetPos(target)!);
             if (landing == "own-great-wall")
             {
-                game.Buildings.Add(new Building.GreatWall { Id = 0, Pos = target, Owner = 0, Health = 4 });
+                game.Buildings.Add(new Building.GreatWall { Id = 0, Pos = target, Owner = 0, Health = UnitsPerPoint });
                 game.Board.GetGrid(target)!.GridBuilding = 0;
             }
             if (landing == "enemy-unit")
@@ -219,7 +220,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
             }
             Assert.Equal(allowed, View(game).CanLeapGrids.Contains(target));
             Assert.Equal(allowed, game.ExecuteAction(KnightLeap.New(0, target)));
-            Assert.Equal(6, game.GetUnit(1)!.Health);
+            Assert.Equal(3 * HalfPoint, game.GetUnit(1)!.Health);
             if (!allowed)
             {
                 Assert.True(Role(game).IsFirstAction);
@@ -264,7 +265,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
         {
             Game game = MakeGame();
             Board.Node target = At(game, 3, 4);
-            if (kind == "demolish") game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(4)!.SetPos(target)!);
+            if (kind == "demolish") game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(UnitsPerPoint)!.SetPos(target)!);
             GameAction action = kind switch
             {
                 "fort" => GeneralBuildFort.New(0, target),
