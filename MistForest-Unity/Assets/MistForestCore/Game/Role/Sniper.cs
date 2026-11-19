@@ -166,14 +166,7 @@ namespace MistForest.Core.GameRefactored.Roles
         {
             return base.HasActionLeft(game)
                 && HasUnusedAction
-                && GetView(game) is SniperUnitView view
-                && (
-                    view.CanBuildFortGrids.Length > 0
-                    || view.CanBuildWallGrids.Length > 0
-                    || view.CanDemolishGrids.Length > 0
-                    || view.CanMoveGrids.Length > 0
-                    || view.CanExecuteGirds.Length > 0
-                );
+                && (MoveUsed < MoveDistance || HasBuildOrDemolishTarget(game));
         }
 
         public override UnitView GetView(Game game)
@@ -275,11 +268,6 @@ namespace MistForest.Core.GameRefactored.Roles
             {
                 throw new NotImplementedException();
             }
-        }
-
-        public override void EndRound(Game game)
-        {
-            base.EndRound(game);
         }
     }
 

@@ -194,8 +194,8 @@ namespace MistForest.Core.GameRefactored.Roles
         protected override int MoveDistance => ArmigerConsts.ArmigerMoveDistance - ArmorLevel;
         public override int AttackRange => ArmigerConsts.ArmigerThrustBaseRange + ArmorLevel;
         public int ThrustDamage => ArmigerConsts.ArmigerThrustDamage;
-        public int ArmorLockRounds { get; private set; }
-        private bool _skipArmorLockTickThisRound;
+        public int ArmorLockRounds => _armorLock.Remaining;
+        private Cooldown _armorLock;
         private Node[]? _lastThrustPath;
 
         private ArmigerUnit() { }
@@ -211,8 +211,7 @@ namespace MistForest.Core.GameRefactored.Roles
         {
             ArmigerUnit target = new()
             {
-                ArmorLockRounds = ArmorLockRounds,
-                _skipArmorLockTickThisRound = _skipArmorLockTickThisRound,
+                _armorLock = _armorLock,
             };
             CloneBase(target);
             return target;
@@ -329,7 +328,7 @@ namespace MistForest.Core.GameRefactored.Roles
         }
 
         internal bool CanArmorUp()
-            => Alive && !End && !IsSilenced && IsFirstAction && ArmorLockRounds == 0
+            => Alive && !End && !IsSilenced && IsFirstAction && _armorLock.IsReady
                 && Armor < ArmigerConsts.ArmigerMaxArmor;
 
         private bool CanArmorDownGeneral() => Alive && !End && !IsSilenced && AttackUsed == 0 && Armor > 0;
@@ -378,21 +377,20 @@ namespace MistForest.Core.GameRefactored.Roles
             if (result.TotalDamage > 0)
             {
                 int playerId = game.PlayerIdFromUnitId(Id);
-                ArmorLockRounds = ArmigerConsts.ArmigerArmorLockRounds;
-                _skipArmorLockTickThisRound = game.CurrentPlayerId == playerId
-                    || game.HasPlayerActedThisRound(playerId);
+                _armorLock = _armorLock.Use(ArmigerConsts.ArmigerArmorLockRounds);
             }
             return result;
+        }
+
+        public override void PrepareTurn(Game game)
+        {
+            base.PrepareTurn(game);
+            _armorLock = _armorLock.Tick();
         }
 
         public override void EndRound(Game game)
         {
             base.EndRound(game);
-            if (!_skipArmorLockTickThisRound && ArmorLockRounds > 0)
-            {
-                --ArmorLockRounds;
-            }
-            _skipArmorLockTickThisRound = false;
             _lastThrustPath = null;
         }
 
@@ -402,13 +400,11 @@ namespace MistForest.Core.GameRefactored.Roles
             {
                 return false;
             }
-            ArmigerUnitView view = (ArmigerUnitView)GetView(game);
-            return view.CanArmorUp || view.CanArmorDownAmounts.Length > 0
-                || view.CanThrustGrids.Length > 0
-                || view.CanMoveGrids.Length > 0
-                || view.CanBuildFortGrids.Length > 0
-                || view.CanBuildWallGrids.Length > 0
-                || view.CanDemolishGrids.Length > 0;
+            return CanArmorUp()
+                || CanArmorDownGeneral()
+                || CanThrustGeneral()
+                || AttackUsed == 0 && MoveUsed < MoveDistance
+                || HasBuildOrDemolishTarget(game);
         }
 
         public override UnitView GetView(Game game)
