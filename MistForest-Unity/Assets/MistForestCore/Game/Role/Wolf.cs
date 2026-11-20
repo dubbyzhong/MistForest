@@ -112,10 +112,13 @@ namespace MistForest.Core.GameRefactored.Roles
 
         internal Node[] BiteNodes(Game game)
         {
+            int playerId = game.PlayerIdFromUnitId(Id);
             return FarAttackNodes(game)
                 .AsSpan()
                 .AsEnumerable()
-                .Where(node => game.Board.GetGrid(node)!.HasBlockingBuilding(game) is false)
+                .Where(node => !game.Board.GetGrid(node)!.HasBlockingBuilding(game)
+                    || game.FindRose(node) is PrinceRose rose
+                        && !game.IsPlayerAllied(playerId, game.PlayerIdFromUnitId(rose.UnitId)))
                 .ToArray();
         }
 
@@ -149,7 +152,12 @@ namespace MistForest.Core.GameRefactored.Roles
         {
             AttackUsed++;
             Grid grid = game.Board.GetGrid(bite.Target)!;
-
+            game.DamageRoseAt(Id, bite.Target, BiteDamage);
+            if (grid.HasBlockingBuilding(game))
+            {
+                game.Events.Add(WolfBiteEvent.New(Id, Array.Empty<int>(), null, bite.Target));
+                return;
+            }
             int attackerPlayerId = game.PlayerIdFromUnitId(Id);
 
             Unit[] enemies = grid

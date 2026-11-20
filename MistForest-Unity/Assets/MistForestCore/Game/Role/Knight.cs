@@ -316,6 +316,7 @@ namespace MistForest.Core.GameRefactored.Roles
 
         private void ResolveAttack(Node target, bool hunt, Game game)
         {
+            game.DamageRoseAt(Id, target, KnightConsts.KnightAttackDamage);
             Grid grid = game.Board.GetGrid(target)!;
             int playerId = game.PlayerIdFromUnitId(Id);
             int? buildingId = null;

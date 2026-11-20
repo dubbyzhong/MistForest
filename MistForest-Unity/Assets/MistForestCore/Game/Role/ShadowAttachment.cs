@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using MistForest.Core.Consts;
+using MistForest.Core.GameMap;
 using static MistForest.Core.GameMap.Board;
 
 namespace MistForest.Core.GameRefactored.Roles
@@ -93,13 +94,13 @@ namespace MistForest.Core.GameRefactored.Roles
             => new(unitId, path, visibleToPlayerId);
     }
 
-    /// <summary>Copies cardinal steps and Knight jumps once, without recursive copies.</summary>
+    /// <summary>Copies cardinal steps, Knight jumps and blinks once, without recursive copies.</summary>
     internal static class ShadowAttachment
     {
         private static ShadowUnit[] Shadows(Game game)
             => game.Roles.OfType<Shadow>().Select(role => role.Unit).ToArray();
 
-        internal static void OnMoved(Unit actor, Node from, Node to, Game game)
+        internal static void OnMoved(Unit actor, Node from, Node to, Game game, bool blink)
         {
             if (from == to || !actor.Alive || !actor.CanBeAttached)
             {
@@ -125,10 +126,9 @@ namespace MistForest.Core.GameRefactored.Roles
                     return;
                 }
             }
-            bool knightJump = actor is KnightUnit && Math.Abs(dx) * Math.Abs(dy)
+            bool knightJump = !blink && actor is KnightUnit && Math.Abs(dx) * Math.Abs(dy)
                 == KnightConsts.KnightLeapLongOffset * KnightConsts.KnightLeapShortOffset;
-            // Other teleport displacement rules are defined when those roles are migrated.
-            if (!knightJump && Math.Abs(dx) + Math.Abs(dy) != 1)
+            if (!blink && !knightJump && Math.Abs(dx) + Math.Abs(dy) != 1)
             {
                 return;
             }
@@ -159,9 +159,11 @@ namespace MistForest.Core.GameRefactored.Roles
                 }
                 int movedPlayerId = game.PlayerIdFromUnitId(moved.Id);
                 Node origin = moved.Position;
-                Node? destination = knightJump
-                    ? KnightUnit.JumpTarget(origin, dx, dy, movedPlayerId, game, wrap: true)
-                    : ShadowUnit.Step(origin, dx, dy, game);
+                Node? destination = blink
+                    ? BlinkTarget(origin, dx, dy, game.Board)
+                    : knightJump
+                        ? KnightUnit.JumpTarget(origin, dx, dy, movedPlayerId, game, wrap: true)
+                        : ShadowUnit.Step(origin, dx, dy, game);
                 bool allowed = destination is Node target && target != origin
                     && game.Board.GetGrid(target)!.CanStay(movedPlayerId, game);
                 if (allowed)
@@ -172,6 +174,14 @@ namespace MistForest.Core.GameRefactored.Roles
                 outcomes.Add(moved.Id, allowed);
                 game.Events.Add(ShadowAttachmentEvent.New(shadow.Id, moved.Id, shadow.LinkMode, !allowed, shadowPlayerId));
             }
+        }
+
+        private static Node? BlinkTarget(Node from, int dx, int dy, Board board)
+        {
+            int row = board.RowOf(from)!.Value - 1;
+            int col = board.ColOf(from)!.Value - 1;
+            return board.At((row + dx + board.Height) % board.Height + 1,
+                (col + dy + board.Width) % board.Width + 1);
         }
 
         internal static void EndTurn(int playerId, Game game)
