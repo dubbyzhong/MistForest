@@ -47,39 +47,50 @@ namespace MistForest.Core.GameRefactored.Roles
             => new(unitId, targetUnitId, mode);
     }
 
-    /// <summary>Reports a copied step's result without exposing the target's coordinates.</summary>
+    /// <summary>Privately reports whether a copied step was blocked to Shadow's owner.</summary>
     public class ShadowAttachmentEvent : Event
     {
+        private readonly int _visibleToPlayerId;
         public int ShadowUnitId { get; }
         public int MovedUnitId { get; }
         public ShadowLinkMode Mode { get; }
         public bool Blocked { get; }
 
-        private ShadowAttachmentEvent(int shadowUnitId, int movedUnitId, ShadowLinkMode mode, bool blocked)
+        private ShadowAttachmentEvent(
+            int shadowUnitId, int movedUnitId, ShadowLinkMode mode, bool blocked, int visibleToPlayerId)
         {
             ShadowUnitId = shadowUnitId;
             MovedUnitId = movedUnitId;
             Mode = mode;
             Blocked = blocked;
+            _visibleToPlayerId = visibleToPlayerId;
         }
 
-        public static ShadowAttachmentEvent New(int shadowUnitId, int movedUnitId, ShadowLinkMode mode, bool blocked)
-            => new(shadowUnitId, movedUnitId, mode, blocked);
+        public override bool IsVisibleTo(int playerId) => _visibleToPlayerId == playerId;
+
+        public static ShadowAttachmentEvent New(
+            int shadowUnitId, int movedUnitId, ShadowLinkMode mode, bool blocked, int visibleToPlayerId)
+            => new(shadowUnitId, movedUnitId, mode, blocked, visibleToPlayerId);
     }
 
-    /// <summary>Movement details for the copied unit; session code decides who receives them.</summary>
+    /// <summary>Private movement details for the copied unit's owner.</summary>
     public class ShadowCopyMoveEvent : Event
     {
+        private readonly int _visibleToPlayerId;
         public int UnitId { get; }
         public Node[] Path { get; }
 
-        private ShadowCopyMoveEvent(int unitId, Node[] path)
+        private ShadowCopyMoveEvent(int unitId, Node[] path, int visibleToPlayerId)
         {
             UnitId = unitId;
             Path = (Node[])path.Clone();
+            _visibleToPlayerId = visibleToPlayerId;
         }
 
-        public static ShadowCopyMoveEvent New(int unitId, Node[] path) => new(unitId, path);
+        public override bool IsVisibleTo(int playerId) => _visibleToPlayerId == playerId;
+
+        public static ShadowCopyMoveEvent New(int unitId, Node[] path, int visibleToPlayerId)
+            => new(unitId, path, visibleToPlayerId);
     }
 
     /// <summary>Copies cardinal steps and Knight jumps once, without recursive copies.</summary>
@@ -128,11 +139,12 @@ namespace MistForest.Core.GameRefactored.Roles
                 {
                     continue;
                 }
+                int shadowPlayerId = game.PlayerIdFromUnitId(shadow.Id);
                 Unit? moved = shadow.LinkMode switch
                 {
                     ShadowLinkMode.Follow when targetId == actor.Id => shadow,
                     ShadowLinkMode.Drag when shadow.Id == actor.Id
-                        && game.PlayerIdFromUnitId(shadow.Id) == game.CurrentPlayerId => game.GetUnit(targetId),
+                        && shadowPlayerId == game.CurrentPlayerId => game.GetUnit(targetId),
                     _ => null,
                 };
                 if (moved is null || !moved.Alive || !moved.CanBeAttached)
@@ -141,22 +153,24 @@ namespace MistForest.Core.GameRefactored.Roles
                 }
                 if (outcomes.TryGetValue(moved.Id, out bool previousAllowed))
                 {
-                    game.Events.Add(ShadowAttachmentEvent.New(shadow.Id, moved.Id, shadow.LinkMode, !previousAllowed));
+                    game.Events.Add(ShadowAttachmentEvent.New(
+                        shadow.Id, moved.Id, shadow.LinkMode, !previousAllowed, shadowPlayerId));
                     continue;
                 }
+                int movedPlayerId = game.PlayerIdFromUnitId(moved.Id);
                 Node origin = moved.Position;
                 Node? destination = knightJump
-                    ? KnightUnit.JumpTarget(origin, dx, dy, game.PlayerIdFromUnitId(moved.Id), game, wrap: true)
+                    ? KnightUnit.JumpTarget(origin, dx, dy, movedPlayerId, game, wrap: true)
                     : ShadowUnit.Step(origin, dx, dy, game);
                 bool allowed = destination is Node target && target != origin
-                    && game.Board.GetGrid(target)!.CanStay(game.PlayerIdFromUnitId(moved.Id), game);
+                    && game.Board.GetGrid(target)!.CanStay(movedPlayerId, game);
                 if (allowed)
                 {
                     moved.ChangePos(destination!.Value, game, notifyAttachments: false);
-                    game.Events.Add(ShadowCopyMoveEvent.New(moved.Id, new[] { origin, destination.Value }));
+                    game.Events.Add(ShadowCopyMoveEvent.New(moved.Id, new[] { origin, destination.Value }, movedPlayerId));
                 }
                 outcomes.Add(moved.Id, allowed);
-                game.Events.Add(ShadowAttachmentEvent.New(shadow.Id, moved.Id, shadow.LinkMode, !allowed));
+                game.Events.Add(ShadowAttachmentEvent.New(shadow.Id, moved.Id, shadow.LinkMode, !allowed, shadowPlayerId));
             }
         }
 
