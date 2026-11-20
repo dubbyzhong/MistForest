@@ -280,6 +280,53 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Contains(View(game).CanMoveGrids, entry => entry.distance == 2);
         }
 
+        [Theory]
+        [InlineData(false, false)]
+        [InlineData(false, true)]
+        [InlineData(true, false)]
+        [InlineData(true, true)]
+        public static void Copy_SendsPathAndBlockedResultOnlyToTheirOwners(bool drag, bool blocked)
+        {
+            Game game = MakeGame(threePlayers: true);
+            Board.Node origin = drag ? At(game, 4, 4) : At(game, 3, 3);
+            Board.Node destination = drag ? At(game, 4, 5) : At(game, 3, 4);
+            if (blocked)
+            {
+                Assert.True(game.Board.SetTerrain(destination, Terrain.Wall));
+            }
+
+            Assert.True(game.ExecuteAction(Link(drag)));
+            if (!drag)
+            {
+                Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
+            }
+            Assert.True(game.ExecuteAction(drag
+                ? GeneralMove.New(0, At(game, 3, 4))
+                : GeneralMove.New(2, At(game, 4, 5))));
+
+            int movedPlayerId = drag ? 1 : 0;
+            int movedUnitId = drag ? 2 : 0;
+            Assert.Equal(blocked ? origin : destination, game.GetUnit(movedUnitId)!.Position);
+            ShadowAttachmentEvent feedback = Assert.Single(game.GetEventsForPlayer(0).OfType<ShadowAttachmentEvent>());
+            Assert.Equal(blocked, feedback.Blocked);
+            Assert.Empty(game.GetEventsForPlayer(1).OfType<ShadowAttachmentEvent>());
+            Assert.Empty(game.GetEventsForPlayer(2).OfType<ShadowAttachmentEvent>());
+            Assert.Empty(game.GetEventsForPlayer(drag ? 0 : 1).OfType<ShadowCopyMoveEvent>());
+            Assert.Empty(game.GetEventsForPlayer(2).OfType<ShadowCopyMoveEvent>());
+
+            var paths = game.GetEventsForPlayer(movedPlayerId).OfType<ShadowCopyMoveEvent>();
+            if (blocked)
+            {
+                Assert.Empty(paths);
+            }
+            else
+            {
+                ShadowCopyMoveEvent movement = Assert.Single(paths);
+                Assert.Equal(movedUnitId, movement.UnitId);
+                Assert.Equal(new[] { origin, destination }, movement.Path);
+            }
+        }
+
         [Fact]
         public static void Follow_ExpiresWhenTargetPlayerUsesAnotherRole()
         {
