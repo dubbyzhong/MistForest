@@ -300,6 +300,7 @@ namespace MistForest.Core.GameRefactored.Roles
         {
             ++AttackUsed;
             End = true;
+            game.DamageRoseAt(Id, target, AttackDamage);
             Grid grid = game.Board.GetGrid(target)!;
             int attackerPlayerId = game.PlayerIdFromUnitId(Id);
             int? attackedBuildingId = null;

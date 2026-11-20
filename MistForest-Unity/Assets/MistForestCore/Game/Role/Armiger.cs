@@ -281,6 +281,7 @@ namespace MistForest.Core.GameRefactored.Roles
             int? attackedBuildingId = null;
             foreach (Node node in path)
             {
+                game.DamageRoseAt(Id, node, ThrustDamage);
                 Grid grid = game.Board.GetGrid(node)!;
                 if (grid.HasBlockingBuilding(game))
                 {

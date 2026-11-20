@@ -175,6 +175,41 @@ namespace MistForest.Core.GameRefactored
             Buildings.Add(building);
         }
 
+        public PrinceRose[] GetRoses() => _units.OfType<PrinceUnit>().SelectMany(unit => unit.Roses).ToArray();
+
+        internal PrinceRose? FindRose(Board.Node target)
+        {
+            foreach (PrinceUnit prince in _units.OfType<PrinceUnit>())
+            {
+                foreach (PrinceRose rose in prince.Roses)
+                {
+                    if (rose.Position == target)
+                    {
+                        return rose;
+                    }
+                }
+            }
+            return null;
+        }
+
+        internal void DamageRoseAt(int attackerId, Board.Node target, int strength)
+        {
+            if (FindRose(target) is not PrinceRose rose
+                || IsPlayerAllied(PlayerIdFromUnitId(attackerId), PlayerIdFromUnitId(rose.UnitId)))
+            {
+                return;
+            }
+            if (rose.ReceiveDirectDamage(strength) <= 0)
+            {
+                return;
+            }
+            if (rose.Health == 0)
+            {
+                ((PrinceUnit)_units[rose.UnitId]).RemoveRose(rose);
+            }
+            Events.Add(PrinceRoseDamageEvent.New(attackerId, rose.UnitId, target, rose.Health));
+        }
+
         public bool ExecuteAction(Action action)
         {
             if (_isGameOver)
@@ -274,6 +309,10 @@ namespace MistForest.Core.GameRefactored
                 {
                     building.EndRound();
                 }
+                foreach (PrinceRose rose in GetRoses())
+                {
+                    rose.EndRound();
+                }
             }
             _gameState = CheckVictory();
             if (_isGameOver)
@@ -287,8 +326,8 @@ namespace MistForest.Core.GameRefactored
             } while (!Players[CurrentPlayerId].Alive);
         }
 
-        internal void NotifyUnitMoved(Unit unit, Board.Node from, Board.Node to)
-            => ShadowAttachment.OnMoved(unit, from, to, this);
+        internal void NotifyUnitMoved(Unit unit, Board.Node from, Board.Node to, bool blink = false)
+            => ShadowAttachment.OnMoved(unit, from, to, this, blink);
 
         internal void ClearShadowLinks(int unitId) => ShadowAttachment.RemoveUnit(unitId, this);
 

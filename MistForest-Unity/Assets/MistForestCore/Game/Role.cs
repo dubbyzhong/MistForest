@@ -726,7 +726,7 @@ namespace MistForest.Core.GameRefactored
             }
         }
 
-        internal void ChangePos(Node target, Game game, bool notifyAttachments = true)
+        internal void ChangePos(Node target, Game game, bool notifyAttachments = true, bool blink = false)
         {
             Node from = Position;
             _lastMoveEntries = null;
@@ -735,7 +735,7 @@ namespace MistForest.Core.GameRefactored
             game.Board.GetGrid(target)!.Units.Add(Id);
             if (notifyAttachments)
             {
-                game.NotifyUnitMoved(this, from, target);
+                game.NotifyUnitMoved(this, from, target, blink);
             }
         }
 

@@ -291,6 +291,7 @@ namespace MistForest.Core.GameRefactored.Roles
             foreach (Node next in path)
             {
                 hits.Add(next);
+                game.DamageRoseAt(Id, next, HeavyConsts.HeavyChargeDamage);
                 Grid grid = game.Board.GetGrid(next)!;
                 if (grid.HasBlockingBuilding(game))
                 {

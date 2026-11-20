@@ -185,6 +185,7 @@ namespace MistForest.Core.GameRefactored.Roles
             Unit[] enemies = Array.Empty<Unit>();
 
             // A standing building shields units even when this pellet destroys it.
+            game.DamageRoseAt(Id, attack.Target, AttackDamage);
             if (grid.HasBlockingBuilding(game))
             {
                 Building building = game.Buildings[grid.GridBuilding!.Value];
