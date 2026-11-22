@@ -17,6 +17,7 @@ namespace MistForest.Core.GameRefactored
         public Board Board { get; private set; }
         public Role[] Roles { get; private set; }
         private readonly Unit[] _units;
+        private readonly Dictionary<Board.Node, int> _fires = new();
         public readonly Player[] Players;
         public List<Building> Buildings;
         public List<Event> Events;
@@ -193,7 +194,12 @@ namespace MistForest.Core.GameRefactored
             {
                 return;
             }
-            if (rose.ReceiveDirectDamage(strength) <= 0)
+            RecordRoseDamage(attackerId, rose, rose.ReceiveDirectDamage(strength));
+        }
+
+        private void RecordRoseDamage(int attackerId, PrinceRose rose, int damage)
+        {
+            if (damage <= 0)
             {
                 return;
             }
@@ -201,7 +207,77 @@ namespace MistForest.Core.GameRefactored
             {
                 ((PrinceUnit)_units[rose.UnitId]).RemoveRose(rose);
             }
-            Events.Add(PrinceRoseDamageEvent.New(attackerId, rose.UnitId, target, rose.Health));
+            Events.Add(PrinceRoseDamageEvent.New(attackerId, rose.UnitId, rose.Position, rose.Health));
+        }
+
+        public (Board.Node node, int casterId)[] GetBurningGrids()
+            => _fires.Select(fire => (fire.Key, fire.Value)).ToArray();
+
+        internal bool IsBurning(Board.Node target) => _fires.ContainsKey(target);
+
+        internal void Ignite(int casterId, Board.Node target)
+        {
+            if (Board.GetGrid(target) is not Grid { Terrain: Terrain.Ground or Terrain.Whirlpool })
+            {
+                return;
+            }
+
+            _fires[target] = casterId;
+            ResolveFireDamage(casterId, target, burningPlayerId: null);
+        }
+
+        private void ResolveFireDamage(int casterId, Board.Node target, int? burningPlayerId)
+        {
+            Grid grid = Board.GetGrid(target)!;
+            int casterPlayerId = PlayerIdFromUnitId(casterId);
+            bool burning = burningPlayerId is not null;
+            int? damagedBuildingId = null;
+            List<int> damagedUnits = new();
+            if (grid.HasBlockingBuilding(this))
+            {
+                Building building = Buildings[grid.GridBuilding!.Value];
+                if (!burning)
+                {
+                    building.ReceiveDirectDamage(FireflyConsts.FireflyIgnitionDamage, this, casterPlayerId);
+                    damagedBuildingId = building.Id;
+                }
+                else if (building.Owner == burningPlayerId)
+                {
+                    building.ApplyDamage(FireflyConsts.FireflyBurningDamage, this, casterPlayerId);
+                    damagedBuildingId = building.Id;
+                }
+            }
+            else
+            {
+                foreach (int unitId in grid.Units.ToArray())
+                {
+                    int playerId = PlayerIdFromUnitId(unitId);
+                    if (burning ? playerId != burningPlayerId : IsPlayerAllied(casterPlayerId, playerId))
+                    {
+                        continue;
+                    }
+                    Unit unit = _units[unitId];
+                    DamageResult result = burning
+                        ? unit.ReceiveBurningDamage(FireflyConsts.FireflyBurningDamage, this)
+                        : unit.ReceiveDirectDamage(FireflyConsts.FireflyIgnitionDamage, this, DamageType.Ranged);
+                    if (result.TotalDamage > 0)
+                    {
+                        damagedUnits.Add(unitId);
+                    }
+                }
+            }
+            if (!burning)
+            {
+                DamageRoseAt(casterId, target, FireflyConsts.FireflyIgnitionDamage);
+            }
+            else if (FindRose(target) is PrinceRose rose && PlayerIdFromUnitId(rose.UnitId) == burningPlayerId)
+            {
+                RecordRoseDamage(casterId, rose, rose.ApplyDamage(FireflyConsts.FireflyBurningDamage));
+            }
+            if (!burning || damagedBuildingId is not null || damagedUnits.Count > 0)
+            {
+                Events.Add(FireflyDamageEvent.New(casterId, damagedUnits.ToArray(), damagedBuildingId, target, burning));
+            }
         }
 
         public bool ExecuteAction(Action action)
@@ -275,6 +351,10 @@ namespace MistForest.Core.GameRefactored
             foreach (Role role in Players[CurrentPlayerId].Roles)
                 foreach (Unit unit in role.GetUnits())
                     if (unit.Alive) unit.EndTurn(this);
+            foreach (var (target, casterId) in _fires)
+            {
+                ResolveFireDamage(casterId, target, CurrentPlayerId);
+            }
             ShadowAttachment.EndTurn(CurrentPlayerId, this);
             ++_turnCount;
             _roundActed[CurrentPlayerId] = true;
@@ -327,6 +407,18 @@ namespace MistForest.Core.GameRefactored
 
         public void PrepareTurn()
         {
+            Board.Node[] expiredFires = _fires
+                .Where(fire => PlayerIdFromUnitId(fire.Value) == CurrentPlayerId)
+                .Select(fire => fire.Key)
+                .ToArray();
+            foreach (Board.Node target in expiredFires)
+            {
+                _fires.Remove(target);
+            }
+            if (expiredFires.Length > 0)
+            {
+                Events.Add(FireflyFireExpiredEvent.New(CurrentPlayerId, expiredFires));
+            }
             foreach (Role role in Players[CurrentPlayerId].Roles)
             {
                 foreach (Unit unit in role.GetUnits())

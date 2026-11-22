@@ -640,13 +640,22 @@ namespace MistForest.Core.GameRefactored
 
             int damage = effectiveStrength - HighestDirectDamage;
             HighestDirectDamage = effectiveStrength;
+            return ApplyDamage(damage, game, direct: true);
+        }
 
+        internal virtual DamageResult ReceiveBurningDamage(int damage, Game game)
+            => Alive && damage > 0 ? ApplyDamage(damage, game, direct: false) : default;
+
+        private DamageResult ApplyDamage(int damage, Game game, bool direct)
+        {
             int armorDamage = System.Math.Min(Armor, damage);
             Armor -= armorDamage;
             int shieldDamage = System.Math.Min(TemporaryShield, damage - armorDamage);
             TemporaryShield -= shieldDamage;
             int remaining = damage - armorDamage - shieldDamage;
-            int healthDamage = remaining > 0 ? ApplyDirectHealthDamage(remaining, game) : 0;
+            int healthDamage = remaining <= 0 ? 0 : direct
+                ? ApplyDirectHealthDamage(remaining, game)
+                : ApplyHealthDamage(remaining, game);
             return new DamageResult(armorDamage, shieldDamage, healthDamage);
         }
 

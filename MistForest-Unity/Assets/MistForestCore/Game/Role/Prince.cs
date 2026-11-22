@@ -281,16 +281,22 @@ namespace MistForest.Core.GameRefactored.Roles
 
         internal int ReceiveDirectDamage(int strength)
         {
-            int damage = Math.Min(Health, Math.Max(0, strength - HighestDirectDamage));
+            int damage = Math.Max(0, strength - HighestDirectDamage);
             HighestDirectDamage = Math.Max(HighestDirectDamage, strength);
-            Health -= damage;
-            return damage;
+            return ApplyDamage(damage);
         }
 
         internal void UseBloom()
         {
             UsedThisTurn = true;
-            Health = Math.Max(0, Health - PrinceConsts.BloomRoseCost);
+            ApplyDamage(PrinceConsts.BloomRoseCost);
+        }
+
+        internal int ApplyDamage(int damage)
+        {
+            int actualDamage = Math.Min(Health, damage);
+            Health -= actualDamage;
+            return actualDamage;
         }
 
         internal void EndTurn() => UsedThisTurn = false;

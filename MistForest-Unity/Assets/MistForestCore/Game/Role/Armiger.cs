@@ -352,11 +352,15 @@ namespace MistForest.Core.GameRefactored.Roles
         }
 
         internal override DamageResult ReceiveDirectDamage(int strength, Game game, DamageType damageType)
+            => RecordDamage(base.ReceiveDirectDamage(strength, game, damageType));
+
+        internal override DamageResult ReceiveBurningDamage(int damage, Game game)
+            => RecordDamage(base.ReceiveBurningDamage(damage, game));
+
+        private DamageResult RecordDamage(DamageResult result)
         {
-            DamageResult result = base.ReceiveDirectDamage(strength, game, damageType);
             if (result.TotalDamage > 0)
             {
-                int playerId = game.PlayerIdFromUnitId(Id);
                 _armorLock = _armorLock.Use(ArmigerConsts.ArmigerArmorLockRounds);
             }
             return result;
