@@ -126,6 +126,28 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.Equal(first, Assert.Single(Assert.Single(View(game).CanSprayDirections, entry => entry.first == first).path));
             Assert.True(game.ExecuteAction(FireflySpray.New(0, first, 3)));
             Assert.Equal((first, 0), Assert.Single(game.GetBurningGrids()));
+            Assert.Equal(1, Assert.Single(game.Events.OfType<FireflySprayEvent>()).AmmoSpent);
+            Assert.Equal(2, View(game).Ammo);
+        }
+
+        [Fact]
+        public static void Spray_RequiresEnoughAmmoForTheActualPath()
+        {
+            Game game = MakeGame(0, board => WolfAt(board, 7, 7));
+            Node origin = At(game, 3, 3);
+            Node first = At(game, 3, 4);
+            Assert.True(game.ExecuteAction(FireflySpray.New(0, first, 3)));
+            Assert.True(game.ExecuteAction(FireflyAdvance.New(0, origin)));
+            Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
+            Assert.True(game.ExecuteAction(GeneralEnd.New(1)));
+            Assert.Equal(1, View(game).Ammo);
+            Assert.False(game.ExecuteAction(FireflySpray.New(0, first, 3)));
+            Assert.Equal(1, View(game).Ammo);
+            Assert.Single(game.Events.OfType<FireflySprayEvent>());
+
+            Assert.True(game.Board.SetTerrain(At(game, 3, 5), Terrain.Wall));
+            Assert.True(game.ExecuteAction(FireflySpray.New(0, first, 3)));
+            Assert.Equal(1, game.Events.OfType<FireflySprayEvent>().Last().AmmoSpent);
             Assert.Equal(0, View(game).Ammo);
         }
 
@@ -139,7 +161,10 @@ namespace MistForest.Core.Tests.Refactored.Roles
             game.AddBuilding(FortBuilder.New().SetOwner(1)!.SetHealth(UnitsPerPoint)!.SetPos(fort)!);
             Assert.True(game.ExecuteAction(FireflySpray.New(0, lake, 3)));
 
-            Assert.Equal(new[] { lake, fort }, Assert.Single(game.Events.OfType<FireflySprayEvent>()).Path);
+            FireflySprayEvent spray = Assert.Single(game.Events.OfType<FireflySprayEvent>());
+            Assert.Equal(new[] { lake, fort }, spray.Path);
+            Assert.Equal(2, spray.AmmoSpent);
+            Assert.Equal(1, View(game).Ammo);
             Assert.Equal((fort, 0), Assert.Single(game.GetBurningGrids()));
             Assert.IsType<Building.Rubble>(game.Buildings[0]);
             Assert.Equal(3 * HalfPoint, game.GetUnit(1)!.Health);
@@ -229,6 +254,36 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Assert.True(game.ExecuteAction(GeneralEnd.New(1)));
             Assert.Equal(HalfPoint, game.GetUnit(1)!.Health);
             Assert.Empty(game.Events.OfType<FireflyDamageEvent>().Where(entry => entry.IsBurningDamage));
+        }
+
+        [Fact]
+        public static void Ignition_ReplacingAnActiveFireUsesTheNewCastersExpiration()
+        {
+            Game game = MakeGame(0, board => FireflyAt(board, 4, 4), board => WolfAt(board, 7, 7));
+            Node target = At(game, 3, 4);
+            Node other = At(game, 3, 5);
+            Assert.True(game.ExecuteAction(FireflySpray.New(0, target, 2)));
+            Assert.True(game.ExecuteAction(FireflyAdvance.New(0, At(game, 3, 3))));
+            Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
+            Assert.Equal((target, 0), Assert.Single(game.GetBurningGrids(), fire => fire.node == target));
+
+            Assert.True(game.ExecuteAction(FireflySpray.New(1, target, 1)));
+            Assert.True(game.ExecuteAction(FireflyAdvance.New(1, At(game, 4, 4))));
+            Assert.True(game.ExecuteAction(GeneralEnd.New(1)));
+            Assert.Equal((target, 1), Assert.Single(game.GetBurningGrids(), fire => fire.node == target));
+            Assert.True(game.ExecuteAction(GeneralEnd.New(2)));
+            Assert.Equal(0, game.CurrentPlayerId);
+            Assert.Equal((target, 1), Assert.Single(game.GetBurningGrids()));
+            FireflyFireExpiredEvent firstExpiration = Assert.Single(game.Events.OfType<FireflyFireExpiredEvent>());
+            Assert.Equal(0, firstExpiration.PlayerId);
+            Assert.Equal(other, Assert.Single(firstExpiration.Targets));
+
+            Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
+            Assert.Equal(1, game.CurrentPlayerId);
+            Assert.Empty(game.GetBurningGrids());
+            FireflyFireExpiredEvent secondExpiration = game.Events.OfType<FireflyFireExpiredEvent>().Last();
+            Assert.Equal(1, secondExpiration.PlayerId);
+            Assert.Equal(target, Assert.Single(secondExpiration.Targets));
         }
 
         [Fact]

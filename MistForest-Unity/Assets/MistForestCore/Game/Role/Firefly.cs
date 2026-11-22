@@ -13,10 +13,10 @@ namespace MistForest.Core.GameRefactored.Roles
     public class FireflySpray : Action, IFireflyAction
     {
         public Node First { get; private set; }
-        public int AmmoCost { get; private set; }
+        public int Range { get; private set; }
 
-        public static FireflySpray New(int callerUnitId, Node first, int ammoCost)
-            => new() { CallerUnitId = callerUnitId, First = first, AmmoCost = ammoCost };
+        public static FireflySpray New(int callerUnitId, Node first, int range)
+            => new() { CallerUnitId = callerUnitId, First = first, Range = range };
     }
 
     public class FireflyAdvance : Action, IFireflyAction
@@ -188,17 +188,22 @@ namespace MistForest.Core.GameRefactored.Roles
         }
 
         internal bool CanSpray(FireflySpray spray, Game game)
-            => HasSprayBudget && spray.AmmoCost > 0 && spray.AmmoCost <= Ammo
-                && spray.AmmoCost <= FireflyConsts.FireflyMaxSprayRange
-                && SprayPath(spray.First, spray.AmmoCost, game).Length > 0;
+        {
+            if (!HasSprayBudget || spray.Range < 1 || spray.Range > FireflyConsts.FireflyMaxSprayRange)
+            {
+                return false;
+            }
+            int distance = SprayPath(spray.First, spray.Range, game).Length;
+            return distance > 0 && distance <= Ammo;
+        }
 
         internal void Spray(FireflySpray spray, Game game)
         {
-            Node[] path = SprayPath(spray.First, spray.AmmoCost, game);
-            Ammo -= spray.AmmoCost;
+            Node[] path = SprayPath(spray.First, spray.Range, game);
+            Ammo -= path.Length;
             ++AttackUsed;
             IsAwaitingAdvance = true;
-            game.Events.Add(FireflySprayEvent.New(Id, spray.AmmoCost, path));
+            game.Events.Add(FireflySprayEvent.New(Id, path));
             foreach (Node target in path)
             {
                 game.Ignite(Id, target);
@@ -326,18 +331,17 @@ namespace MistForest.Core.GameRefactored.Roles
     public class FireflySprayEvent : Event
     {
         public int UnitId { get; }
-        public int AmmoSpent { get; }
         public Node[] Path { get; }
+        public int AmmoSpent => Path.Length;
 
-        private FireflySprayEvent(int unitId, int ammoSpent, Node[] path)
+        private FireflySprayEvent(int unitId, Node[] path)
         {
             UnitId = unitId;
-            AmmoSpent = ammoSpent;
             Path = (Node[])path.Clone();
         }
 
-        public static FireflySprayEvent New(int unitId, int ammoSpent, Node[] path)
-            => new(unitId, ammoSpent, path);
+        public static FireflySprayEvent New(int unitId, Node[] path)
+            => new(unitId, path);
     }
 
     public class FireflyStepEvent : Event
