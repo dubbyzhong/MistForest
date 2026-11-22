@@ -35,14 +35,13 @@ namespace MistForest.Core.GameRefactored
 
         public abstract class GameCount
         {
-            private int _rolesPerPlayer;
             public int PlayerCount { get; private set; }
 
             public class SingleGameCount : GameCount
             {
-                public static SingleGameCount New(int rolesPerPlayer, int playerCount)
+                public static SingleGameCount New(int playerCount)
                 {
-                    return new() { _rolesPerPlayer = rolesPerPlayer, PlayerCount = playerCount };
+                    return new() { PlayerCount = playerCount };
                 }
             }
 
@@ -52,15 +51,10 @@ namespace MistForest.Core.GameRefactored
                 public int PlayersPerTeam { get; private set; }
                 public new int PlayerCount => TeamCount * PlayersPerTeam;
 
-                public static TeamGameCount New(
-                    int rolesPerPlayer,
-                    int teamCount,
-                    int playersPerTeam
-                )
+                public static TeamGameCount New(int teamCount, int playersPerTeam)
                 {
                     return new()
                     {
-                        _rolesPerPlayer = rolesPerPlayer,
                         TeamCount = teamCount,
                         PlayersPerTeam = playersPerTeam,
                     };
@@ -471,7 +465,6 @@ namespace MistForest.Core.GameRefactored
         private Player[]? _players;
         private Role[]? _roles;
         private Unit[]? _units;
-        private int? _rolesPerPlayer;
         private int? _playerCount;
         private int? _teamCount;
         private int? _playersPerTeam;
@@ -580,7 +573,6 @@ namespace MistForest.Core.GameRefactored
                     return unit;
                 })
                 .ToList();
-            _rolesPerPlayer = rolesPerPlayer;
             _playerCount = playersInner.Count;
             _roles = roleBuilders.AsValueEnumerable().Select(role => role.Build()!).ToArray();
             _units = unitBuilders.AsValueEnumerable().Select(unit => unit.Build()!).ToArray();
@@ -666,7 +658,6 @@ namespace MistForest.Core.GameRefactored
                 )
                 .Select((unit, index) => unit.SetId(index)!)
                 .ToList();
-            _rolesPerPlayer = rolesPerPlayer;
             _teamCount = teamsInner.Count;
             _playersPerTeam = playersPerTeam;
             _roles = roleBuilders.AsValueEnumerable().Select(role => role.Build()!).ToArray();
@@ -708,12 +699,8 @@ namespace MistForest.Core.GameRefactored
             }
             GameCount gameCount = _isTeamGame switch
             {
-                true => GameCount.TeamGameCount.New(
-                    _rolesPerPlayer!.Value,
-                    _teamCount!.Value,
-                    _playersPerTeam!.Value
-                ),
-                false => GameCount.SingleGameCount.New(_rolesPerPlayer!.Value, _playerCount!.Value),
+                true => GameCount.TeamGameCount.New(_teamCount!.Value, _playersPerTeam!.Value),
+                false => GameCount.SingleGameCount.New(_playerCount!.Value),
             };
             return New(
                 mode: _mode,
