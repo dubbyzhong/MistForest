@@ -414,7 +414,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
                     Player.New(0, null, new Role[] { first, other }),
                     Player.New(1, null, new Role[] { enemy }),
                 },
-                Game.GameCount.SingleGameCount.New(2, 2), 0);
+                Game.GameCount.SingleGameCount.New(2), 0);
 
             Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
             Assert.False(first.IsFirstAction);
