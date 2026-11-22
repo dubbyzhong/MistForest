@@ -141,6 +141,7 @@ namespace MistForest.Core.GameRefactored.Roles
 
         internal void Attack(Node target, Game game)
         {
+            game.DamageRoseAt(Id, target, WallGuardConsts.AttackDamage);
             Grid grid = game.Board.GetGrid(target)!;
             int playerId = game.PlayerIdFromUnitId(Id);
             if (grid.HasBlockingBuilding(game))

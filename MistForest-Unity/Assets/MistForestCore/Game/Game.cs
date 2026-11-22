@@ -35,14 +35,13 @@ namespace MistForest.Core.GameRefactored
 
         public abstract class GameCount
         {
-            private int _rolesPerPlayer;
             public int PlayerCount { get; private set; }
 
             public class SingleGameCount : GameCount
             {
-                public static SingleGameCount New(int rolesPerPlayer, int playerCount)
+                public static SingleGameCount New(int playerCount)
                 {
-                    return new() { _rolesPerPlayer = rolesPerPlayer, PlayerCount = playerCount };
+                    return new() { PlayerCount = playerCount };
                 }
             }
 
@@ -52,15 +51,10 @@ namespace MistForest.Core.GameRefactored
                 public int PlayersPerTeam { get; private set; }
                 public new int PlayerCount => TeamCount * PlayersPerTeam;
 
-                public static TeamGameCount New(
-                    int rolesPerPlayer,
-                    int teamCount,
-                    int playersPerTeam
-                )
+                public static TeamGameCount New(int teamCount, int playersPerTeam)
                 {
                     return new()
                     {
-                        _rolesPerPlayer = rolesPerPlayer,
                         TeamCount = teamCount,
                         PlayersPerTeam = playersPerTeam,
                     };
@@ -175,6 +169,41 @@ namespace MistForest.Core.GameRefactored
             Buildings.Add(building);
         }
 
+        public PrinceRose[] GetRoses() => _units.OfType<PrinceUnit>().SelectMany(unit => unit.Roses).ToArray();
+
+        internal PrinceRose? FindRose(Board.Node target)
+        {
+            foreach (PrinceUnit prince in _units.OfType<PrinceUnit>())
+            {
+                foreach (PrinceRose rose in prince.Roses)
+                {
+                    if (rose.Position == target)
+                    {
+                        return rose;
+                    }
+                }
+            }
+            return null;
+        }
+
+        internal void DamageRoseAt(int attackerId, Board.Node target, int strength)
+        {
+            if (FindRose(target) is not PrinceRose rose
+                || IsPlayerAllied(PlayerIdFromUnitId(attackerId), PlayerIdFromUnitId(rose.UnitId)))
+            {
+                return;
+            }
+            if (rose.ReceiveDirectDamage(strength) <= 0)
+            {
+                return;
+            }
+            if (rose.Health == 0)
+            {
+                ((PrinceUnit)_units[rose.UnitId]).RemoveRose(rose);
+            }
+            Events.Add(PrinceRoseDamageEvent.New(attackerId, rose.UnitId, target, rose.Health));
+        }
+
         public bool ExecuteAction(Action action)
         {
             if (_isGameOver)
@@ -274,6 +303,10 @@ namespace MistForest.Core.GameRefactored
                 {
                     building.EndRound();
                 }
+                foreach (PrinceRose rose in GetRoses())
+                {
+                    rose.EndRound();
+                }
             }
             _gameState = CheckVictory();
             if (_isGameOver)
@@ -287,8 +320,8 @@ namespace MistForest.Core.GameRefactored
             } while (!Players[CurrentPlayerId].Alive);
         }
 
-        internal void NotifyUnitMoved(Unit unit, Board.Node from, Board.Node to)
-            => ShadowAttachment.OnMoved(unit, from, to, this);
+        internal void NotifyUnitMoved(Unit unit, Board.Node from, Board.Node to, bool blink = false)
+            => ShadowAttachment.OnMoved(unit, from, to, this, blink);
 
         internal void ClearShadowLinks(int unitId) => ShadowAttachment.RemoveUnit(unitId, this);
 
@@ -432,7 +465,6 @@ namespace MistForest.Core.GameRefactored
         private Player[]? _players;
         private Role[]? _roles;
         private Unit[]? _units;
-        private int? _rolesPerPlayer;
         private int? _playerCount;
         private int? _teamCount;
         private int? _playersPerTeam;
@@ -541,7 +573,6 @@ namespace MistForest.Core.GameRefactored
                     return unit;
                 })
                 .ToList();
-            _rolesPerPlayer = rolesPerPlayer;
             _playerCount = playersInner.Count;
             _roles = roleBuilders.AsValueEnumerable().Select(role => role.Build()!).ToArray();
             _units = unitBuilders.AsValueEnumerable().Select(unit => unit.Build()!).ToArray();
@@ -627,7 +658,6 @@ namespace MistForest.Core.GameRefactored
                 )
                 .Select((unit, index) => unit.SetId(index)!)
                 .ToList();
-            _rolesPerPlayer = rolesPerPlayer;
             _teamCount = teamsInner.Count;
             _playersPerTeam = playersPerTeam;
             _roles = roleBuilders.AsValueEnumerable().Select(role => role.Build()!).ToArray();
@@ -669,12 +699,8 @@ namespace MistForest.Core.GameRefactored
             }
             GameCount gameCount = _isTeamGame switch
             {
-                true => GameCount.TeamGameCount.New(
-                    _rolesPerPlayer!.Value,
-                    _teamCount!.Value,
-                    _playersPerTeam!.Value
-                ),
-                false => GameCount.SingleGameCount.New(_rolesPerPlayer!.Value, _playerCount!.Value),
+                true => GameCount.TeamGameCount.New(_teamCount!.Value, _playersPerTeam!.Value),
+                false => GameCount.SingleGameCount.New(_playerCount!.Value),
             };
             return New(
                 mode: _mode,

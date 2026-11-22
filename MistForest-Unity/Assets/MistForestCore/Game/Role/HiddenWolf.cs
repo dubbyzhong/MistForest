@@ -212,6 +212,7 @@ namespace MistForest.Core.GameRefactored.Roles
         internal void HiddenWolfAttack(HiddenWolfAttack attack, Game game)
         {
             ++AttackUsed;
+            game.DamageRoseAt(Id, attack.Target, AttackDamage);
             Grid grid = game.Board.GetGrid(attack.Target)!;
             int playerId = game.PlayerIdFromUnitId(Id);
             int? attackedBuildingId = null;

@@ -162,6 +162,7 @@ namespace MistForest.Core.GameRefactored.Roles
         public void SniperExecute(SniperExecute execute, Game game)
         {
             AttackUsed++;
+            game.DamageRoseAt(Id, execute.Target, int.MaxValue);
             Grid grid = game.Board.GetGrid(execute.Target)!;
             Unit[] enemies = grid
                     .Units.AsValueEnumerable()
