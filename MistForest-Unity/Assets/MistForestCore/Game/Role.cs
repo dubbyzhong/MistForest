@@ -600,6 +600,30 @@ namespace MistForest.Core.GameRefactored
             game.Events.Add(GeneralDemolishEvent.New(unitId: Id, target: demolish.Target));
         }
 
+        protected (int[] unitIds, int? buildingId) ResolveSingleGridAttack(
+            Node target, int strength, DamageType damageType, Game game)
+        {
+            Grid grid = game.Board.GetGrid(target)!;
+            int playerId = game.PlayerIdFromUnitId(Id);
+            // A standing building shields its occupants even when this attack destroys it.
+            if (grid.HasBlockingBuilding(game))
+            {
+                Building building = game.Buildings[grid.GridBuilding!.Value];
+                building.ReceiveDirectDamage(strength, game, playerId);
+                return (Array.Empty<int>(), building.Id);
+            }
+
+            Unit[] enemies = grid.Units
+                .Select(id => game.GetUnit(id)!)
+                .Where(unit => unit.Alive && !game.IsPlayerAllied(playerId, game.PlayerIdFromUnitId(unit.Id)))
+                .ToArray();
+            foreach (Unit enemy in enemies)
+            {
+                enemy.ReceiveDirectDamage(strength, game, damageType);
+            }
+            return (enemies.Select(unit => unit.Id).ToArray(), null);
+        }
+
         protected virtual int ReduceDirectDamage(int strength, DamageType damageType) => strength;
 
         internal virtual DamageResult ReceiveDirectDamage(int strength, Game game, DamageType damageType)

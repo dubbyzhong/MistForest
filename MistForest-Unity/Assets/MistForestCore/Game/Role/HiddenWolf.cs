@@ -212,45 +212,16 @@ namespace MistForest.Core.GameRefactored.Roles
         internal void HiddenWolfAttack(HiddenWolfAttack attack, Game game)
         {
             ++AttackUsed;
-            game.DamageRoseAt(Id, attack.Target, AttackDamage);
-            Grid grid = game.Board.GetGrid(attack.Target)!;
-            int playerId = game.PlayerIdFromUnitId(Id);
-            int? attackedBuildingId = null;
-            Unit[] enemies = Array.Empty<Unit>();
-
-            // A standing building shields its units, including on the destroying hit.
-            if (grid.HasBlockingBuilding(game))
-            {
-                Building building = game.Buildings[grid.GridBuilding!.Value];
-                attackedBuildingId = building.Id;
-                building.ReceiveDirectDamage(AttackDamage, game, playerId);
-            }
-            else
-            {
-                enemies = grid.Units
-                    .AsValueEnumerable()
-                    .Select(unitId => game.GetUnit(unitId)!)
-                    .Where(unit => unit.Alive
-                        && !game.IsPlayerAllied(playerId, game.PlayerIdFromUnitId(unit.Id)))
-                    .ToArray();
-                foreach (Unit enemy in enemies)
-                {
-                    enemy.ReceiveDirectDamage(AttackDamage, game,
-                        Form == HiddenWolfForm.Human ? DamageType.Ranged : DamageType.Melee);
-                }
-            }
-            game.Events.Add(HiddenWolfAttackEvent.New(
-                attackerId: Id,
-                unitIds: enemies.AsValueEnumerable().Select(unit => unit.Id).ToArray(),
-                buildingId: attackedBuildingId,
-                target: attack.Target));
+            DamageType damageType = Form == HiddenWolfForm.Human ? DamageType.Ranged : DamageType.Melee;
+            var (unitIds, buildingId) = ResolveSingleGridAttack(attack.Target, AttackDamage, damageType, game);
+            game.Events.Add(HiddenWolfAttackEvent.New(Id, unitIds, buildingId, attack.Target));
             if (Form == HiddenWolfForm.Wolf)
             {
                 MoveUsed = 0;
                 _lastMoveEntries = null;
                 Unit? nearest = NearestEnemy(attack.Target, game);
                 int? distance = nearest is null ? null : game.Board.Distance(attack.Target, nearest.Position);
-                game.Events.Add(HiddenWolfInstinctEvent.New(playerId, Id, distance));
+                game.Events.Add(HiddenWolfInstinctEvent.New(game.PlayerIdFromUnitId(Id), Id, distance));
             }
         }
 

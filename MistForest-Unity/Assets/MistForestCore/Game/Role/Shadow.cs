@@ -233,31 +233,9 @@ namespace MistForest.Core.GameRefactored.Roles
         {
             ++AttackUsed;
             End = true;
-            game.DamageRoseAt(Id, attack.Target, ShadowConsts.ShadowAttackDamage);
-            Grid grid = game.Board.GetGrid(attack.Target)!;
-            int playerId = game.PlayerIdFromUnitId(Id);
-            int? buildingId = null;
-            Unit[] enemies = Array.Empty<Unit>();
-            // A standing building shields its occupants even when this attack destroys it.
-            if (grid.HasBlockingBuilding(game))
-            {
-                Building building = game.Buildings[grid.GridBuilding!.Value];
-                buildingId = building.Id;
-                building.ReceiveDirectDamage(ShadowConsts.ShadowAttackDamage, game, playerId);
-            }
-            else
-            {
-                enemies = grid.Units.Select(id => game.GetUnit(id)!)
-                    .Where(unit => unit.Alive
-                        && !game.IsPlayerAllied(playerId, game.PlayerIdFromUnitId(unit.Id)))
-                    .ToArray();
-                foreach (Unit enemy in enemies)
-                {
-                    enemy.ReceiveDirectDamage(ShadowConsts.ShadowAttackDamage, game, DamageType.Melee);
-                }
-            }
-            game.Events.Add(ShadowAttackEvent.New(Id, enemies.Select(unit => unit.Id).ToArray(),
-                buildingId, attack.Target));
+            var (unitIds, buildingId) = ResolveSingleGridAttack(
+                attack.Target, ShadowConsts.ShadowAttackDamage, DamageType.Melee, game);
+            game.Events.Add(ShadowAttackEvent.New(Id, unitIds, buildingId, attack.Target));
         }
 
         public override bool HasActionLeft(Game game)
