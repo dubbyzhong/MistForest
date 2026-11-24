@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using MistForest.Core.Consts;
 using MistForest.Core.GameMap;
+using ZLinq;
 using static MistForest.Core.GameMap.Board;
 using static MistForest.Core.GameRefactored.PlayerBuilder;
 
@@ -247,6 +248,7 @@ namespace MistForest.Core.GameRefactored.Roles
             }
             return game.Board.GetNodesWithinDistance(Position, FireflyConsts.FireflyMoveDistance,
                     MapConsts.MoveManhattan, MovePredicate(game))
+                .AsValueEnumerable()
                 .Skip(1)
                 .Select(entry => entry.node)
                 .ToArray();
