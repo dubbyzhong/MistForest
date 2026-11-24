@@ -7,6 +7,7 @@ using Xunit;
 using static MistForest.Core.Consts.CombatConsts;
 using static MistForest.Core.GameMap.Board;
 using static MistForest.Core.GameRefactored.PlayerBuilder;
+using GameAction = MistForest.Core.GameRefactored.Action;
 
 namespace MistForest.Core.Tests.Refactored.Roles
 {
@@ -170,6 +171,60 @@ namespace MistForest.Core.Tests.Refactored.Roles
             WolfBiteEvent bite = Assert.Single(game.Events.OfType<WolfBiteEvent>());
             Assert.Null(bite.BuildingId);
             Assert.Empty(bite.UnitIds);
+        }
+
+        [Theory]
+        [InlineData(nameof(Alpha), false)]
+        [InlineData(nameof(Alpha), true)]
+        [InlineData(nameof(HiddenWolf), false)]
+        [InlineData(nameof(HiddenWolf), true)]
+        [InlineData(nameof(Knight), false)]
+        [InlineData(nameof(Knight), true)]
+        [InlineData(nameof(Shadow), false)]
+        [InlineData(nameof(Shadow), true)]
+        public static void SingleGridAttack_DamagesTheRoseEvenWhenAFortProtectsTheUnit(string attacker, bool withFort)
+        {
+            Game game = MakeGame(board =>
+            {
+                Node start = board.At(3, 4)!.Value;
+                return attacker switch
+                {
+                    nameof(Alpha) => AlphaBuilder.New(new UnitBuilder[] { new AlphaUnitBuilder() }, start)!,
+                    nameof(HiddenWolf) => HiddenWolfBuilder.New(new UnitBuilder[] { new HiddenWolfUnitBuilder() }, start)!,
+                    nameof(Knight) => KnightBuilder.New(new UnitBuilder[] { new KnightUnitBuilder() }, start)!,
+                    nameof(Shadow) => ShadowBuilder.New(new UnitBuilder[] { new ShadowUnitBuilder() }, start)!,
+                    _ => throw new ArgumentOutOfRangeException(nameof(attacker)),
+                };
+            });
+            Node target = Role(game).Unit.Position;
+            if (withFort)
+            {
+                game.AddBuilding(FortBuilder.New().SetOwner(0)!.SetHealth(UnitsPerPoint)!.SetPos(target)!);
+            }
+            Assert.True(game.ExecuteAction(PrincePlantRose.New(0, target)));
+            Assert.True(game.ExecuteAction(GeneralEnd.New(0)));
+
+            if (attacker == nameof(Knight))
+            {
+                Assert.True(game.ExecuteAction(KnightHunt.New(1, At(game, 3, 4))));
+            }
+            GameAction action = attacker switch
+            {
+                nameof(Alpha) => AlphaAttack.New(1, target),
+                nameof(HiddenWolf) => HiddenWolfAttack.New(1, target),
+                nameof(Knight) => KnightCleave.New(1, target),
+                nameof(Shadow) => ShadowAttack.New(1, target),
+                _ => throw new ArgumentOutOfRangeException(nameof(attacker)),
+            };
+            Assert.True(game.ExecuteAction(action));
+
+            Assert.Equal(HalfPoint, Assert.Single(game.GetRoses()).Health);
+            Assert.Equal(target, Assert.Single(game.Events.OfType<PrinceRoseDamageEvent>()).Target);
+            Assert.Equal(withFort ? 3 * HalfPoint : HalfPoint, Role(game).Unit.Health);
+            if (withFort)
+            {
+                Assert.IsType<Building.Rubble>(game.Buildings[0]);
+            }
         }
 
         [Theory]
