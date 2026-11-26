@@ -490,7 +490,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
         }
 
         [Fact]
-        public static void ValidatedRoute_IsNotReplacedByViewQueriesAndIsConsumedOnExecution()
+        public static void ChargeContinue_IsNotAffectedByViewQueries_AndRejectsRepeatedExecution()
         {
             Game game = MakeGame((3, 4));
             Start(game);
@@ -501,11 +501,12 @@ namespace MistForest.Core.Tests.Refactored.Roles
             // View generation enumerates other routes after the selected one.
             Assert.Contains(At(game, 7, 4), View(game).CanChargeContinueGrids);
             Assert.Contains(At(game, 4, 7), View(game).CanChargeContinueGrids);
-            role.ExecuteAction(charge, game);
+            Assert.True(role.TryExecuteAction(charge, game));
 
             Assert.Equal(At(game, 1, 4), role.Unit.Position);
             Assert.Equal(HalfPoint, game.GetUnit(1)!.Health);
             int eventCount = game.Events.Count;
+            Assert.False(role.TryExecuteAction(charge, game));
             Assert.Throws<InvalidOperationException>(() => role.ExecuteAction(charge, game));
             Assert.Equal(eventCount, game.Events.Count);
             Assert.Equal(HalfPoint, game.GetUnit(1)!.Health);
@@ -514,7 +515,7 @@ namespace MistForest.Core.Tests.Refactored.Roles
         [Theory]
         [InlineData(false)]
         [InlineData(true)]
-        public static void FailedValidation_DiscardsPreviouslyValidatedRoute(bool wrongActionType)
+        public static void FailedValidation_LeavesNoStaleStateAndDoesNotBlockValidCharge(bool wrongActionType)
         {
             Game game = MakeGame();
             Start(game);
@@ -525,32 +526,29 @@ namespace MistForest.Core.Tests.Refactored.Roles
                 ? GeneralMove.New(0, At(game, 4, 5))
                 : HeavyChargeContinue.New(0, At(game, 4, 3));
             Assert.False(role.JudgeAction(invalid, game));
-            Assert.Throws<InvalidOperationException>(() => role.ExecuteAction(charge, game));
+            Assert.False(role.TryExecuteAction(invalid, game));
             Assert.True(role.Unit.IsCharging);
             Assert.Equal(At(game, 4, 4), role.Unit.Position);
             Assert.Single(game.Events);
 
-            Assert.True(game.ExecuteAction(charge));
+            Assert.True(role.TryExecuteAction(charge, game));
             Assert.Equal(At(game, 1, 4), role.Unit.Position);
         }
 
         [Fact]
-        public static void DifferentTarget_CannotExecuteUsingAnotherTargetsCachedRoute()
+        public static void TryExecuteAction_ResolvesTargetDirectlyWithoutPriorJudgeAction()
         {
             Game game = MakeGame();
             Start(game);
             Heavy role = Role(game);
             Assert.True(role.JudgeAction(HeavyChargeContinue.New(0, At(game, 1, 4)), game));
             HeavyChargeContinue other = HeavyChargeContinue.New(0, At(game, 4, 7));
-            Assert.Throws<InvalidOperationException>(() => role.ExecuteAction(other, game));
-            Assert.Equal(At(game, 4, 4), role.Unit.Position);
-            Assert.Single(game.Events);
-            Assert.True(game.ExecuteAction(other));
+            Assert.True(role.TryExecuteAction(other, game));
             Assert.Equal(At(game, 4, 7), role.Unit.Position);
         }
 
         [Fact]
-        public static void Clone_PreservesChargeButRequiresItsOwnValidation()
+        public static void Clone_PreservesChargeAndResolvesPathIndependently()
         {
             Game game = MakeGame();
             Start(game);
@@ -560,19 +558,17 @@ namespace MistForest.Core.Tests.Refactored.Roles
             Heavy clone = Assert.IsType<Heavy>(original.Clone());
 
             Assert.True(clone.Unit.IsCharging);
-            Assert.Throws<InvalidOperationException>(() => clone.ExecuteAction(charge, game));
+            Assert.True(clone.JudgeAction(charge, game));
             Assert.Equal(At(game, 4, 4), clone.Unit.Position);
             Assert.Single(game.Events);
-            Assert.True(clone.JudgeAction(charge, game));
 
-            // Validating the clone must not consume the original's cached route.
-            original.ExecuteAction(charge, game);
+            Assert.True(original.TryExecuteAction(charge, game));
             Assert.Equal(At(game, 1, 4), original.Unit.Position);
             Assert.Equal(At(game, 4, 4), clone.Unit.Position);
         }
 
         [Fact]
-        public static void EndAndRoundReset_RequireFreshValidationForTheNextCharge()
+        public static void EndAndRoundReset_RejectChargeUntilStartedAgain()
         {
             Game game = MakeGame();
             Start(game);
@@ -582,14 +578,14 @@ namespace MistForest.Core.Tests.Refactored.Roles
             role.ExecuteAction(GeneralEnd.New(0), game);
             role.Unit.EndRound(game);
 
-            // Return to the same first-step position, so an old route would otherwise fit.
+            Assert.False(role.TryExecuteAction(charge, game));
+            Assert.Throws<InvalidOperationException>(() => role.ExecuteAction(charge, game));
+
             HeavyChargeStart left = HeavyChargeStart.New(0, At(game, 4, 3));
-            Assert.True(role.JudgeAction(left, game));
-            role.ExecuteAction(left, game);
+            Assert.True(role.TryExecuteAction(left, game));
             role.Unit.EndRound(game);
             Start(game);
-            Assert.Throws<InvalidOperationException>(() => role.ExecuteAction(charge, game));
-            Assert.True(game.ExecuteAction(charge));
+            Assert.True(role.TryExecuteAction(charge, game));
             Assert.Equal(At(game, 1, 4), role.Unit.Position);
         }
     }

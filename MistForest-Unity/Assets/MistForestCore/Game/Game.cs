@@ -318,10 +318,8 @@ namespace MistForest.Core.GameRefactored
                 return false;
             }
             Role role = Roles[caller.RoleId];
-            if (role.JudgeAction(action, this))
+            if (role.TryExecuteAction(action, this))
             {
-                role.ExecuteAction(action, this);
-
                 _gameState = CheckVictory();
                 if (_isGameOver)
                 {

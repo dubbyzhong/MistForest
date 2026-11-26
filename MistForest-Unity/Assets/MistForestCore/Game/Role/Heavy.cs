@@ -51,7 +51,6 @@ namespace MistForest.Core.GameRefactored.Roles
 
         public override bool JudgeAction(Action action, Game game)
         {
-            Unit.ClearChargePath();
             if (!Unit.Alive || Unit.End)
             {
                 return false;
@@ -73,6 +72,21 @@ namespace MistForest.Core.GameRefactored.Roles
             };
         }
 
+        public override bool TryExecuteAction(Action action, Game game)
+        {
+            if (action is HeavyChargeContinue charge)
+            {
+                if (!Unit.Alive || Unit.End || !Unit.TryResolveChargeContinuePath(charge, game, out Node[] path))
+                {
+                    return false;
+                }
+                Unit.StartExecuteAction();
+                Unit.ChargeContinue(path, game);
+                return true;
+            }
+            return base.TryExecuteAction(action, game);
+        }
+
         public override void ExecuteAction(Action action, Game game)
         {
             Unit.StartExecuteAction();
@@ -82,7 +96,11 @@ namespace MistForest.Core.GameRefactored.Roles
                     Unit.ChargeStart(charge, game);
                     break;
                 case HeavyChargeContinue charge:
-                    Unit.ChargeContinue(charge, game);
+                    if (!Unit.TryResolveChargeContinuePath(charge, game, out Node[] path))
+                    {
+                        throw new InvalidOperationException("Charge continuation path is not valid.");
+                    }
+                    Unit.ChargeContinue(path, game);
                     break;
                 case GeneralSurrender surrender:
                     Unit.StopCharge(game);
@@ -104,9 +122,6 @@ namespace MistForest.Core.GameRefactored.Roles
         protected override int MoveDistance => HeavyConsts.HeavyMoveDistance;
         public override int AttackRange => 0;
         private (int dx, int dy)? _chargeDirection;
-        private Node[]? _lastChargePath;
-        private Node? _lastChargeTarget;
-        private Node? _lastChargeFrom;
         public bool IsCharging => Alive && !End && _chargeDirection is not null;
         /// <summary>Charge actions taken this turn, counted as in the reference implementation.</summary>
         public int ChargeUsed { get; private set; }
@@ -126,7 +141,6 @@ namespace MistForest.Core.GameRefactored.Roles
 
         public override Unit Clone()
         {
-            // Copy the ongoing charge, but require fresh validation on the clone.
             HeavyUnit target = new() { _chargeDirection = _chargeDirection, ChargeUsed = ChargeUsed };
             CloneBase(target);
             return target;
@@ -167,7 +181,6 @@ namespace MistForest.Core.GameRefactored.Roles
 
         internal void ChargeStart(HeavyChargeStart charge, Game game)
         {
-            ClearChargePath();
             Node from = Position;
             _chargeDirection = (
                 game.Board.RowOf(charge.Target)!.Value - game.Board.RowOf(from)!.Value,
@@ -228,25 +241,19 @@ namespace MistForest.Core.GameRefactored.Roles
             return path.ToArray();
         }
 
-        internal void ClearChargePath()
+        internal bool TryResolveChargeContinuePath(HeavyChargeContinue charge, Game game, out Node[] path)
         {
-            _lastChargePath = null;
-            _lastChargeTarget = null;
-            _lastChargeFrom = null;
+            if (!IsCharging || IsSilenced)
+            {
+                path = Array.Empty<Node>();
+                return false;
+            }
+            path = ChargePath(charge.Target, game);
+            return path.Length > 0;
         }
 
         internal bool CanChargeContinue(HeavyChargeContinue charge, Game game)
-        {
-            ClearChargePath();
-            if (Array.IndexOf(ChargeContinueNodes(game), charge.Target) < 0)
-            {
-                return false;
-            }
-            _lastChargePath = ChargePath(charge.Target, game);
-            _lastChargeTarget = charge.Target;
-            _lastChargeFrom = Position;
-            return true;
-        }
+            => TryResolveChargeContinuePath(charge, game, out _);
 
         internal Node[] ChargeContinueNodes(Game game)
         {
@@ -274,15 +281,11 @@ namespace MistForest.Core.GameRefactored.Roles
             return nodes.ToArray();
         }
 
-        internal void ChargeContinue(HeavyChargeContinue charge, Game game)
+        internal void ChargeContinue(Node[] path, Game game)
         {
-            Node[]? path = _lastChargePath;
-            bool validated = IsCharging && _lastChargeTarget == charge.Target
-                && _lastChargeFrom == Position && path is not null;
-            ClearChargePath();
-            if (!validated || path is null)
+            if (!IsCharging || path.Length == 0)
             {
-                throw new InvalidOperationException("Charge continuation must be validated before execution.");
+                throw new InvalidOperationException("Charge continuation requires a valid resolved path.");
             }
             int playerId = game.PlayerIdFromUnitId(Id);
             ++ChargeUsed;
@@ -327,7 +330,6 @@ namespace MistForest.Core.GameRefactored.Roles
 
         private void FinishCharge(Node[] hits, Game game)
         {
-            ClearChargePath();
             _chargeDirection = null;
             ++AttackUsed;
             End = true;
@@ -336,7 +338,6 @@ namespace MistForest.Core.GameRefactored.Roles
 
         internal void StopCharge(Game game)
         {
-            ClearChargePath();
             if (IsCharging)
             {
                 FinishCharge(Array.Empty<Node>(), game);
@@ -358,7 +359,6 @@ namespace MistForest.Core.GameRefactored.Roles
 
         public override void EndRound(Game game)
         {
-            ClearChargePath();
             _chargeDirection = null;
             ChargeUsed = 0;
             base.EndRound(game);

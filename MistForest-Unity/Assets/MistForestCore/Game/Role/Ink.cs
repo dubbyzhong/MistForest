@@ -89,6 +89,21 @@ namespace MistForest.Core.GameRefactored.Roles
             };
         }
 
+        public override bool TryExecuteAction(Action action, Game game)
+        {
+            if (action is InkDash dash)
+            {
+                if (!Unit.Alive || Unit.End || !Unit.TryResolveDashPath(dash, game, out Node[] path))
+                {
+                    return false;
+                }
+                Unit.StartExecuteAction();
+                Unit.InkDash(path, game);
+                return true;
+            }
+            return base.TryExecuteAction(action, game);
+        }
+
         public override void ExecuteAction(Action action, Game game)
         {
             Unit.StartExecuteAction();
@@ -97,8 +112,12 @@ namespace MistForest.Core.GameRefactored.Roles
                 case InkAttack attack:
                     Unit.InkAttack(attack, game);
                     break;
-                case InkDash _:
-                    Unit.InkDash(game);
+                case InkDash dash:
+                    if (!Unit.TryResolveDashPath(dash, game, out Node[] path))
+                    {
+                        throw new InvalidOperationException("Dash path is not valid.");
+                    }
+                    Unit.InkDash(path, game);
                     break;
                 default:
                     ExecuteGeneralAction(action, game);
@@ -123,7 +142,6 @@ namespace MistForest.Core.GameRefactored.Roles
         public int BuildingAttackDamage => InkConsts.InkBuildingAttackDamage;
         public int DashCooldown => _dashCooldown.Remaining;
         private Cooldown _dashCooldown;
-        private Node[]? _lastDashPath;
 
         private InkUnit() { }
 
@@ -235,33 +253,39 @@ namespace MistForest.Core.GameRefactored.Roles
 
         private bool CanDashGeneral() => Alive && !End && !IsSilenced && _dashCooldown.IsReady;
 
-        internal bool CanDash(InkDash dash, Game game)
+        internal bool TryResolveDashPath(InkDash dash, Game game, out Node[] path)
         {
-            _lastDashPath = null;
             if (!CanDashGeneral())
             {
+                path = Array.Empty<Node>();
                 return false;
             }
             foreach (var entry in DashNodes(game))
             {
                 if (entry.node == dash.Target)
                 {
-                    _lastDashPath = new[] { Position, entry.lastNode!.Value, entry.node };
+                    path = new[] { Position, entry.lastNode!.Value, entry.node };
                     return true;
                 }
             }
+            path = Array.Empty<Node>();
             return false;
         }
 
-        internal void InkDash(Game game)
+        internal bool CanDash(InkDash dash, Game game)
+            => TryResolveDashPath(dash, game, out _);
+
+        internal void InkDash(Node[] path, Game game)
         {
-            Node[] path = _lastDashPath!;
+            if (path.Length == 0)
+            {
+                throw new InvalidOperationException("Dash requires a valid resolved path.");
+            }
             _dashCooldown = _dashCooldown.Use(InkConsts.InkDashCooldownRounds);
             for (int step = 1; step < path.Length; ++step)
             {
                 ChangePos(path[step], game);
             }
-            _lastDashPath = null;
             game.Events.Add(GeneralMoveEvent.New(Id, path));
         }
 
@@ -269,12 +293,6 @@ namespace MistForest.Core.GameRefactored.Roles
         {
             base.PrepareTurn(game);
             _dashCooldown = _dashCooldown.Tick();
-        }
-
-        public override void EndRound(Game game)
-        {
-            base.EndRound(game);
-            _lastDashPath = null;
         }
 
         public override bool HasActionLeft(Game game)
