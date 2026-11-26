@@ -603,6 +603,7 @@ namespace MistForest.Core.GameRefactored
         protected (int[] unitIds, int? buildingId) ResolveSingleGridAttack(
             Node target, int strength, DamageType damageType, Game game)
         {
+            game.DamageRoseAt(Id, target, strength);
             Grid grid = game.Board.GetGrid(target)!;
             int playerId = game.PlayerIdFromUnitId(Id);
             // A standing building shields its occupants even when this attack destroys it.

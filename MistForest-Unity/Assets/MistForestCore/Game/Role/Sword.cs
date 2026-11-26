@@ -165,34 +165,9 @@ namespace MistForest.Core.GameRefactored.Roles
             ++AttackUsed;
             SwordQi -= SwordConsts.SwordStabQiCost;
             Node target = stab.Target;
-            var (unitIds, buildingId) = DamageTarget(target, SwordConsts.SwordStabDamage, game);
+            var (unitIds, buildingId) = ResolveSingleGridAttack(target, SwordConsts.SwordStabDamage, DamageType.Melee, game);
             game.Events.Add(SwordStabEvent.New(Id, unitIds, buildingId, target));
             _advanceTarget = target;
-        }
-
-        private (int[] unitIds, int? buildingId) DamageTarget(Node target, int damage, Game game)
-        {
-            game.DamageRoseAt(Id, target, damage);
-            int playerId = game.PlayerIdFromUnitId(Id);
-            Grid grid = game.Board.GetGrid(target)!;
-            if (grid.HasBlockingBuilding(game))
-            {
-                int buildingId = grid.GridBuilding!.Value;
-                game.Buildings[buildingId].ReceiveDirectDamage(damage, game, playerId);
-                return (Array.Empty<int>(), buildingId);
-            }
-
-            List<int> unitIds = new();
-            foreach (int unitId in grid.Units.ToArray())
-            {
-                Unit unit = game.GetUnit(unitId)!;
-                if (unit.Alive && !game.IsPlayerAllied(playerId, game.PlayerIdFromUnitId(unitId)))
-                {
-                    unit.ReceiveDirectDamage(damage, game, DamageType.Melee);
-                    unitIds.Add(unitId);
-                }
-            }
-            return (unitIds.ToArray(), null);
         }
 
         internal bool CanAdvance(Node target, Game game)
@@ -266,7 +241,7 @@ namespace MistForest.Core.GameRefactored.Roles
             int qiCost = target == Position ? SwordConsts.SwordLeaveQiCost : game.Board.Distance(Position, target)!.Value;
             _placedSwords.Add(target);
             SwordQi = Math.Min(SwordQiCap, SwordQi - qiCost);
-            var (unitIds, buildingId) = DamageTarget(target, SwordConsts.SwordThrowDamage, game);
+            var (unitIds, buildingId) = ResolveSingleGridAttack(target, SwordConsts.SwordThrowDamage, DamageType.Melee, game);
             game.Events.Add(SwordThrowEvent.New(Id, unitIds, buildingId, target));
             End = true;
         }
