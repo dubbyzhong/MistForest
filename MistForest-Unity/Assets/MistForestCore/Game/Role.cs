@@ -112,6 +112,16 @@ namespace MistForest.Core.GameRefactored
         public abstract ReadOnlySpan<Unit> GetUnits();
         public abstract void ExecuteAction(Action action, Game game);
         public abstract bool JudgeAction(Action action, Game game);
+
+        public virtual bool TryExecuteAction(Action action, Game game)
+        {
+            if (!JudgeAction(action, game))
+            {
+                return false;
+            }
+            ExecuteAction(action, game);
+            return true;
+        }
     }
 
     public abstract class Unit : IClone<Unit>

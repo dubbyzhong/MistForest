@@ -138,13 +138,32 @@ namespace MistForest.Core.GameRefactored.Roles
             };
         }
 
+        public override bool TryExecuteAction(Action action, Game game)
+        {
+            if (action is ArmigerThrust thrust)
+            {
+                if (!Unit.Alive || Unit.End || !Unit.TryResolveThrustPath(thrust, game, out Node[] path))
+                {
+                    return false;
+                }
+                Unit.StartExecuteAction();
+                Unit.Thrust(thrust, path, game);
+                return true;
+            }
+            return base.TryExecuteAction(action, game);
+        }
+
         public override void ExecuteAction(Action action, Game game)
         {
             Unit.StartExecuteAction();
             switch (action)
             {
                 case ArmigerThrust thrust:
-                    Unit.Thrust(thrust, game);
+                    if (!Unit.TryResolveThrustPath(thrust, game, out Node[] path))
+                    {
+                        throw new InvalidOperationException("Thrust path is not valid.");
+                    }
+                    Unit.Thrust(thrust, path, game);
                     break;
                 case ArmigerArmorUp _:
                     Unit.ArmorUp(game);
@@ -175,7 +194,6 @@ namespace MistForest.Core.GameRefactored.Roles
         public int ThrustDamage => ArmigerConsts.ArmigerThrustDamage;
         public int ArmorLockRounds => _armorLock.Remaining;
         private Cooldown _armorLock;
-        private Node[]? _lastThrustPath;
 
         private ArmigerUnit() { }
 
@@ -255,27 +273,28 @@ namespace MistForest.Core.GameRefactored.Roles
             return path.ToArray();
         }
 
-        internal bool CanThrust(ArmigerThrust action, Game game)
+        internal bool TryResolveThrustPath(ArmigerThrust action, Game game, out Node[] path)
         {
-            _lastThrustPath = null;
             if (!CanThrustGeneral())
             {
+                path = Array.Empty<Node>();
                 return false;
             }
-            Node[] path = ThrustPath(action.Target, game);
-            if (path.Length == 0)
-            {
-                return false;
-            }
-            _lastThrustPath = path;
-            return true;
+            path = ThrustPath(action.Target, game);
+            return path.Length > 0;
         }
 
-        internal void Thrust(ArmigerThrust action, Game game)
+        internal bool CanThrust(ArmigerThrust action, Game game)
+            => TryResolveThrustPath(action, game, out _);
+
+        internal void Thrust(ArmigerThrust action, Node[] path, Game game)
         {
+            if (path.Length == 0)
+            {
+                throw new InvalidOperationException("Thrust requires a valid resolved path.");
+            }
             ++AttackUsed;
             End = true;
-            Node[] path = _lastThrustPath!;
             int playerId = game.PlayerIdFromUnitId(Id);
             List<int> attackedUnits = new();
             int? attackedBuildingId = null;
@@ -302,7 +321,6 @@ namespace MistForest.Core.GameRefactored.Roles
                     }
                 }
             }
-            _lastThrustPath = null;
             game.Events.Add(ArmigerThrustEvent.New(Id, attackedUnits.ToArray(), attackedBuildingId,
                 action.Target, path));
         }
@@ -370,12 +388,6 @@ namespace MistForest.Core.GameRefactored.Roles
         {
             base.PrepareTurn(game);
             _armorLock = _armorLock.Tick();
-        }
-
-        public override void EndRound(Game game)
-        {
-            base.EndRound(game);
-            _lastThrustPath = null;
         }
 
         public override bool HasActionLeft(Game game)
