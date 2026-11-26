@@ -42,6 +42,11 @@ namespace MistForest.Core.GameMap
             }
             int damage = strength - HighestDirectDamage;
             HighestDirectDamage = strength;
+            ApplyDamage(damage, game, destroyer);
+        }
+
+        internal void ApplyDamage(int damage, Game game, int destroyer)
+        {
             Health = System.Math.Max(0, Health - damage);
             if (Health == 0)
             {
