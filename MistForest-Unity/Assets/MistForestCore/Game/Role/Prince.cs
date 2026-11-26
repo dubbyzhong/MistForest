@@ -132,7 +132,7 @@ namespace MistForest.Core.GameRefactored.Roles
         {
             MoveUsed += MoveDistance;
             _roses.Add(new PrinceRose(Id, target));
-            var (unitIds, buildingId) = DamageTarget(target, PrinceConsts.PlantDamage, game);
+            var (unitIds, buildingId) = ResolveSingleGridAttack(target, PrinceConsts.PlantDamage, DamageType.Melee, game);
             game.Events.Add(PrincePlantRoseEvent.New(Id, unitIds, buildingId, target));
         }
 
@@ -199,34 +199,9 @@ namespace MistForest.Core.GameRefactored.Roles
             {
                 ChangePos(bloom.Landing, game, blink: true);
             }
-            var (unitIds, buildingId) = DamageTarget(bloom.Target, PrinceConsts.BloomDamage, game);
+            var (unitIds, buildingId) = ResolveSingleGridAttack(bloom.Target, PrinceConsts.BloomDamage, DamageType.Melee, game);
             game.Events.Add(PrinceBloomEvent.New(Id, unitIds, buildingId, bloom.Target, rose.Position, rose.Health));
             game.Events.Add(PrinceBlinkEvent.New(game.PlayerIdFromUnitId(Id), Id, from, bloom.Landing));
-        }
-
-        private (int[] unitIds, int? buildingId) DamageTarget(Node target, int damage, Game game)
-        {
-            game.DamageRoseAt(Id, target, damage);
-            int playerId = game.PlayerIdFromUnitId(Id);
-            Grid grid = game.Board.GetGrid(target)!;
-            if (grid.HasBlockingBuilding(game))
-            {
-                int buildingId = grid.GridBuilding!.Value;
-                game.Buildings[buildingId].ReceiveDirectDamage(damage, game, playerId);
-                return (Array.Empty<int>(), buildingId);
-            }
-
-            List<int> unitIds = new();
-            foreach (int unitId in grid.Units.ToArray())
-            {
-                Unit unit = game.GetUnit(unitId)!;
-                if (unit.Alive && !game.IsPlayerAllied(playerId, game.PlayerIdFromUnitId(unitId)))
-                {
-                    unit.ReceiveDirectDamage(damage, game, DamageType.Melee);
-                    unitIds.Add(unitId);
-                }
-            }
-            return (unitIds.ToArray(), null);
         }
 
         internal void RemoveRose(PrinceRose rose) => _roses.Remove(rose);
